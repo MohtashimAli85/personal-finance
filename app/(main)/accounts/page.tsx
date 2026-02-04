@@ -1,3 +1,4 @@
+import { getAccounts } from "@/app/actions/account";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getAccounts, getAllAccounts } from "../../actions/account";
+import EditAccount from "./components/edit-account";
 
 function formatCurrency(value: number, currency = "PKR") {
   try {
@@ -66,6 +67,7 @@ export default async function Page() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
+                      <EditAccount name={account.name} id={account.id} />
                       <Button variant="ghost" size="sm">
                         View
                       </Button>

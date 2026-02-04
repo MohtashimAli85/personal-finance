@@ -10,12 +10,6 @@ export interface Transaction {
   category_id: string | null;
 }
 
-export interface Account {
-  id: string;
-  name: string;
-  balance: number;
-}
-
 export interface Category {
   id: string;
   name: string;
@@ -33,8 +27,3 @@ export interface ErrorResponse {
 }
 
 // Summary types
-export interface AccountSummary extends Account {
-  transactionCount: number;
-  totalIncome: number;
-  totalExpense: number;
-}

@@ -1,25 +1,31 @@
 "use server";
 import db from "@/app/actions/database";
-import { Account, AccountSummary } from "@/app/actions/types";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-
+export interface Account {
+  id: string;
+  name: string;
+  balance: number;
+}
+export interface AccountSummary extends Account {
+  transactionCount: number;
+  totalIncome: number;
+  totalExpense: number;
+}
 export async function createAccount(formData: FormData) {
   const name = formData.get("name") as string;
   const initialBalance = parseFloat(formData.get("initialBalance") as string);
   const stmt = db.prepare("INSERT INTO accounts (name, balance) VALUES (?, ?)");
-  const result = db.transaction(() => stmt.run(name, initialBalance))();
+  db.transaction(() => stmt.run(name, initialBalance))();
   redirect("/");
   // return result.lastInsertRowid as number;
 }
-export async function updateAccount(
-  id: string,
-  name: string,
-  balance: number,
-): Promise<void> {
-  const stmt = db.prepare(
-    "UPDATE accounts SET name = ?, balance = ? WHERE id = ?",
-  );
-  db.transaction(() => stmt.run(name, balance, id))();
+export async function updateAccount(formData: FormData) {
+  const id = formData.get("id") as string;
+  const name = formData.get("name") as string;
+  const stmt = db.prepare("UPDATE accounts SET name = ? WHERE id = ?");
+  db.transaction(() => stmt.run(name, id))();
+  revalidatePath("/accounts");
 }
 
 export async function deleteAccount(id: string): Promise<void> {
