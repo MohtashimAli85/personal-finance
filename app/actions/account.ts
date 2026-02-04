@@ -12,6 +12,7 @@ export interface AccountSummary extends Account {
   totalIncome: number;
   totalExpense: number;
 }
+const revalidateAccounts = () => revalidatePath("/accounts");
 export async function createAccount(formData: FormData) {
   const name = formData.get("name") as string;
   const initialBalance = parseFloat(formData.get("initialBalance") as string);
@@ -25,12 +26,14 @@ export async function updateAccount(formData: FormData) {
   const name = formData.get("name") as string;
   const stmt = db.prepare("UPDATE accounts SET name = ? WHERE id = ?");
   db.transaction(() => stmt.run(name, id))();
-  revalidatePath("/accounts");
+  revalidateAccounts();
 }
 
-export async function deleteAccount(id: string): Promise<void> {
+export async function deleteAccount(formData: FormData) {
+  const id = formData.get("id") as string;
   const stmt = db.prepare("DELETE FROM accounts WHERE id = ?");
   db.transaction(() => stmt.run(id))();
+  revalidateAccounts();
 }
 
 export async function accountExists(): Promise<boolean> {

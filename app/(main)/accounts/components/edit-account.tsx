@@ -5,6 +5,7 @@ import {
   DialogClose,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -41,9 +42,11 @@ const EditAccount = ({ name, id }: Omit<Account, "balance">) => {
                 placeholder="Enter account name"
               />
             </div>
-            <Button type="submit">
-              <DialogClose>Save Changes</DialogClose>
-            </Button>
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="submit">Save Changes</Button>
+              </DialogClose>
+            </DialogFooter>
           </div>
         </Form>
       </DialogContent>

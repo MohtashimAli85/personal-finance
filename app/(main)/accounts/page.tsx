@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import EditAccount from "./components/edit-account";
+import DeleteAccount from "./components/delete-account";
 
 function formatCurrency(value: number, currency = "PKR") {
   try {
@@ -68,12 +69,7 @@ export default async function Page() {
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
                       <EditAccount name={account.name} id={account.id} />
-                      <Button variant="ghost" size="sm">
-                        View
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        Transactions
-                      </Button>
+                      <DeleteAccount name={account.name} id={account.id} />
                     </div>
                   </TableCell>
                 </TableRow>
