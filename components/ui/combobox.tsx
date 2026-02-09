@@ -12,9 +12,12 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { ChevronDownIcon, XIcon, CheckIcon } from "lucide-react";
-
+export interface ComboboxProps {
+  value: string;
+  label?: string;
+  onChange: (value: string) => void;
+}
 const Combobox = ComboboxPrimitive.Root;
-
 function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
   return <ComboboxPrimitive.Value data-slot="combobox-value" {...props} />;
 }
