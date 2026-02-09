@@ -4,3 +4,6 @@ db.sqlite-shm
 db.sqlite-wal
 
 .next
+.env
+.github
+.agents
