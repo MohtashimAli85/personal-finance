@@ -1,10 +1,8 @@
 import * as React from "react";
-import { Input } from "../ui/input";
-interface InputNumberProps extends Omit<
-  React.ComponentProps<"input">,
-  "onChange"
-> {
-  onChange: (value: number | undefined) => void;
+import { Input, InputProps } from "../ui/input";
+import { cn } from "@/lib/tailwindcss/utils";
+interface InputNumberProps extends Omit<InputProps, "onChange"> {
+  onChange?: (value: string) => void;
 }
 export const InputNumber: React.FC<InputNumberProps> = (props) => {
   const validateNumberFormat = (value: string): boolean => {
@@ -18,10 +16,13 @@ export const InputNumber: React.FC<InputNumberProps> = (props) => {
   return (
     <Input
       {...props}
-      value={props.value == null ? "" : String(props.value)}
+      className={cn("text-right", props.className)}
       type="text"
       inputMode={props.inputMode ?? "decimal"}
       pattern={props.pattern ?? "[0-9]*[.]?[0-9]*"}
+      onFocus={(e) => {
+        e.target.select();
+      }}
       onChange={(e) => {
         const rawValue = e.target.value;
         // Reject spaces explicitly
@@ -29,7 +30,7 @@ export const InputNumber: React.FC<InputNumberProps> = (props) => {
         // Reject anything that doesn't match the decimal format (allows intermediate states)
         if (!validateNumberFormat(rawValue)) return;
         // If valid, propagate the change
-        props.onChange?.(rawValue === "" ? undefined : Number(rawValue));
+        props.onChange?.(rawValue);
       }}
     />
   );

@@ -10,8 +10,10 @@ import {
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
+  inputGroupVariants,
 } from "@/components/ui/input-group";
 import { ChevronDownIcon, XIcon, CheckIcon } from "lucide-react";
+import { VariantProps } from "class-variance-authority";
 export interface ComboboxProps {
   value: string;
   label?: string;
@@ -58,13 +60,15 @@ function ComboboxInput({
   disabled = false,
   showTrigger = true,
   showClear = false,
+  variant = "default",
   ...props
 }: ComboboxPrimitive.Input.Props & {
   showTrigger?: boolean;
   showClear?: boolean;
+  variant?: VariantProps<typeof inputGroupVariants>["variant"];
 }) {
   return (
-    <InputGroup className={cn("w-auto", className)}>
+    <InputGroup className={cn("w-auto", className)} variant={variant}>
       <ComboboxPrimitive.Input
         render={<InputGroupInput disabled={disabled} />}
         {...props}
