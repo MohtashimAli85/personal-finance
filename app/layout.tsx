@@ -40,7 +40,7 @@ export default function RootLayout({
         <CacheProvider>
           <SidebarProvider>
             <AppSidebar />
-            <main className="min-h-screen w-full flex flex-col p-4 gap-2">
+            <main className="min-h-screen bg-background w-full flex flex-col p-4 gap-2">
               <SidebarTrigger />
               {children}
             </main>
