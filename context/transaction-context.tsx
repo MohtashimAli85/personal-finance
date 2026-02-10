@@ -36,7 +36,9 @@ const TransactionProvider = ({ children }: { children: React.ReactNode }) => {
     setTransaction((prev) => (prev ? { ...prev, ...updatedFields } : prev));
   };
   const addTransaction = async () => {
-    if (!transaction?.account_id) return;
+    if (!transaction?.account_id) {
+      return;
+    }
     await createTransaction(transaction);
     setTransaction(undefined);
   };
