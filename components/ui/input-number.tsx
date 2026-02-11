@@ -1,6 +1,7 @@
-import * as React from "react";
-import { Input, InputProps } from "../ui/input";
+import type * as React from "react";
 import { cn } from "@/lib/tailwindcss/utils";
+import { Input, type InputProps } from "../ui/input";
+
 interface InputNumberProps extends Omit<InputProps, "onChange"> {
 	onChange?: (value: string) => void;
 }
