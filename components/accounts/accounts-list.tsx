@@ -1,35 +1,26 @@
-import { getAllAccountBalance, getAllAccounts } from "@/app/actions/account";
 import { formatCurrency } from "@/lib/helper";
+import { fetchAccounts } from "@/services/accounts.service";
 import NavItem from "../sidebar/nav-item";
 import { SidebarMenuBadge, SidebarMenuItem } from "../ui/sidebar";
+import { AccountItem } from "./account-item";
 
 const AccountList = async () => {
-  const accounts = await getAllAccounts();
-  return (
-    <>
-      <AllAccounts />
-      {accounts.map((account) => (
-        <SidebarMenuItem key={account.id}>
-          <NavItem href={`/transactions?account=${account.id}`}>
-            {account.name}
-            <SidebarMenuBadge>
-              {formatCurrency(account.balance)}
-            </SidebarMenuBadge>
-          </NavItem>
-        </SidebarMenuItem>
-      ))}
-    </>
-  );
-};
-
-const AllAccounts = async () => {
-  const totalBalance = await getAllAccountBalance();
-  return (
-    <SidebarMenuItem>
-      <NavItem href="/transactions">All Accounts</NavItem>
-      <SidebarMenuBadge>{formatCurrency(totalBalance)}</SidebarMenuBadge>
-    </SidebarMenuItem>
-  );
+	const accounts = await fetchAccounts();
+	const totalBalance = accounts.reduce(
+		(sum, account) => sum + account.balance,
+		0,
+	);
+	return (
+		<>
+			<SidebarMenuItem>
+				<NavItem href="/transactions">All Accounts</NavItem>
+				<SidebarMenuBadge>{formatCurrency(totalBalance)}</SidebarMenuBadge>
+			</SidebarMenuItem>
+			{accounts.map((account) => (
+				<AccountItem key={account.id} account={account} />
+			))}
+		</>
+	);
 };
 
 export default AccountList;
