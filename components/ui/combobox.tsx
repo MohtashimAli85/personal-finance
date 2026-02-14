@@ -14,9 +14,11 @@ import {
 } from "@/components/ui/input-group";
 import { cn } from "@/lib/tailwindcss/utils";
 export interface ComboboxProps {
-	value: string;
+	value?: string;
 	label?: string;
-	onChange: (value: string) => void;
+	onChange?: (value: string) => void;
+	variant?: VariantProps<typeof inputGroupVariants>["variant"];
+	modal?: boolean;
 }
 const Combobox = ComboboxPrimitive.Root;
 function ComboboxValue({ ...props }: ComboboxPrimitive.Value.Props) {
