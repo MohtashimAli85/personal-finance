@@ -1,5 +1,5 @@
 import { formatCurrency } from "@/lib/helper";
-import { fetchAccounts } from "@/services/accounts.service";
+import { fetchAccounts } from "@/lib/services";
 import NavItem from "../sidebar/nav-item";
 import { SidebarMenuBadge, SidebarMenuItem } from "../ui/sidebar";
 import { AccountItem } from "./account-item";

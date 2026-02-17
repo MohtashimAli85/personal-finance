@@ -34,7 +34,7 @@ export const AccountItem = ({ account }: { account: Account }) => {
 		<Dialog>
 			<AccountContextMenu ref={ref}>
 				<SidebarMenuItem>
-					<NavItem href={`/transactions?account=${account.id}`}>
+					<NavItem href={`/transactions?accountId=${account.id}`}>
 						<div className="grow max-w-30" ref={ref}>
 							<input
 								hidden

@@ -36,10 +36,8 @@ const AddAccount = () => {
 		errors: state?.errors,
 	});
 	const onSubmit = (values: AccountValues) => {
-		console.log({ values, state });
 		if (state.shouldValidate) {
 			const isNameUnchanged = values.name === state.payload?.name;
-			console.log({ isNameUnchanged });
 			if (isNameUnchanged) {
 				form.setError("name", {
 					message: state.errors?.name?.message,
@@ -53,7 +51,6 @@ const AddAccount = () => {
 			},
 		});
 	};
-	console.log({ form });
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
