@@ -3,7 +3,9 @@ import {
   AddTransactionButton,
   AddTransactionRow,
 } from "@/components/transactions/add-transaction";
+import TransactionCheckbox from "@/components/transactions/transaction-checkbox";
 import TransactionRow from "@/components/transactions/transaction-row";
+import TransactionToolbar from "@/components/transactions/transaction-toolbar";
 import {
   Card,
   CardAction,
@@ -15,18 +17,19 @@ import {
 import {
   Table,
   TableBody,
-  TableCell,
   TableHead,
   TableHeader,
-  TableRow,
 } from "@/components/ui/table";
-import TransactionProvider from "@/context/transaction-context";
-import { Fragment } from "react/jsx-runtime";
+import { TransactionSelectionProvider } from "@/context/transaction-selection-context";
 
-export default async function Page() {
-  const transactions = await getAllTransactions(200, 0);
+interface PageProps {
+  searchParams: Promise<Record<string, string | undefined>>;
+}
+export default async function Page(props: PageProps) {
+  const searchParams = await props.searchParams;
+  const transactions = await getAllTransactions(200, 0, searchParams);
   return (
-    <TransactionProvider>
+    <TransactionSelectionProvider transactions={transactions}>
       <Card className="grow">
         <CardHeader>
           <CardTitle>Transactions</CardTitle>
@@ -35,34 +38,38 @@ export default async function Page() {
             <AddTransactionButton />
           </CardAction>
         </CardHeader>
-        <CardContent>
-          <Table>
+        <CardContent className="grow space-y-4 p-0">
+          <TransactionToolbar />
+          <Table className="border-t ">
             <TableHeader>
-              <TableRow>
+              <tr>
+                <TableHead className="w-4 pt-1">
+                  <TransactionCheckbox shouldSelectAll />
+                </TableHead>
                 <TableHead>Date</TableHead>
                 <TableHead>Account</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead className="text-right">Payment</TableHead>
                 <TableHead className="text-right">Deposit</TableHead>
-              </TableRow>
+              </tr>
             </TableHeader>
             <TableBody>
               <AddTransactionRow />
-              {transactions.length === 0 && (
-                <TableRow>
-                  <TableCell className="text-muted-foreground" colSpan={7}>
-                    No transactions found.
-                  </TableCell>
-                </TableRow>
-              )}
+
               {transactions.map((tx) => (
                 <TransactionRow key={tx.id} tx={tx} />
               ))}
             </TableBody>
           </Table>
+          {!transactions.length && (
+            <div className="text-center py-10 text-muted-foreground">
+              No transactions found. Click &quot;Add Transaction&quot; to create
+              one.
+            </div>
+          )}
         </CardContent>
       </Card>
-    </TransactionProvider>
+    </TransactionSelectionProvider>
   );
 }
