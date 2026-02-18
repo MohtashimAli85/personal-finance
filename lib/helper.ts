@@ -15,8 +15,9 @@ export const safeParseFloat = (value: string | null): number => {
   return Number.isNaN(parsed) ? 0 : parsed;
 };
 const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
-export const fetchData = async <T>(url: string): Promise<T> => {
-  const fullUrl = `${baseUrl}/api/${url}`;
+export const fetchData = async <T>(url: string, params?: Record<string, string | number | undefined>): Promise<T> => {
+  const queryParams = params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : "";
+  const fullUrl = `${baseUrl}/api/${url}${queryParams}`;
   const response = await fetch(fullUrl, {
     next: { revalidate: 3600, tags: [url] },
   });
