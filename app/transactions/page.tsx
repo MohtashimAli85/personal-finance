@@ -1,4 +1,3 @@
-import { getAllTransactions } from "@/app/actions/transaction/queries";
 import {
   AddTransactionButton,
   AddTransactionRow,
@@ -21,13 +20,14 @@ import {
   TableHeader,
 } from "@/components/ui/table";
 import { TransactionSelectionProvider } from "@/context/transaction-selection-context";
+import { fetchTransactions } from "@/lib/services";
 
 interface PageProps {
   searchParams: Promise<Record<string, string | undefined>>;
 }
 export default async function Page(props: PageProps) {
   const searchParams = await props.searchParams;
-  const transactions = await getAllTransactions(200, 0, searchParams);
+  const transactions = await fetchTransactions(searchParams);
   return (
     <TransactionSelectionProvider transactions={transactions}>
       <Card className="grow">
