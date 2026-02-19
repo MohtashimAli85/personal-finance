@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { ComboboxProps } from "@/components/ui/combobox";
 import {
   Combobox,
@@ -18,6 +18,7 @@ const AccountCombobox = ({
   onChange,
   variant = "default",
   modal = false,
+  openOnFocus = false,
 }: ComboboxProps) => {
   const accounts = useStore((state) => state.accounts);
   const comboBtn = useRef<HTMLButtonElement>(null);
@@ -26,6 +27,7 @@ const AccountCombobox = ({
     value: account.id,
     label: account.name,
   }));
+
   return (
     <Combobox
       modal={modal}
@@ -56,7 +58,9 @@ const AccountCombobox = ({
           console.log("click");
         }}
         onFocus={() => {
-          comboBtn.current?.click();
+          if (openOnFocus) {
+            comboBtn.current?.click();
+          }
         }}
       />
       <ComboboxContent>
