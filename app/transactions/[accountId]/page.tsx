@@ -1,4 +1,3 @@
-import type { Metadata } from "next";
 import {
   AddTransactionButton,
   AddTransactionRow,
@@ -22,23 +21,29 @@ import {
 } from "@/components/ui/table";
 import TransactionProvider from "@/context/transaction-context";
 import { TransactionSelectionProvider } from "@/context/transaction-selection-context";
-import { fetchTransactions } from "@/lib/services";
+import { formatCurrency } from "@/lib/helper";
+import { fetchAccountById, fetchTransactionsByAccount } from "@/lib/services";
 
-export const metadata: Metadata = {
-  title: "Transactions - Personal Finance",
-  description: "View and manage all transactions",
-};
-
-export default async function Page(props: SearchPageProps) {
+export default async function Page(props: PageIdProps) {
+  const params = await props.params;
   const searchParams = await props.searchParams;
-  const transactions = await fetchTransactions(searchParams);
+  const account = await fetchAccountById(params.accountId);
+  if (!account) {
+    // todo: implement not found page
+    return null;
+  }
+  const transactions = await fetchTransactionsByAccount(
+    params.accountId,
+    searchParams,
+  );
+  console.log({ account });
   return (
     <TransactionProvider>
       <TransactionSelectionProvider transactions={transactions}>
         <Card className="grow">
           <CardHeader>
-            <CardTitle>All Accounts</CardTitle>
-            <CardDescription>All transactions</CardDescription>
+            <CardTitle>{account.name}</CardTitle>
+            <CardDescription>{formatCurrency(account.balance)}</CardDescription>
             <CardAction>
               <AddTransactionButton />
             </CardAction>
@@ -52,7 +57,6 @@ export default async function Page(props: SearchPageProps) {
                     <TransactionCheckbox shouldSelectAll />
                   </TableHead>
                   <TableHead>Date</TableHead>
-                  <TableHead>Account</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead>Category</TableHead>
                   <TableHead className="text-right">Payment</TableHead>
@@ -63,7 +67,7 @@ export default async function Page(props: SearchPageProps) {
                 <AddTransactionRow />
 
                 {transactions.map((tx) => (
-                  <TransactionRow key={tx.id} tx={tx} showAccountCell />
+                  <TransactionRow key={tx.id} tx={tx} />
                 ))}
               </TableBody>
             </Table>

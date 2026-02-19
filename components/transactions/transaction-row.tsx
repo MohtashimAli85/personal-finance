@@ -1,6 +1,5 @@
 "use client";
 import { updateTransactionColumn } from "@/app/actions/transaction/mutations";
-// import type { TransactionRow as TransactionRowType } from "@/app/actions/transaction/queries";
 import AccountSelector from "@/components/accounts/account-combobox";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useTransactionSelection } from "@/context/transaction-selection-context";
@@ -10,7 +9,13 @@ import { InputNumber } from "../ui/input-number";
 import TransactionCheckbox from "./transaction-checkbox";
 import { TransactionDatePicker } from "./transaction-date-picker";
 
-const TransactionRow = ({ tx }: { tx: TransactionRow }) => {
+const TransactionRow = ({
+  tx,
+  showAccountCell,
+}: {
+  tx: TransactionRow;
+  showAccountCell?: boolean;
+}) => {
   const { isSelected } = useTransactionSelection();
   return (
     <TableRow
@@ -26,16 +31,18 @@ const TransactionRow = ({ tx }: { tx: TransactionRow }) => {
           onSelect={(date) => updateTransactionColumn(tx.id, "date", date)}
         />
       </TableCell>
-      <TableCell>
-        <AccountSelector
-          variant={"table"}
-          value={tx.account_id}
-          label={tx.account_name}
-          onChange={(value) =>
-            updateTransactionColumn(tx.id, "account_id", value)
-          }
-        />
-      </TableCell>
+      {showAccountCell && (
+        <TableCell>
+          <AccountSelector
+            variant={"table"}
+            value={tx.account_id}
+            label={tx.account_name}
+            onChange={(value) =>
+              updateTransactionColumn(tx.id, "account_id", value)
+            }
+          />
+        </TableCell>
+      )}
       <TableCell>
         <Input
           variant={"table"}
@@ -62,7 +69,7 @@ const TransactionRow = ({ tx }: { tx: TransactionRow }) => {
           defaultValue={tx.payment}
           placeholder="0"
           onBlur={(e) => {
-            if (e.target.value !== String(tx.payment))
+            if (e.target.value !== String(tx.payment || ""))
               updateTransactionColumn(tx.id, "payment", e.target.value);
           }}
         />
@@ -74,7 +81,7 @@ const TransactionRow = ({ tx }: { tx: TransactionRow }) => {
           defaultValue={tx.deposit}
           placeholder="0"
           onBlur={(e) => {
-            if (e.target.value !== String(tx.deposit))
+            if (e.target.value !== String(tx.deposit || ""))
               updateTransactionColumn(tx.id, "deposit", e.target.value);
           }}
         />
