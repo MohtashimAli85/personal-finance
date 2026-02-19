@@ -72,6 +72,9 @@ export async function updateTransactionColumn(
 			if (tx?.deposit) {
 				updateAccountBalance(accountId, 0, tx.deposit, true); // Reverse old deposit
 			}
+			if (tx?.payment) {
+				updateAccountBalance(accountId, tx.payment, 0, true); // Reverse old payment
+			}
 			updateAccountBalance(accountId, value as number); // Apply new payment
 			db.prepare(
 				`
@@ -83,6 +86,9 @@ export async function updateTransactionColumn(
 		} else if (column === "deposit") {
 			if (tx?.payment) {
 				updateAccountBalance(accountId, tx.payment, 0, true); // Reverse old payment
+			}
+			if (tx?.deposit) {
+				updateAccountBalance(accountId, 0, tx.deposit, true); // Reverse old deposit
 			}
 			updateAccountBalance(accountId, 0, value as number); // Apply new deposit
 			db.prepare(
