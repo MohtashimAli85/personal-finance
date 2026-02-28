@@ -1,6 +1,7 @@
 "use client";
 import { useRef } from "react";
 import { updateAccount } from "@/app/actions/accounts/mutations";
+import { useInlineEdit } from "@/hooks/use-inline-edit";
 import { formatCurrency } from "@/lib/helper";
 import NavItem from "../sidebar/nav-item";
 import { Dialog } from "../ui/dialog";
@@ -9,35 +10,20 @@ import AccountContextMenu from "./account-context-menu";
 import CloseAccount from "./close-account";
 
 export const AccountItem = ({ account }: { account: Account }) => {
-  const ref = useRef<HTMLDivElement | null>(null);
+  const { containerRef, startEditing, handleBlur, handleKeyDown } =
+    useInlineEdit((value) => {
+      updateAccount(account.id, value);
+    });
 
-  const handleBlur = () => {
-    const inputEl = ref.current?.children[0] as HTMLInputElement;
-    const labelEl = ref.current?.children[1] as HTMLSpanElement;
-
-    inputEl.setAttribute("hidden", "true");
-    inputEl.value = account.name;
-    labelEl.removeAttribute("hidden");
-  };
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter" || e.key === "NumpadEnter") {
-      const value = (e.target as HTMLInputElement).value.trim();
-      if (value) {
-        e.currentTarget.form?.requestSubmit();
-        updateAccount(account.id, value);
-        const labelEl = ref.current?.children[1] as HTMLSpanElement;
-        labelEl.textContent = value;
-      }
-      handleBlur();
-    }
-  };
   return (
     <Dialog>
-      <AccountContextMenu ref={ref}>
+      <AccountContextMenu onRename={startEditing}>
         <SidebarMenuItem>
           <NavItem href={`/transactions/${account.id}`}>
-            <div className="grow max-w-30" ref={ref}>
+            <div className="grow max-w-30" ref={containerRef}>
               <input
+                data-edit
+                key={account.name}
                 hidden
                 id={"name"}
                 defaultValue={account.name}
@@ -45,7 +31,7 @@ export const AccountItem = ({ account }: { account: Account }) => {
                 onBlur={handleBlur}
                 onKeyDown={handleKeyDown}
               />
-              <span>{account.name}</span>
+              <span data-view>{account.name}</span>
             </div>
             <SidebarMenuBadge>
               {formatCurrency(account.balance)}

@@ -9,27 +9,17 @@ import { DialogTrigger } from "../ui/dialog";
 
 interface AccountContextMenuProps {
   children: React.ReactNode;
-  ref: RefObject<HTMLDivElement | null>;
+  onRename: () => void;
 }
-const AccountContextMenu = ({ children, ref }: AccountContextMenuProps) => {
+const AccountContextMenu = ({
+  children,
+  onRename,
+}: AccountContextMenuProps) => {
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem
-          onClick={() => {
-            const inputEl = ref.current?.children[0] as HTMLInputElement;
-            inputEl?.removeAttribute("hidden");
-            const labelEl = ref.current?.children[1] as HTMLSpanElement;
-            labelEl?.setAttribute("hidden", "true");
-            setTimeout(() => {
-              // inputEl?.focus();
-              inputEl?.select();
-            }, 300);
-          }}
-        >
-          Rename
-        </ContextMenuItem>
+        <ContextMenuItem onClick={onRename}>Rename</ContextMenuItem>
         <ContextMenuItem asChild className="w-full">
           <DialogTrigger>Close</DialogTrigger>
         </ContextMenuItem>
