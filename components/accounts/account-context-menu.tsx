@@ -1,4 +1,3 @@
-import type { RefObject } from "react";
 import {
   ContextMenu,
   ContextMenuContent,
