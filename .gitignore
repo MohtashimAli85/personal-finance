@@ -7,3 +7,7 @@ db.sqlite-wal
 .env
 .github
 .agents
+
+# Electron
+dist-electron
+release
