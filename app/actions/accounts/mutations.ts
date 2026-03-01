@@ -1,10 +1,12 @@
 "use server";
-import { updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import db from "@/app/actions/database";
 import type { AccountValues } from "@/components/accounts/schema";
 
 const revalidateAccounts = () => {
-	updateTag("accounts");
+	revalidatePath("/");
+	revalidatePath("/transactions");
+	revalidatePath("/budget");
 };
 
 export async function createAccount(
@@ -32,9 +34,17 @@ export async function createAccount(
 
 	try {
 		const stmt = db.prepare(
-			"INSERT INTO accounts (name, balance) VALUES (?, ?)",
+			"INSERT INTO accounts (id, name, balance, account_type) VALUES (?, ?, ?, ?)",
 		);
-		db.transaction(() => stmt.run(payload.name, payload.initialBalance))();
+		const accountType = payload.offBudget ? "off_budget" : "on_budget";
+		db.transaction(() =>
+			stmt.run(
+				crypto.randomUUID(),
+				payload.name,
+				payload.initialBalance,
+				accountType,
+			),
+		)();
 		revalidateAccounts();
 		return {
 			message: "Account created successfully!",
@@ -53,19 +63,31 @@ export async function updateAccount(id: string, name: string) {
 	const stmt = db.prepare("UPDATE accounts SET name = ? WHERE id = ?");
 	db.transaction(() => stmt.run(name, id))();
 	revalidateAccounts();
+	// updateTag(`accounts/${id}`);
 }
 
 export async function closeAccount(formData: FormData) {
 	const id = formData.get("id") as string;
 	const transferAccountId = formData.get("account_id") as string;
-	if (transferAccountId) {
-		const transferStmt = db.prepare(
-			"UPDATE transactions SET account_id = ? WHERE account_id = ?",
-		);
-		db.transaction(() => transferStmt.run(transferAccountId, id))();
-	}
-	const stmt = db.prepare("DELETE FROM accounts WHERE id = ?");
-	db.transaction(() => stmt.run(id))();
+	db.transaction(() => {
+		if (transferAccountId && transferAccountId !== id) {
+			const transferStmt = db.prepare(
+				"UPDATE transactions SET account_id = ? WHERE account_id = ?",
+			);
+			transferStmt.run(transferAccountId, id);
+
+			const source = db
+				.prepare("SELECT balance FROM accounts WHERE id = ?")
+				.get(id) as { balance: number } | undefined;
+			if (source) {
+				db.prepare(
+					"UPDATE accounts SET balance = balance + ? WHERE id = ?",
+				).run(source.balance, transferAccountId);
+			}
+		}
+		const stmt = db.prepare("DELETE FROM accounts WHERE id = ?");
+		stmt.run(id);
+	})();
 	revalidateAccounts();
 }
 
