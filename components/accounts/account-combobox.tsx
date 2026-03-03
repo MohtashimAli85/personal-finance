@@ -1,5 +1,5 @@
 "use client";
-import { useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { ComboboxProps } from "@/components/ui/combobox";
 import {
   Combobox,
@@ -53,9 +53,6 @@ const AccountCombobox = ({
         onChange={(e) => setInputValue(e.target.value)}
         onBlur={() => {
           if (!inputValue) setInputValue(label || "");
-        }}
-        onClick={() => {
-          console.log("click");
         }}
         onFocus={() => {
           if (openOnFocus) {

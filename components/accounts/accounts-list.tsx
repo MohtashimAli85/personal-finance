@@ -1,26 +1,28 @@
-import { formatCurrency } from "@/lib/helper";
-import { fetchAccounts } from "@/lib/services";
-import NavItem from "../sidebar/nav-item";
-import { SidebarMenuBadge, SidebarMenuItem } from "../ui/sidebar";
+import { SidebarGroupLabel } from "@/components/ui/sidebar";
+import { getAccounts } from "@/lib/account";
 import { AccountItem } from "./account-item";
 
-const AccountList = async () => {
-	const accounts = await fetchAccounts();
-	const totalBalance = accounts.reduce(
-		(sum, account) => sum + account.balance,
-		0,
-	);
-	return (
-		<>
-			<SidebarMenuItem>
-				<NavItem href="/transactions">All Accounts</NavItem>
-				<SidebarMenuBadge>{formatCurrency(totalBalance)}</SidebarMenuBadge>
-			</SidebarMenuItem>
-			{accounts.map((account) => (
-				<AccountItem key={account.id} account={account} />
-			))}
-		</>
-	);
+const AccountList = () => {
+  const accounts = getAccounts();
+  const onBudget = accounts.filter((a) => a.account_type === "on_budget");
+  const offBudget = accounts.filter((a) => a.account_type === "off_budget");
+
+  return (
+    <>
+      <SidebarGroupLabel>On Budget</SidebarGroupLabel>
+      {onBudget.map((account) => (
+        <AccountItem key={account.id} account={account} />
+      ))}
+      {offBudget.length > 0 && (
+        <>
+          <SidebarGroupLabel>Off Budget</SidebarGroupLabel>
+          {offBudget.map((account) => (
+            <AccountItem key={account.id} account={account} />
+          ))}
+        </>
+      )}
+    </>
+  );
 };
 
 export default AccountList;

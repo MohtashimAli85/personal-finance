@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { createAccount } from "@/app/actions/accounts/mutations";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -32,7 +33,7 @@ const AddAccount = () => {
   );
   const form = useForm<SchemaInput, unknown, AccountValues>({
     resolver: zodResolver(accountSchema),
-    defaultValues: { name: "", initialBalance: "0" },
+    defaultValues: { name: "", initialBalance: "0", offBudget: false },
     errors: state?.errors,
   });
   const onSubmit = (values: AccountValues) => {
@@ -95,6 +96,19 @@ const AddAccount = () => {
                   <Input {...field} aria-invalid={fieldState.invalid} />
                   <FieldError>{fieldState.error?.message}</FieldError>
                 </Field>
+              )}
+            />
+            <Controller
+              name="offBudget"
+              control={form.control}
+              render={({ field }) => (
+                <label className="flex items-center gap-2 text-sm">
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                  Off budget
+                </label>
               )}
             />
             <DialogFooter>

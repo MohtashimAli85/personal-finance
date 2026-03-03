@@ -7,6 +7,7 @@ export const accountSchema = z.object({
 			error: "Balance must be a number",
 		})
 		.min(0, "Balance cannot be negative"),
+	offBudget: z.boolean().default(false),
 });
 export type AccountValues = z.infer<typeof accountSchema>;
 export type SchemaInput = z.input<typeof accountSchema>;
