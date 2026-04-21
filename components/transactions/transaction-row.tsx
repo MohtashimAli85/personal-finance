@@ -1,4 +1,5 @@
 "use client";
+import { memo } from "react";
 import { updateTransactionColumn } from "@/app/actions/transaction/mutations";
 import AccountSelector from "@/components/accounts/account-combobox";
 import { TableCell, TableRow } from "@/components/ui/table";
@@ -9,7 +10,7 @@ import { InputNumber } from "../ui/input-number";
 import TransactionCheckbox from "./transaction-checkbox";
 import { TransactionDatePicker } from "./transaction-date-picker";
 
-const TransactionRow = ({
+const TransactionRowInner = ({
   tx,
   showAccountCell,
 }: {
@@ -90,4 +91,20 @@ const TransactionRow = ({
   );
 };
 
-export default TransactionRow;
+const MemoizedTransactionRow = memo(TransactionRowInner, (prev, next) => {
+  return (
+    prev.tx.id === next.tx.id &&
+    prev.tx.date === next.tx.date &&
+    prev.tx.notes === next.tx.notes &&
+    prev.tx.payment === next.tx.payment &&
+    prev.tx.deposit === next.tx.deposit &&
+    prev.tx.account_id === next.tx.account_id &&
+    prev.tx.category_id === next.tx.category_id &&
+    prev.tx.account_name === next.tx.account_name &&
+    prev.tx.category_name === next.tx.category_name &&
+    prev.showAccountCell === next.showAccountCell
+  );
+});
+MemoizedTransactionRow.displayName = "TransactionRow";
+
+export default MemoizedTransactionRow;
