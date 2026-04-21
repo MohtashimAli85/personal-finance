@@ -1,14 +1,24 @@
 "use server";
-import { revalidatePath, updateTag } from "next/cache";
+import { revalidatePath } from "next/cache";
 import db from "@/app/actions/database";
 
-function toNumberDate(input: FormDataEntryValue | null): number {
-	if (!input) return Date.now();
-	const s = String(input);
-	const n = Number(s);
-	if (!Number.isNaN(n)) return n;
-	const parsed = Date.parse(s);
-	return Number.isNaN(parsed) ? Date.now() : parsed;
+function toAmount(value: unknown): number {
+	const amount = Number(value);
+	if (!Number.isFinite(amount)) return 0;
+	return Math.abs(amount);
+}
+
+function normalizeDateInput(input: FormDataEntryValue | string | null): string {
+	if (!input) return new Date().toISOString();
+	const raw = String(input).trim();
+	if (!raw) return new Date().toISOString();
+	const asNumber = Number(raw);
+	if (!Number.isNaN(asNumber) && asNumber > 100000000000) {
+		return new Date(asNumber).toISOString();
+	}
+	const parsed = Date.parse(raw);
+	if (Number.isNaN(parsed)) return new Date().toISOString();
+	return new Date(parsed).toISOString();
 }
 
 function updateAccountBalance(
@@ -37,9 +47,9 @@ function updateAccountBalance(
 }
 
 function revalidateAll() {
-	// revalidatePath("/transactions");
-	updateTag("accounts");
-	updateTag("transactions");
+	revalidatePath("/");
+	revalidatePath("/transactions");
+	revalidatePath("/budget");
 }
 export async function updateTransactionColumn(
 	id: string,
@@ -69,35 +79,45 @@ export async function updateTransactionColumn(
 		}
 		// Update transaction row. If updating payment, clear deposit. If updating deposit, clear payment.
 		if (column === "payment") {
+			const nextPayment = toAmount(value);
 			if (tx?.deposit) {
 				updateAccountBalance(accountId, 0, tx.deposit, true); // Reverse old deposit
 			}
 			if (tx?.payment) {
 				updateAccountBalance(accountId, tx.payment, 0, true); // Reverse old payment
 			}
-			updateAccountBalance(accountId, value as number); // Apply new payment
+			updateAccountBalance(accountId, nextPayment); // Apply new payment
 			db.prepare(
 				`
         UPDATE transactions
         SET payment = ?, deposit = NULL
         WHERE id = ?
       `,
-			).run(value, id);
+			).run(nextPayment, id);
 		} else if (column === "deposit") {
+			const nextDeposit = toAmount(value);
 			if (tx?.payment) {
 				updateAccountBalance(accountId, tx.payment, 0, true); // Reverse old payment
 			}
 			if (tx?.deposit) {
 				updateAccountBalance(accountId, 0, tx.deposit, true); // Reverse old deposit
 			}
-			updateAccountBalance(accountId, 0, value as number); // Apply new deposit
+			updateAccountBalance(accountId, 0, nextDeposit); // Apply new deposit
 			db.prepare(
 				`
         UPDATE transactions
         SET deposit = ?, payment = NULL
         WHERE id = ?
       `,
-			).run(value, id);
+			).run(nextDeposit, id);
+		} else if (column === "date") {
+			db.prepare(
+				`
+        UPDATE transactions
+        SET date = ?
+        WHERE id = ?
+      `,
+			).run(normalizeDateInput(value as string), id);
 		} else {
 			// Fallback for other columns
 			db.prepare(
@@ -115,13 +135,14 @@ export async function createTransaction(tx: Omit<Transaction, "id">) {
 	db.transaction(() => {
 		db.prepare(
 			`
-      INSERT INTO transactions (payment, deposit, date, account_id, category_id, notes)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO transactions (id, payment, deposit, date, account_id, category_id, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `,
 		).run(
+			crypto.randomUUID(),
 			tx.payment,
 			tx.deposit,
-			tx.date,
+			normalizeDateInput(tx.date),
 			tx.account_id,
 			tx.category_id,
 			tx.notes,
@@ -134,10 +155,10 @@ export async function createTransaction(tx: Omit<Transaction, "id">) {
 }
 
 export async function updateTransaction(formData: FormData) {
-	const payment = parseFloat(String(formData.get("payment") ?? "0"));
-	const deposit = parseFloat(String(formData.get("deposit") ?? "0"));
+	const payment = toAmount(formData.get("payment"));
+	const deposit = toAmount(formData.get("deposit"));
 	const id = String(formData.get("id"));
-	const newDate = toNumberDate(formData.get("date"));
+	const newDate = normalizeDateInput(formData.get("date"));
 	const newAccountId = (formData.get("accountId") as string) ?? null;
 	const newCategoryId = (formData.get("categoryId") as string) ?? null;
 	const newNotes = (formData.get("notes") as string) ?? null;
@@ -191,7 +212,7 @@ export async function deleteTransaction(formData: FormData) {
 		)
 		.get(id) as Transaction;
 
-	// if (!tx) return;
+	if (!tx) return;
 
 	db.transaction(() => {
 		// Reverse balance impact before deleting
@@ -235,4 +256,76 @@ export async function bulkDeleteTransactions(ids: string[]) {
 	})();
 
 	revalidateAll();
+}
+
+export interface ImportRow {
+	payment?: number;
+	deposit?: number;
+	date: string;
+	notes?: string;
+	category_id?: string;
+}
+
+export async function bulkImportTransactions(
+	accountId: string,
+	rows: ImportRow[],
+) {
+	if (!rows.length) return { count: 0 };
+
+	const insert = db.prepare(
+		`INSERT INTO transactions (id, payment, deposit, date, account_id, category_id, notes)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+	);
+
+	db.transaction(() => {
+		for (const row of rows) {
+			const payment = row.payment ? Math.abs(row.payment) : undefined;
+			const deposit = row.deposit ? Math.abs(row.deposit) : undefined;
+			insert.run(
+				crypto.randomUUID(),
+				payment || null,
+				deposit || null,
+				normalizeDateInput(row.date),
+				accountId,
+				row.category_id || null,
+				row.notes || null,
+			);
+			updateAccountBalance(accountId, payment, deposit);
+		}
+	})();
+
+	revalidateAll();
+	return { count: rows.length };
+}
+
+export async function exportAllTransactions(
+	accountId?: string,
+): Promise<string | null> {
+	const { getTransactions } = await import("@/lib/transaction");
+	const { serializeCSV } = await import("@/lib/csv");
+
+	const params: SearchParams = { limit: "0" };
+	if (accountId) params.accountId = accountId;
+
+	const { data: transactions } = getTransactions(params);
+	if (transactions.length === 0) return null;
+
+	const headers = [
+		"Date",
+		"Account",
+		"Notes",
+		"Category",
+		"Payment",
+		"Deposit",
+	];
+	const rows = transactions.map((tx) => [
+		tx.date ? new Date(tx.date).toLocaleDateString("en-CA") : "",
+		tx.account_name ?? "",
+		tx.notes ?? "",
+		tx.category_name ?? "",
+		tx.payment ? String(tx.payment) : "",
+		tx.deposit ? String(tx.deposit) : "",
+	]);
+
+	return serializeCSV(headers, rows);
 }
