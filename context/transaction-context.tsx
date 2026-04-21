@@ -21,10 +21,38 @@ const initialTransaction = {
   category_id: "",
 };
 export const useTransactionContext = () => use(TransactionContext);
-const TransactionProvider = ({ children }: { children: React.ReactNode }) => {
-  const [transaction, setTransaction] = useState<Omit<Transaction, "id">>();
+const TransactionProvider = ({
+  children,
+  accountId = "",
+  initialCategoryId = "",
+  initialAccountId = "",
+  initialDate,
+  autoInitialize = false,
+}: {
+  children: React.ReactNode;
+  accountId?: string;
+  initialCategoryId?: string;
+  initialAccountId?: string;
+  initialDate?: string;
+  autoInitialize?: boolean;
+}) => {
+  const [transaction, setTransaction] = useState<Omit<Transaction, "id"> | undefined>(
+    autoInitialize
+      ? {
+          ...initialTransaction,
+          date: initialDate ?? new Date().toISOString(),
+          account_id: accountId || initialAccountId,
+          category_id: initialCategoryId,
+        }
+      : undefined,
+  );
   const initializeTransaction = () => {
-    setTransaction(initialTransaction);
+    setTransaction({
+      ...initialTransaction,
+      date: initialDate ?? new Date().toISOString(),
+      account_id: accountId || initialAccountId,
+      category_id: initialCategoryId,
+    });
   };
   const cancelTransaction = () => {
     setTransaction(undefined);
