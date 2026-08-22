@@ -1,23 +1,17 @@
+import { and, gte, lt, sql } from "drizzle-orm";
 import { cache } from "react";
-import db from "@/app/actions/database";
-
-type SummaryRow = {
-	income: number;
-	expense: number;
-};
+import { db } from "@/lib/db";
+import { transactions } from "@/lib/db/schema";
 
 export const getSummary = cache((from: string, to: string): SummaryResponse => {
 	const row = db
-		.prepare(
-			`
-      SELECT
-        COALESCE(SUM(deposit), 0) AS income,
-        COALESCE(SUM(payment), 0) AS expense
-      FROM transactions
-      WHERE date >= ? AND date < ?
-    `,
-		)
-		.get(from, to) as SummaryRow;
+		.select({
+			income: sql<number>`coalesce(sum(${transactions.deposit}), 0)`,
+			expense: sql<number>`coalesce(sum(${transactions.payment}), 0)`,
+		})
+		.from(transactions)
+		.where(and(gte(transactions.date, from), lt(transactions.date, to)))
+		.get();
 
 	return {
 		income: Number(row?.income || 0),

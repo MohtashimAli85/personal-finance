@@ -1,7 +1,9 @@
 "use server";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import db from "@/app/actions/database";
 import type { AccountValues } from "@/components/accounts/schema";
+import { db } from "@/lib/db";
+import { accounts, transactions } from "@/lib/db/schema";
 
 const revalidateAccounts = () => {
 	revalidatePath("/");
@@ -13,15 +15,12 @@ export async function createAccount(
 	_previousState: ActionState,
 	payload: AccountValues,
 ) {
-	const doesNameExist =
-		(
-			db
-				.prepare(
-					"SELECT EXISTS(SELECT 1 FROM accounts WHERE name = ?) as 'exists'",
-				)
-				.get(payload.name) as { exists: number }
-		).exists === 1;
-	if (doesNameExist) {
+	const existingAccount = db
+		.select({ id: accounts.id })
+		.from(accounts)
+		.where(eq(accounts.name, payload.name))
+		.get();
+	if (existingAccount) {
 		return {
 			success: false,
 			shouldValidate: true,
@@ -33,18 +32,18 @@ export async function createAccount(
 	}
 
 	try {
-		const stmt = db.prepare(
-			"INSERT INTO accounts (id, name, balance, account_type) VALUES (?, ?, ?, ?)",
-		);
 		const accountType = payload.offBudget ? "off_budget" : "on_budget";
 		db.transaction(() =>
-			stmt.run(
-				crypto.randomUUID(),
-				payload.name,
-				payload.initialBalance,
-				accountType,
-			),
-		)();
+			db
+				.insert(accounts)
+				.values({
+					id: crypto.randomUUID(),
+					name: payload.name,
+					balance: payload.initialBalance,
+					account_type: accountType,
+				})
+				.run(),
+		);
 		revalidateAccounts();
 		return {
 			message: "Account created successfully!",
@@ -60,10 +59,10 @@ export async function createAccount(
 }
 
 export async function updateAccount(id: string, name: string) {
-	const stmt = db.prepare("UPDATE accounts SET name = ? WHERE id = ?");
-	db.transaction(() => stmt.run(name, id))();
+	db.transaction(() =>
+		db.update(accounts).set({ name }).where(eq(accounts.id, id)).run(),
+	);
 	revalidateAccounts();
-	// updateTag(`accounts/${id}`);
 }
 
 export async function closeAccount(formData: FormData) {
@@ -71,28 +70,31 @@ export async function closeAccount(formData: FormData) {
 	const transferAccountId = formData.get("account_id") as string;
 	db.transaction(() => {
 		if (transferAccountId && transferAccountId !== id) {
-			const transferStmt = db.prepare(
-				"UPDATE transactions SET account_id = ? WHERE account_id = ?",
-			);
-			transferStmt.run(transferAccountId, id);
+			db.update(transactions)
+				.set({ account_id: transferAccountId })
+				.where(eq(transactions.account_id, id))
+				.run();
 
 			const source = db
-				.prepare("SELECT balance FROM accounts WHERE id = ?")
-				.get(id) as { balance: number } | undefined;
+				.select({ balance: accounts.balance })
+				.from(accounts)
+				.where(eq(accounts.id, id))
+				.get();
 			if (source) {
-				db.prepare(
-					"UPDATE accounts SET balance = balance + ? WHERE id = ?",
-				).run(source.balance, transferAccountId);
+				db.update(accounts)
+					.set({
+						balance: sql`coalesce(${accounts.balance}, 0) + coalesce(${source.balance}, 0)`,
+					})
+					.where(eq(accounts.id, transferAccountId))
+					.run();
 			}
 		}
-		const stmt = db.prepare("DELETE FROM accounts WHERE id = ?");
-		stmt.run(id);
-	})();
+		db.delete(accounts).where(eq(accounts.id, id)).run();
+	});
 	revalidateAccounts();
 }
 
 export async function forceCloseAccount(id: string) {
-	const stmt = db.prepare("DELETE FROM accounts WHERE id = ?");
-	db.transaction(() => stmt.run(id))();
+	db.transaction(() => db.delete(accounts).where(eq(accounts.id, id)).run());
 	revalidateAccounts();
 }

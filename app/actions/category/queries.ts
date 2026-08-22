@@ -1,9 +1,17 @@
 "use server";
-import db from "@/app/actions/database";
+import { asc, eq, like } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { categories } from "@/lib/db/schema";
 
 export async function getAllCategories(): Promise<Category[]> {
 	return db
-		.prepare("SELECT id, name, group_id FROM categories ORDER BY name")
+		.select({
+			id: categories.id,
+			name: categories.name,
+			group_id: categories.group_id,
+		})
+		.from(categories)
+		.orderBy(asc(categories.name))
 		.all() as Category[];
 }
 
@@ -11,15 +19,27 @@ export async function getCategoryById(
 	id: string,
 ): Promise<Category | undefined> {
 	return db
-		.prepare("SELECT id, name, group_id FROM categories WHERE id = ?")
-		.get(id) as Category | undefined;
+		.select({
+			id: categories.id,
+			name: categories.name,
+			group_id: categories.group_id,
+		})
+		.from(categories)
+		.where(eq(categories.id, id))
+		.get() as Category | undefined;
 }
 
 export async function searchCategories(query: string): Promise<Category[]> {
 	const searchPattern = `%${query}%`;
 	return db
-		.prepare(
-			"SELECT id, name, group_id FROM categories WHERE name LIKE ? ORDER BY name LIMIT 20",
-		)
-		.all(searchPattern) as Category[];
+		.select({
+			id: categories.id,
+			name: categories.name,
+			group_id: categories.group_id,
+		})
+		.from(categories)
+		.where(like(categories.name, searchPattern))
+		.orderBy(asc(categories.name))
+		.limit(20)
+		.all() as Category[];
 }

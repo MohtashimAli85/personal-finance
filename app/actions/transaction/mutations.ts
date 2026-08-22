@@ -1,6 +1,8 @@
 "use server";
+import { eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import db from "@/app/actions/database";
+import { db } from "@/lib/db";
+import { accounts, transactions } from "@/lib/db/schema";
 
 function toAmount(value: unknown): number {
 	const amount = Number(value);
@@ -21,27 +23,28 @@ function normalizeDateInput(input: FormDataEntryValue | string | null): string {
 	return new Date(parsed).toISOString();
 }
 
+function adjustBalance(accountId: string, amount: number) {
+	db.update(accounts)
+		.set({ balance: sql`coalesce(${accounts.balance}, 0) + ${amount}` })
+		.where(eq(accounts.id, accountId))
+		.run();
+}
+
 function updateAccountBalance(
-	accountId?: string,
-	payment?: number,
-	deposit?: number,
+	accountId?: string | null,
+	payment?: number | null,
+	deposit?: number | null,
 	reverse = false,
 ) {
 	if (!accountId) return;
 	if (payment) {
 		const amount = reverse ? Math.abs(payment) : -Math.abs(payment);
-		db.prepare(`UPDATE accounts SET balance = balance + ? WHERE id = ?`).run(
-			amount,
-			accountId,
-		);
+		adjustBalance(accountId, amount);
 		return amount;
 	}
 	if (deposit) {
 		const amount = reverse ? -Math.abs(deposit) : Math.abs(deposit);
-		db.prepare(`UPDATE accounts SET balance = balance + ? WHERE id = ?`).run(
-			amount,
-			accountId,
-		);
+		adjustBalance(accountId, amount);
 		return amount;
 	}
 }
@@ -57,8 +60,10 @@ export async function updateTransactionColumn(
 	value: Transaction[keyof Omit<Transaction, "id">],
 ) {
 	const existing = db
-		.prepare(`SELECT account_id FROM transactions WHERE id = ?`)
-		.get(id) as { account_id: string };
+		.select({ account_id: transactions.account_id })
+		.from(transactions)
+		.where(eq(transactions.id, id))
+		.get();
 
 	if (!existing) return;
 
@@ -66,8 +71,13 @@ export async function updateTransactionColumn(
 
 	db.transaction(() => {
 		const tx = db
-			.prepare(`SELECT payment, deposit FROM transactions WHERE id = ?`)
-			.get(id) as { payment: number; deposit: number } | undefined;
+			.select({
+				payment: transactions.payment,
+				deposit: transactions.deposit,
+			})
+			.from(transactions)
+			.where(eq(transactions.id, id))
+			.get();
 
 		if (column === "account_id") {
 			if (tx) {
@@ -77,6 +87,7 @@ export async function updateTransactionColumn(
 				updateAccountBalance(value as string, tx.payment, tx.deposit);
 			}
 		}
+
 		// Update transaction row. If updating payment, clear deposit. If updating deposit, clear payment.
 		if (column === "payment") {
 			const nextPayment = toAmount(value);
@@ -87,13 +98,10 @@ export async function updateTransactionColumn(
 				updateAccountBalance(accountId, tx.payment, 0, true); // Reverse old payment
 			}
 			updateAccountBalance(accountId, nextPayment); // Apply new payment
-			db.prepare(
-				`
-        UPDATE transactions
-        SET payment = ?, deposit = NULL
-        WHERE id = ?
-      `,
-			).run(nextPayment, id);
+			db.update(transactions)
+				.set({ payment: nextPayment, deposit: null })
+				.where(eq(transactions.id, id))
+				.run();
 		} else if (column === "deposit") {
 			const nextDeposit = toAmount(value);
 			if (tx?.payment) {
@@ -103,54 +111,48 @@ export async function updateTransactionColumn(
 				updateAccountBalance(accountId, 0, tx.deposit, true); // Reverse old deposit
 			}
 			updateAccountBalance(accountId, 0, nextDeposit); // Apply new deposit
-			db.prepare(
-				`
-        UPDATE transactions
-        SET deposit = ?, payment = NULL
-        WHERE id = ?
-      `,
-			).run(nextDeposit, id);
+			db.update(transactions)
+				.set({ deposit: nextDeposit, payment: null })
+				.where(eq(transactions.id, id))
+				.run();
 		} else if (column === "date") {
-			db.prepare(
-				`
-        UPDATE transactions
-        SET date = ?
-        WHERE id = ?
-      `,
-			).run(normalizeDateInput(value as string), id);
+			db.update(transactions)
+				.set({ date: normalizeDateInput(value as string) })
+				.where(eq(transactions.id, id))
+				.run();
+		} else if (column === "notes") {
+			db.update(transactions)
+				.set({ notes: value as string | null })
+				.where(eq(transactions.id, id))
+				.run();
+		} else if (column === "category_id") {
+			db.update(transactions)
+				.set({ category_id: value as string | null })
+				.where(eq(transactions.id, id))
+				.run();
 		} else {
-			// Fallback for other columns
-			db.prepare(
-				`
-        UPDATE transactions
-        SET ${column} = ?
-        WHERE id = ?
-      `,
-			).run(value, id);
+			throw new Error(`Unsupported column update: ${column}`);
 		}
-	})();
+	});
 	revalidateAll();
 }
 export async function createTransaction(tx: Omit<Transaction, "id">) {
 	db.transaction(() => {
-		db.prepare(
-			`
-      INSERT INTO transactions (id, payment, deposit, date, account_id, category_id, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `,
-		).run(
-			crypto.randomUUID(),
-			tx.payment,
-			tx.deposit,
-			normalizeDateInput(tx.date),
-			tx.account_id,
-			tx.category_id,
-			tx.notes,
-		);
+		db.insert(transactions)
+			.values({
+				id: crypto.randomUUID(),
+				payment: tx.payment,
+				deposit: tx.deposit,
+				date: normalizeDateInput(tx.date),
+				account_id: tx.account_id,
+				category_id: tx.category_id,
+				notes: tx.notes,
+			})
+			.run();
 		if (tx.account_id) {
 			updateAccountBalance(tx.account_id, tx.payment, tx.deposit);
 		}
-	})();
+	});
 	revalidateAll();
 }
 
@@ -164,12 +166,14 @@ export async function updateTransaction(formData: FormData) {
 	const newNotes = (formData.get("notes") as string) ?? null;
 
 	const existing = db
-		.prepare(
-			`SELECT account_id, payment, deposit FROM transactions WHERE id = ?`,
-		)
-		.get(id) as
-		| { account_id: string | null; payment: number; deposit: number }
-		| undefined;
+		.select({
+			account_id: transactions.account_id,
+			payment: transactions.payment,
+			deposit: transactions.deposit,
+		})
+		.from(transactions)
+		.where(eq(transactions.id, id))
+		.get();
 
 	if (!existing) return;
 
@@ -192,14 +196,18 @@ export async function updateTransaction(formData: FormData) {
 		}
 
 		// Update transaction row
-		db.prepare(
-			`
-      UPDATE transactions
-      SET payment = ?, deposit = ?, date = ?, account_id = ?, category_id = ?, notes = ?
-      WHERE id = ?
-    `,
-		).run(payment, deposit, newDate, newAccountId, newCategoryId, newNotes, id);
-	})();
+		db.update(transactions)
+			.set({
+				payment,
+				deposit,
+				date: newDate,
+				account_id: newAccountId,
+				category_id: newCategoryId,
+				notes: newNotes,
+			})
+			.where(eq(transactions.id, id))
+			.run();
+	});
 	revalidateAll();
 }
 
@@ -207,10 +215,14 @@ export async function deleteTransaction(formData: FormData) {
 	const id = String(formData.get("id"));
 
 	const tx = db
-		.prepare(
-			`SELECT payment,deposit, account_id FROM transactions WHERE id = ?`,
-		)
-		.get(id) as Transaction;
+		.select({
+			payment: transactions.payment,
+			deposit: transactions.deposit,
+			account_id: transactions.account_id,
+		})
+		.from(transactions)
+		.where(eq(transactions.id, id))
+		.get();
 
 	if (!tx) return;
 
@@ -219,8 +231,8 @@ export async function deleteTransaction(formData: FormData) {
 		if (tx.account_id) {
 			updateAccountBalance(tx.account_id, tx.payment, tx.deposit, true);
 		}
-		db.prepare(`DELETE FROM transactions WHERE id = ?`).run(id);
-	})();
+		db.delete(transactions).where(eq(transactions.id, id)).run();
+	});
 
 	revalidateAll();
 }
@@ -228,32 +240,30 @@ export async function deleteTransaction(formData: FormData) {
 export async function bulkDeleteTransactions(ids: string[]) {
 	if (!ids || ids.length === 0) return;
 
-	const transactions = db
-		.prepare(
-			`SELECT id, payment, deposit, account_id FROM transactions WHERE id IN (${ids.map(() => "?").join(",")})`,
-		)
-		.all(...ids) as Array<{
-		id: string;
-		payment: number;
-		deposit: number;
-		account_id: string | null;
-	}>;
+	const transactionsToDelete = db
+		.select({
+			id: transactions.id,
+			payment: transactions.payment,
+			deposit: transactions.deposit,
+			account_id: transactions.account_id,
+		})
+		.from(transactions)
+		.where(inArray(transactions.id, ids))
+		.all();
 
-	if (!transactions || transactions.length === 0) return;
+	if (!transactionsToDelete || transactionsToDelete.length === 0) return;
 
 	db.transaction(() => {
 		// Reverse balance impact for each transaction
-		for (const tx of transactions) {
+		for (const tx of transactionsToDelete) {
 			if (tx.account_id) {
 				updateAccountBalance(tx.account_id, tx.payment, tx.deposit, true);
 			}
 		}
 
 		// Delete all transactions at once
-		db.prepare(
-			`DELETE FROM transactions WHERE id IN (${ids.map(() => "?").join(",")})`,
-		).run(...ids);
-	})();
+		db.delete(transactions).where(inArray(transactions.id, ids)).run();
+	});
 
 	revalidateAll();
 }
@@ -272,27 +282,24 @@ export async function bulkImportTransactions(
 ) {
 	if (!rows.length) return { count: 0 };
 
-	const insert = db.prepare(
-		`INSERT INTO transactions (id, payment, deposit, date, account_id, category_id, notes)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-	);
-
 	db.transaction(() => {
 		for (const row of rows) {
 			const payment = row.payment ? Math.abs(row.payment) : undefined;
 			const deposit = row.deposit ? Math.abs(row.deposit) : undefined;
-			insert.run(
-				crypto.randomUUID(),
-				payment || null,
-				deposit || null,
-				normalizeDateInput(row.date),
-				accountId,
-				row.category_id || null,
-				row.notes || null,
-			);
+			db.insert(transactions)
+				.values({
+					id: crypto.randomUUID(),
+					payment: payment || null,
+					deposit: deposit || null,
+					date: normalizeDateInput(row.date),
+					account_id: accountId,
+					category_id: row.category_id || null,
+					notes: row.notes || null,
+				})
+				.run();
 			updateAccountBalance(accountId, payment, deposit);
 		}
-	})();
+	});
 
 	revalidateAll();
 	return { count: rows.length };

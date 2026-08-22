@@ -1,5 +1,7 @@
+import { asc, eq } from "drizzle-orm";
 import { cache } from "react";
-import db from "@/app/actions/database";
+import { db } from "@/lib/db";
+import { categories, category_group } from "@/lib/db/schema";
 
 type CategoryRow = {
 	category_id: string | null;
@@ -8,30 +10,30 @@ type CategoryRow = {
 	group_id: string;
 	group_name: string;
 	group_sort_order: number;
-	group_is_income: number;
+	group_is_income: boolean;
+};
+
+const groupedSelect = {
+	category_id: categories.id,
+	category_name: categories.name,
+	category_sort_order: categories.sort_order,
+	group_id: category_group.id,
+	group_name: category_group.name,
+	group_sort_order: category_group.sort_order,
+	group_is_income: category_group.is_income,
 };
 
 export const getGroupedCategories = cache((): GroupedCategory[] => {
 	const rows = db
-		.prepare(
-			`
-      SELECT
-        c.id            AS category_id,
-        c.name          AS category_name,
-        c.sort_order    AS category_sort_order,
-        g.id            AS group_id,
-        g.name          AS group_name,
-        g.sort_order    AS group_sort_order,
-        g.is_income     AS group_is_income
-      FROM category_group g
-      LEFT JOIN categories c ON c.group_id = g.id
-      ORDER BY
-        COALESCE(g.is_income, 0) ASC,
-        COALESCE(g.sort_order, 9998) ASC,
-        g.name ASC,
-        c.sort_order ASC,
-        c.name ASC
-    `,
+		.select(groupedSelect)
+		.from(category_group)
+		.leftJoin(categories, eq(categories.group_id, category_group.id))
+		.orderBy(
+			asc(category_group.is_income),
+			asc(category_group.sort_order),
+			asc(category_group.name),
+			asc(categories.sort_order),
+			asc(categories.name),
 		)
 		.all() as CategoryRow[];
 
@@ -44,7 +46,7 @@ export const getGroupedCategories = cache((): GroupedCategory[] => {
 				id: groupId,
 				name: row.group_name,
 				sort_order: row.group_sort_order ?? 9998,
-				is_income: row.group_is_income === 1,
+				is_income: row.group_is_income,
 				categories: [],
 			});
 		}

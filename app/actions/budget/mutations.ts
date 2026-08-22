@@ -1,8 +1,10 @@
 "use server";
 
+import { and, asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import db from "@/app/actions/database";
 import { isMonthKey } from "@/lib/date";
+import { db } from "@/lib/db";
+import { categories, category_group, monthly_budgets } from "@/lib/db/schema";
 
 const revalidateBudget = () => {
 	revalidatePath("/budget");
@@ -11,19 +13,21 @@ const revalidateBudget = () => {
 
 const resequenceExpenseGroups = () => {
 	const groups = db
-		.prepare(
-			"SELECT id FROM category_group WHERE is_income = 0 ORDER BY sort_order ASC, id ASC",
-		)
-		.all() as Array<{ id: string }>;
+		.select({ id: category_group.id })
+		.from(category_group)
+		.where(eq(category_group.is_income, false))
+		.orderBy(asc(category_group.sort_order), asc(category_group.id))
+		.all();
 	groups.forEach((group, index) => {
-		db.prepare("UPDATE category_group SET sort_order = ? WHERE id = ?").run(
-			index + 1,
-			group.id,
-		);
+		db.update(category_group)
+			.set({ sort_order: index + 1 })
+			.where(eq(category_group.id, group.id))
+			.run();
 	});
-	db.prepare(
-		"UPDATE category_group SET sort_order = 9999 WHERE is_income = 1",
-	).run();
+	db.update(category_group)
+		.set({ sort_order: 9999 })
+		.where(eq(category_group.is_income, true))
+		.run();
 };
 
 export async function setBudgetedAmount(
@@ -36,28 +40,38 @@ export async function setBudgetedAmount(
 	}
 	const normalizedAmount = Number.isFinite(amount) ? amount : 0;
 	const category = db
-		.prepare("SELECT id FROM categories WHERE id = ?")
-		.get(categoryId) as { id: string } | undefined;
+		.select({ id: categories.id })
+		.from(categories)
+		.where(eq(categories.id, categoryId))
+		.get();
 	if (!category) {
 		throw new Error(`Category not found: ${categoryId}`);
 	}
 
 	db.transaction(() => {
 		if (normalizedAmount === 0) {
-			db.prepare(
-				"DELETE FROM monthly_budgets WHERE category_id = ? AND month = ?",
-			).run(categoryId, month);
+			db.delete(monthly_budgets)
+				.where(
+					and(
+						eq(monthly_budgets.category_id, categoryId),
+						eq(monthly_budgets.month, month),
+					),
+				)
+				.run();
 			return;
 		}
-		db.prepare(
-			`
-        INSERT INTO monthly_budgets (category_id, month, amount)
-        VALUES (?, ?, ?)
-        ON CONFLICT(category_id, month)
-        DO UPDATE SET amount = excluded.amount
-      `,
-		).run(categoryId, month, normalizedAmount);
-	})();
+		db.insert(monthly_budgets)
+			.values({
+				category_id: categoryId,
+				month,
+				amount: normalizedAmount,
+			})
+			.onConflictDoUpdate({
+				target: [monthly_budgets.category_id, monthly_budgets.month],
+				set: { amount: sql`excluded.amount` },
+			})
+			.run();
+	});
 
 	revalidateBudget();
 }
@@ -71,8 +85,10 @@ export async function setBudgetedAmountFromForm(formData: FormData) {
 
 const requireExpenseGroup = (groupId: string) => {
 	const group = db
-		.prepare("SELECT id, is_income FROM category_group WHERE id = ?")
-		.get(groupId) as { id: string; is_income: number } | undefined;
+		.select({ id: category_group.id, is_income: category_group.is_income })
+		.from(category_group)
+		.where(eq(category_group.id, groupId))
+		.get();
 	if (!group) throw new Error(`Category group not found: ${groupId}`);
 	return group;
 };
@@ -84,15 +100,23 @@ export async function createBudgetGroup(name: string) {
 	}
 	db.transaction(() => {
 		const maxSort = db
-			.prepare(
-				"SELECT COALESCE(MAX(sort_order), 0) as max_sort FROM category_group WHERE is_income = 0",
-			)
-			.get() as { max_sort: number };
-		db.prepare(
-			"INSERT INTO category_group (id, name, sort_order, is_income) VALUES (?, ?, ?, 0)",
-		).run(crypto.randomUUID(), nextName, (maxSort.max_sort || 0) + 1);
+			.select({
+				max_sort: sql<number>`coalesce(max(${category_group.sort_order}), 0)`,
+			})
+			.from(category_group)
+			.where(eq(category_group.is_income, false))
+			.get();
+
+		db.insert(category_group)
+			.values({
+				id: crypto.randomUUID(),
+				name: nextName,
+				sort_order: (maxSort?.max_sort || 0) + 1,
+				is_income: false,
+			})
+			.run();
 		resequenceExpenseGroups();
-	})();
+	});
 	revalidateBudget();
 }
 
@@ -100,31 +124,33 @@ export async function renameBudgetGroup(groupId: string, name: string) {
 	const nextName = name.trim();
 	if (!nextName) throw new Error("Group name is required");
 	const group = requireExpenseGroup(groupId);
-	if (group.is_income === 1) {
+	if (group.is_income) {
 		throw new Error("Income group cannot be renamed");
 	}
-	db.prepare("UPDATE category_group SET name = ? WHERE id = ?").run(
-		nextName,
-		group.id,
-	);
+	db.update(category_group)
+		.set({ name: nextName })
+		.where(eq(category_group.id, group.id))
+		.run();
 	revalidateBudget();
 }
 
 export async function deleteBudgetGroup(groupId: string) {
 	const group = requireExpenseGroup(groupId);
-	if (group.is_income === 1) {
+	if (group.is_income) {
 		throw new Error("Income group cannot be deleted");
 	}
 	const count = db
-		.prepare("SELECT COUNT(*) AS count FROM categories WHERE group_id = ?")
-		.get(group.id) as { count: number };
-	if (count.count > 0) {
+		.select({ count: sql<number>`count(*)` })
+		.from(categories)
+		.where(eq(categories.group_id, group.id))
+		.get();
+	if ((count?.count ?? 0) > 0) {
 		throw new Error("Move or delete categories before deleting this group");
 	}
 	db.transaction(() => {
-		db.prepare("DELETE FROM category_group WHERE id = ?").run(group.id);
+		db.delete(category_group).where(eq(category_group.id, group.id)).run();
 		resequenceExpenseGroups();
-	})();
+	});
 	revalidateBudget();
 }
 
@@ -132,12 +158,18 @@ export async function reorderBudgetGroups(groupIds: string[]) {
 	if (!groupIds.length) return;
 	db.transaction(() => {
 		groupIds.forEach((groupId, index) => {
-			db.prepare(
-				"UPDATE category_group SET sort_order = ? WHERE id = ? AND is_income = 0",
-			).run(index + 1, groupId);
+			db.update(category_group)
+				.set({ sort_order: index + 1 })
+				.where(
+					and(
+						eq(category_group.id, groupId),
+						eq(category_group.is_income, false),
+					),
+				)
+				.run();
 		});
 		resequenceExpenseGroups();
-	})();
+	});
 	revalidateBudget();
 }
 
@@ -147,14 +179,22 @@ export async function createBudgetCategory(groupId: string, name: string) {
 	const group = requireExpenseGroup(groupId);
 	db.transaction(() => {
 		const maxSort = db
-			.prepare(
-				"SELECT COALESCE(MAX(sort_order), 0) AS max_sort FROM categories WHERE group_id = ?",
-			)
-			.get(group.id) as { max_sort: number };
-		db.prepare(
-			"INSERT INTO categories (id, name, group_id, sort_order) VALUES (?, ?, ?, ?)",
-		).run(crypto.randomUUID(), nextName, group.id, (maxSort.max_sort || 0) + 1);
-	})();
+			.select({
+				max_sort: sql<number>`coalesce(max(${categories.sort_order}), 0)`,
+			})
+			.from(categories)
+			.where(eq(categories.group_id, group.id))
+			.get();
+
+		db.insert(categories)
+			.values({
+				id: crypto.randomUUID(),
+				name: nextName,
+				group_id: group.id,
+				sort_order: (maxSort?.max_sort || 0) + 1,
+			})
+			.run();
+	});
 	revalidateBudget();
 }
 
@@ -162,21 +202,25 @@ export async function renameBudgetCategory(categoryId: string, name: string) {
 	const nextName = name.trim();
 	if (!nextName) throw new Error("Category name is required");
 	const category = db
-		.prepare("SELECT id FROM categories WHERE id = ?")
-		.get(categoryId) as { id: string } | undefined;
+		.select({ id: categories.id })
+		.from(categories)
+		.where(eq(categories.id, categoryId))
+		.get();
 	if (!category) throw new Error("Category not found");
-	db.prepare("UPDATE categories SET name = ? WHERE id = ?").run(
-		nextName,
-		category.id,
-	);
+	db.update(categories)
+		.set({ name: nextName })
+		.where(eq(categories.id, category.id))
+		.run();
 	revalidateBudget();
 }
 
 export async function deleteBudgetCategory(categoryId: string) {
 	const category = db
-		.prepare("SELECT id FROM categories WHERE id = ?")
-		.get(categoryId) as { id: string } | undefined;
+		.select({ id: categories.id })
+		.from(categories)
+		.where(eq(categories.id, categoryId))
+		.get();
 	if (!category) return;
-	db.prepare("DELETE FROM categories WHERE id = ?").run(category.id);
+	db.delete(categories).where(eq(categories.id, category.id)).run();
 	revalidateBudget();
 }

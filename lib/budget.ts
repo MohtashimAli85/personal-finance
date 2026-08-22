@@ -1,17 +1,9 @@
+import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 import { cache } from "react";
-import db from "@/app/actions/database";
 import { getGroupedCategories } from "@/lib/category";
 import { getMonthRange, isMonthKey } from "@/lib/date";
-
-type BudgetAmountRow = {
-	category_id: string;
-	amount: number;
-};
-
-type ActivityRow = {
-	category_id: string;
-	activity: number;
-};
+import { db } from "@/lib/db";
+import { accounts, monthly_budgets, transactions } from "@/lib/db/schema";
 
 export const getBudgetView = cache((month: string): BudgetView => {
 	if (!isMonthKey(month)) {
@@ -22,41 +14,49 @@ export const getBudgetView = cache((month: string): BudgetView => {
 	const { start, end } = getMonthRange(month);
 
 	const totalBalance =
-		(
-			db
-				.prepare(
-					"SELECT COALESCE(SUM(balance), 0) AS total FROM accounts WHERE account_type = 'on_budget'",
-				)
-				.get() as { total: number }
-		).total ?? 0;
+		db
+			.select({
+				total: sql<number>`coalesce(sum(${accounts.balance}), 0)`,
+			})
+			.from(accounts)
+			.where(eq(accounts.account_type, "on_budget"))
+			.get()?.total ?? 0;
 
 	const budgetRows = db
-		.prepare("SELECT category_id, amount FROM monthly_budgets WHERE month = ?")
-		.all(month) as BudgetAmountRow[];
+		.select({
+			category_id: monthly_budgets.category_id,
+			amount: monthly_budgets.amount,
+		})
+		.from(monthly_budgets)
+		.where(eq(monthly_budgets.month, month))
+		.all();
 
 	const activityRows = db
-		.prepare(
-			`
-      SELECT
-        t.category_id,
-        COALESCE(SUM(t.payment), 0) AS activity
-      FROM transactions t
-      JOIN accounts a ON t.account_id = a.id
-      WHERE t.category_id IS NOT NULL
-        AND a.account_type = 'on_budget'
-        AND t.date >= ?
-        AND t.date < ?
-      GROUP BY t.category_id
-    `,
+		.select({
+			category_id: transactions.category_id,
+			activity: sql<number>`coalesce(sum(${transactions.payment}), 0)`,
+		})
+		.from(transactions)
+		.innerJoin(accounts, eq(transactions.account_id, accounts.id))
+		.where(
+			and(
+				isNotNull(transactions.category_id),
+				eq(accounts.account_type, "on_budget"),
+				gte(transactions.date, start),
+				lt(transactions.date, end),
+			),
 		)
-		.all(start, end) as ActivityRow[];
+		.groupBy(transactions.category_id)
+		.all();
 
 	const budgetMap = new Map<string, number>(
 		budgetRows.map((row) => [row.category_id, Number(row.amount) || 0]),
 	);
-	const activityMap = new Map<string, number>(
-		activityRows.map((row) => [row.category_id, Number(row.activity) || 0]),
-	);
+	const activityMap = new Map<string, number>();
+	for (const row of activityRows) {
+		if (row.category_id == null) continue;
+		activityMap.set(row.category_id, Number(row.activity) || 0);
+	}
 
 	const budgetGroups = groups.map((group) => ({
 		id: group.id,

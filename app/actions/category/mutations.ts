@@ -1,6 +1,8 @@
 "use server";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import db from "@/app/actions/database";
+import { db } from "@/lib/db";
+import { categories, category_group } from "@/lib/db/schema";
 
 const revalidateCategories = () => {
 	revalidatePath("/categories");
@@ -11,10 +13,12 @@ const revalidateCategories = () => {
 export async function createCategory(formData: FormData) {
 	const name = formData.get("name") as string;
 	const group_id = formData.get("group_id") as string | null;
-	const stmt = db.prepare(
-		"INSERT INTO categories (id, name, group_id) VALUES (?, ?, ?)",
+	db.transaction(() =>
+		db
+			.insert(categories)
+			.values({ id: crypto.randomUUID(), name, group_id: group_id || null })
+			.run(),
 	);
-	db.transaction(() => stmt.run(crypto.randomUUID(), name, group_id || null))();
 	revalidateCategories();
 }
 
@@ -22,40 +26,49 @@ export async function updateCategory(formData: FormData) {
 	const id = formData.get("id") as string;
 	const name = formData.get("name") as string;
 	const group_id = formData.get("group_id") as string | null;
-	const stmt = db.prepare(
-		"UPDATE categories SET name = ?, group_id = ? WHERE id = ?",
+	db.transaction(() =>
+		db
+			.update(categories)
+			.set({ name, group_id: group_id || null })
+			.where(eq(categories.id, id))
+			.run(),
 	);
-	db.transaction(() => stmt.run(name, group_id || null, id))();
 	revalidateCategories();
 }
 
 export async function deleteCategory(formData: FormData) {
 	const id = formData.get("id") as string;
-	const stmt = db.prepare("DELETE FROM categories WHERE id = ?");
-	db.transaction(() => stmt.run(id))();
+	db.transaction(() =>
+		db.delete(categories).where(eq(categories.id, id)).run(),
+	);
 	revalidateCategories();
 }
 
 export async function createCategoryGroup(formData: FormData) {
 	const name = formData.get("name") as string;
-	const stmt = db.prepare(
-		"INSERT INTO category_group (id, name) VALUES (?, ?)",
+	db.transaction(() =>
+		db.insert(category_group).values({ id: crypto.randomUUID(), name }).run(),
 	);
-	db.transaction(() => stmt.run(crypto.randomUUID(), name))();
 	revalidateCategories();
 }
 
 export async function updateCategoryGroup(formData: FormData) {
 	const id = formData.get("id") as string;
 	const name = formData.get("name") as string;
-	const stmt = db.prepare("UPDATE category_group SET name = ? WHERE id = ?");
-	db.transaction(() => stmt.run(name, id))();
+	db.transaction(() =>
+		db
+			.update(category_group)
+			.set({ name })
+			.where(eq(category_group.id, id))
+			.run(),
+	);
 	revalidateCategories();
 }
 
 export async function deleteCategoryGroup(formData: FormData) {
 	const id = formData.get("id") as string;
-	const stmt = db.prepare("DELETE FROM category_group WHERE id = ?");
-	db.transaction(() => stmt.run(id))();
+	db.transaction(() =>
+		db.delete(category_group).where(eq(category_group.id, id)).run(),
+	);
 	revalidateCategories();
 }
