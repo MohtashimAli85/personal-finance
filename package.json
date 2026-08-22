@@ -13,7 +13,7 @@
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
     "electron:compile": "tsc --project electron/tsconfig.json",
-    "electron:dev": "concurrently --kill-others \"next dev\" \"wait-on http://127.0.0.1:3000 && cross-env NODE_ENV=development electron .\"",
+    "electron:dev": "cross-env NODE_ENV=development electron .",
     "electron:build": "npx tsx scripts/electron-build.ts",
     "electron:build:mac": "npx tsx scripts/electron-build.ts --mac",
     "electron:build:win": "npx tsx scripts/electron-build.ts --win",

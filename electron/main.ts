@@ -1,14 +1,27 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import net from "node:net";
 import path from "node:path";
 import { app, BrowserWindow, dialog, shell } from "electron";
 
 let mainWindow: BrowserWindow | null = null;
 let nextServer: ChildProcess | null = null;
+let serverPort = 6300;
 
 const isDev = process.env.NODE_ENV === "development";
-const PORT = process.env.PORT || 6300;
+
+function getFreePort(): Promise<number> {
+	return new Promise((resolve, reject) => {
+		const server = net.createServer();
+		server.unref();
+		server.on("error", reject);
+		server.listen(0, "127.0.0.1", () => {
+			const address = server.address() as net.AddressInfo;
+			server.close(() => resolve(address.port));
+		});
+	});
+}
 
 function getNextServerPath(): string {
 	if (isDev) {
@@ -19,33 +32,37 @@ function getNextServerPath(): string {
 
 function startNextServer(): Promise<void> {
 	return new Promise((resolve, reject) => {
+		let command: string;
+		let args: string[];
+		const env: NodeJS.ProcessEnv = { ...process.env };
+
 		if (isDev) {
-			resolve();
-			return;
+			command = process.platform === "win32" ? "next.cmd" : "next";
+			args = ["dev", "--port"];
+			env.ELECTRON_RUN_AS_NODE = undefined;
+		} else {
+			const serverFile = getNextServerPath();
+			if (!fs.existsSync(serverFile)) {
+				reject(new Error(`Next.js server not found at ${serverFile}`));
+				return;
+			}
+			command = process.execPath;
+			args = [serverFile];
+			env.HOSTNAME = "127.0.0.1";
+			env.NODE_ENV = "production";
+			env.ELECTRON_RUN_AS_NODE = "1";
+			env.APP_DB_PATH = path.join(app.getPath("userData"), "db.sqlite");
 		}
-
-		const serverPath = getNextServerPath();
-		if (!fs.existsSync(serverPath)) {
-			reject(new Error(`Next.js server not found at ${serverPath}`));
-			return;
-		}
-
-		const env: NodeJS.ProcessEnv = {
-			...process.env,
-			PORT: String(PORT),
-			HOSTNAME: "127.0.0.1",
-			NODE_ENV: "production",
-			ELECTRON_RUN_AS_NODE: "1",
-			APP_DB_PATH: path.join(app.getPath("userData"), "db.sqlite"),
-		};
+		env.PORT = String(serverPort);
 
 		let settled = false;
 		let stderr = "";
 
-		nextServer = spawn(process.execPath, [serverPath], {
+		nextServer = spawn(command, args, {
 			env,
-			cwd: path.join(process.resourcesPath, "standalone"),
+			cwd: isDev ? app.getAppPath() : path.dirname(serverFile),
 			stdio: ["pipe", "pipe", "pipe"],
+			shell: process.platform === "win32",
 		});
 
 		const finish = (error?: Error) => {
@@ -83,7 +100,7 @@ function startNextServer(): Promise<void> {
 		const startedAt = Date.now();
 		const poll = () => {
 			if (settled) return;
-			const req = http.get(`http://127.0.0.1:${PORT}`, (res) => {
+			const req = http.get(`http://127.0.0.1:${serverPort}`, (res) => {
 				res.resume();
 				finish();
 			});
@@ -123,7 +140,7 @@ function createWindow(): void {
 		mainWindow?.show();
 	});
 
-	const url = `http://127.0.0.1:${PORT}`;
+	const url = `http://127.0.0.1:${serverPort}`;
 	let loadAttempts = 0;
 	mainWindow.loadURL(url);
 	mainWindow.webContents.on("did-fail-load", (_event, errorCode) => {
@@ -166,6 +183,8 @@ if (!gotLock) {
 
 app.whenReady().then(async () => {
 	try {
+		serverPort = await getFreePort();
+		console.log(`Starting Next.js server on port ${serverPort}`);
 		await startNextServer();
 		createWindow();
 	} catch (err) {
