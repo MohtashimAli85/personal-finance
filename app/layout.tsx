@@ -3,8 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import AppSidebar from "@/components/sidebar/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import StoreProvider from "@/context/store-context";
-import TransactionProvider from "@/context/transaction-context";
-import { fetchAccounts, fetchCategories } from "@/lib/services";
+import { getAccounts } from "@/lib/account";
+import { getGroupedCategories } from "@/lib/category";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,30 +27,29 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const accounts = await fetchAccounts();
-  const groupedCategories = await fetchCategories();
+  const accounts = getAccounts();
+  const groupedCategories = getGroupedCategories();
   return (
     <html lang="en" className={`${geistSans.variable} dark`}>
       <head>
         {/* {process.env.NODE_ENV === "development" && ( */}
-        {/*  eslint-disable-next-line @next/next/no-sync-scripts */}
-        <script
-          crossOrigin="anonymous"
-          // src="//unpkg.com/react-scan/dist/auto.global.js"
-        />
+        {/* <script
+          // id="react-scan"
+          // crossOrigin="anonymous"
+          // strategy="afterInteractive"
+          src="//unpkg.com/react-scan/dist/auto.global.js"
+        /> */}
         {/* )} */}
       </head>
       <body className={`${geistMono.variable} antialiased`}>
         <StoreProvider initialData={{ accounts, groupedCategories }}>
-          <TransactionProvider>
-            <SidebarProvider>
-              <AppSidebar />
-              <main className="min-h-screen bg-background w-full flex flex-col p-4 gap-2">
-                <SidebarTrigger />
-                {children}
-              </main>
-            </SidebarProvider>
-          </TransactionProvider>
+          <SidebarProvider>
+            <AppSidebar />
+            <main className="h-screen bg-background w-full flex flex-col p-4 gap-2 overflow-hidden">
+              <SidebarTrigger />
+              {children}
+            </main>
+          </SidebarProvider>
         </StoreProvider>
       </body>
     </html>

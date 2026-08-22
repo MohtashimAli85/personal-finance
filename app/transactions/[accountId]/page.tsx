@@ -1,9 +1,10 @@
+import { notFound } from "next/navigation";
 import {
   AddTransactionButton,
   AddTransactionRow,
 } from "@/components/transactions/add-transaction";
 import TransactionCheckbox from "@/components/transactions/transaction-checkbox";
-import TransactionRow from "@/components/transactions/transaction-row";
+import TransactionList from "@/components/transactions/transaction-list";
 import TransactionToolbar from "@/components/transactions/transaction-toolbar";
 import {
   Card,
@@ -21,25 +22,24 @@ import {
 } from "@/components/ui/table";
 import TransactionProvider from "@/context/transaction-context";
 import { TransactionSelectionProvider } from "@/context/transaction-selection-context";
+import { getAccountById } from "@/lib/account";
 import { formatCurrency } from "@/lib/helper";
-import { fetchAccountById, fetchTransactionsByAccount } from "@/lib/services";
+import { getTransactions } from "@/lib/transaction";
 
 export default async function Page(props: PageIdProps) {
-  const params = await props.params;
+  const { accountId } = await props.params;
   const searchParams = await props.searchParams;
-  const account = await fetchAccountById(params.accountId);
+  const account = getAccountById(accountId);
   if (!account) {
-    // todo: implement not found page
-    return null;
+    notFound();
   }
-  const transactions = await fetchTransactionsByAccount(
-    params.accountId,
-    searchParams,
-  );
-  console.log({ account });
+  const { data, hasMore } = getTransactions({
+    ...searchParams,
+    accountId,
+  });
   return (
-    <TransactionProvider>
-      <TransactionSelectionProvider transactions={transactions}>
+    <TransactionProvider accountId={accountId}>
+      <TransactionSelectionProvider transactions={data}>
         <Card className="grow">
           <CardHeader>
             <CardTitle>{account.name}</CardTitle>
@@ -48,30 +48,28 @@ export default async function Page(props: PageIdProps) {
               <AddTransactionButton />
             </CardAction>
           </CardHeader>
-          <CardContent className="grow space-y-4 p-0">
-            <TransactionToolbar />
-            <Table className="border-t ">
+          <CardContent className="grow flex flex-col space-y-4 p-0 overflow-hidden">
+            <TransactionToolbar accountId={accountId} />
+            <Table className="border-t" scrollable>
               <TableHeader>
                 <tr>
-                  <TableHead className="w-4 pt-1">
+                  <TableHead className="w-10 pt-1">
                     <TransactionCheckbox shouldSelectAll />
                   </TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Notes</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Payment</TableHead>
-                  <TableHead className="text-right">Deposit</TableHead>
+                  <TableHead className="w-30">Date</TableHead>
+                  <TableHead className="min-w-50">Notes</TableHead>
+                  <TableHead className="w-40">Category</TableHead>
+                  <TableHead className="w-30 text-right">Payment</TableHead>
+                  <TableHead className="w-30 text-right">Deposit</TableHead>
                 </tr>
               </TableHeader>
               <TableBody>
                 <AddTransactionRow />
 
-                {transactions.map((tx) => (
-                  <TransactionRow key={tx.id} tx={tx} />
-                ))}
+                <TransactionList transactions={data} hasMore={hasMore} />
               </TableBody>
             </Table>
-            {!transactions.length && (
+            {!data.length && (
               <div className="text-center py-10 text-muted-foreground">
                 No transactions found. Click &quot;Add Transaction&quot; to
                 create one.
