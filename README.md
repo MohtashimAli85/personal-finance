@@ -1,44 +1,93 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Personal Finance
 
-## Getting Started
+A local-first, envelope-budgeting personal finance app. Next.js (App Router) reads
+and writes a local SQLite database directly from server components and server
+actions, and ships as a desktop app via Electron.
 
-First, run the development server:
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000). A fresh database is created and
+migrated automatically on first run (`db.sqlite` in the project root during
+development).
 
-## Bank Transactions (email import)
+## Scripts
 
-The **Bank Transactions** page imports transactions from Gmail alert emails. Before it can store your Gmail app password, you must set an `ENCRYPTION_KEY` (a 32-byte hex key) in your environment (see `.env.example`). If it is not set, saving credentials will be refused so the password is never stored in plaintext.
+| Command | What it does |
+|---|---|
+| `pnpm dev` | Start the Next.js dev server |
+| `pnpm build` | Production build |
+| `pnpm typecheck` | `tsc --noEmit` |
+| `pnpm test` | Run the test suite (Vitest) |
+| `pnpm test:watch` | Run tests in watch mode |
+| `pnpm check` | Lint/format check (Biome) |
+| `pnpm format` | Lint/format, applying fixes |
+| `pnpm db:generate` | Generate a Drizzle migration from a schema change |
+| `pnpm db:studio` | Open Drizzle Studio against the local database |
+| `pnpm db:reset` | Wipe and recreate the local database |
+| `pnpm electron:dev` | Run the Electron shell against the dev server |
+| `pnpm electron:build[:mac\|:win\|:linux]` | Build the packaged desktop app |
+
+## Data model and architecture
+
+- **Reads**: server components call synchronous read functions in `lib/*.ts`
+  (`getAccounts`, `getTransactions`, `getBudgetView`, ...), which query SQLite
+  directly via Drizzle. There is no API-route layer for reads.
+- **Writes**: server actions in `app/actions/**/mutations.ts`, each wrapping its
+  DB writes in `db.transaction(...)` and calling `revalidatePath` afterward.
+- **Money** is stored and computed as integer cents (`lib/money.ts`), never
+  floating point, to avoid rounding drift in running-total balances.
+- **Dates** are stored as plain `YYYY-MM-DD` calendar dates (`lib/date.ts`), not
+  timestamps - a ledger entry is a calendar date, not an instant.
+- **Budgeting** is cumulative envelope budgeting (`lib/budget.ts`): a category's
+  available balance is everything assigned to it minus everything spent from it,
+  up to and including the viewed month - so unspent money carries forward and
+  overspending carries forward as a negative, the way YNAB-style budgeting works.
+- **Schema and migrations** live in `lib/db/schema.ts` and `drizzle/`. Migrations
+  run automatically on boot (`lib/db/bootstrap.ts`); see that file for the exact
+  order (migrate, seed default categories, normalize state).
+
+## Bank Transactions (Gmail import)
+
+The **Bank Transactions** page imports transactions from bank alert emails via
+Gmail OAuth (read-only `gmail.readonly` scope). Configure `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` (see `.env.example`) to enable it; without them the page
+still works for manually entered and CSV-imported transactions.
+
+Imported transactions land in a **review queue** on that page as `pending` -
+they don't count toward budget activity until you assign a category and accept
+them, so an unreviewed import can never silently skew your budget.
+
+Per-bank parsing rules live in `lib/bank-parsers/` (one file per bank, plus a
+generic fallback); `lib/bank-parsers/fixtures.ts` holds real-world email fixtures
+that run in the test suite and via `npx tsx scripts/check-parsers.ts` for quick
+manual iteration.
+
+## Testing
 
 ```bash
-ENCRYPTION_KEY=$(openssl rand -hex 32)
+pnpm test
 ```
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Tests run against isolated temporary SQLite databases (`test/db-test-utils.ts`),
+never the project's own `db.sqlite`. Coverage so far: money/date/CSV parsing,
+account balance recompute, envelope-budget carryover math, and the bank-parser
+fixtures. See `test/*.test.ts`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Desktop app (Electron)
 
-## Learn More
+`pnpm electron:build[:mac|:win|:linux]` builds a Next.js standalone server and
+packages it with Electron via `electron-builder`. The packaged app resolves its
+database to the OS's per-user application data directory (`app.getPath("userData")`)
+and its migrations to a bundled `drizzle/` folder - never the project directory.
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+`scripts/verify-no-secrets.cjs` runs as an `electron-builder` `beforePack` hook
+and refuses to package the app if a `.env` file or a local `db.sqlite` is present
+in the build output, since the standalone build can otherwise contain a
+developer's own local secrets and data. If you've ever run the standalone server
+directly for local testing (`node .next/standalone/server.js`), delete `.next/`
+before packaging to be safe.
