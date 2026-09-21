@@ -100,13 +100,6 @@ export const monthly_budgets = sqliteTable(
 	],
 );
 
-export const mail_credentials = sqliteTable("mail_credentials", {
-	id: text("id").primaryKey(),
-	email: text("email").notNull(),
-	app_password: text("app_password").notNull(),
-	updated_at: text("updated_at").default(sql`(datetime('now'))`),
-});
-
 export const gmail_messages = sqliteTable(
 	"gmail_messages",
 	{

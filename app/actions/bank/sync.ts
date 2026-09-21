@@ -36,36 +36,9 @@ import { RefreshTokenRevokedError } from "@/lib/refresh";
 
 export type { MailStatus } from "@/lib/mail/credentials";
 
-// ============================================================================
-// APP-PASSWORD FLOW (kept for reference / fallback)
-// ============================================================================
-/*
-import {
-	clearMailCredentials,
-	getDecryptedMailCredentials,
-	saveMailCredentials,
-} from "@/lib/mail/credentials";
-import { fetchMeezanEmails } from "@/lib/mail/imap-client";
-
-export async function saveMailCredentialsAction(
-	email: string,
-	password: string,
-): Promise<MailStatus> {
-	return saveMailCredentials(email, password);
-}
-
-export async function clearMailCredentialsAction() {
-	clearMailCredentials();
-	revalidatePath("/bank-transactions");
-}
-
-// Old sync body:
-//   getDecryptedMailCredentials() -> email + appPassword
-//   const emails = await fetchMeezanEmails(email, appPassword);
-//   ... parse via parseBankTransaction, dedupe, insert ...
-*/
-
-// OAuth action shims (kept so existing UI imports resolve).
+// The bank-transactions UI still imports these two action names for its
+// (now unused) app-password form fields; kept as no-op shims rather than
+// touching every call site. Gmail OAuth (below) is the only live import path.
 export async function saveMailCredentialsAction(
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	_email: string,
