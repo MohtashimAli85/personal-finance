@@ -58,7 +58,7 @@ function startNextServer(): Promise<void> {
 
 		if (isDev) {
 			command = process.platform === "win32" ? "next.cmd" : "next";
-			args = ["dev", "--port"];
+			args = ["dev", "--port", String(serverPort)];
 			env.ELECTRON_RUN_AS_NODE = undefined;
 		} else {
 			serverFile = getNextServerPath();
@@ -72,6 +72,11 @@ function startNextServer(): Promise<void> {
 			env.NODE_ENV = "production";
 			env.ELECTRON_RUN_AS_NODE = "1";
 			env.APP_DB_PATH = path.join(app.getPath("userData"), "db.sqlite");
+			env.APP_MIGRATIONS_PATH = path.join(
+				process.resourcesPath,
+				"standalone",
+				"drizzle",
+			);
 		}
 		env.PORT = String(serverPort);
 
@@ -240,9 +245,25 @@ app.on("activate", () => {
 	}
 });
 
-app.on("before-quit", () => {
-	if (nextServer) {
-		nextServer.kill();
-		nextServer = null;
-	}
+let quitting = false;
+
+app.on("before-quit", (event) => {
+	if (quitting || !nextServer) return;
+	quitting = true;
+	event.preventDefault();
+
+	const server = nextServer;
+	nextServer = null;
+
+	// Give the server a chance to checkpoint its WAL and close the sqlite
+	// handle (see lib/db/shutdown.ts) before the process is torn down.
+	const forceKillTimer = setTimeout(() => {
+		server.kill("SIGKILL");
+	}, 3000);
+
+	server.once("exit", () => {
+		clearTimeout(forceKillTimer);
+		app.quit();
+	});
+	server.kill("SIGTERM");
 });

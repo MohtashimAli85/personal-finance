@@ -3,17 +3,20 @@ import {
 	index,
 	integer,
 	primaryKey,
-	real,
 	sqliteTable,
 	text,
 	uniqueIndex,
 } from "drizzle-orm/sqlite-core";
 
+// All money columns store integer minor units (cents/paisa) - see lib/money.ts.
+// All date columns store a plain YYYY-MM-DD calendar date - see lib/date.ts.
+
 export const accounts = sqliteTable("accounts", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull().unique(),
-	balance: real("balance").default(0),
+	balance: integer("balance").notNull().default(0),
 	account_type: text("account_type").notNull().default("on_budget"),
+	closed_at: text("closed_at"),
 	created_at: text("created_at").default(sql`(datetime('now'))`),
 });
 
@@ -53,17 +56,28 @@ export const transactions = sqliteTable(
 		category_id: text("category_id").references(() => categories.id, {
 			onDelete: "set null",
 		}),
-		payment: real("payment"),
+		payment: integer("payment"),
 		notes: text("notes"),
-		date: text("date").default(sql`CURRENT_TIMESTAMP`),
-		deposit: real("deposit"),
+		date: text("date").notNull(),
+		deposit: integer("deposit"),
 		source: text("source").notNull().default("manual"),
 		external_hash: text("external_hash"),
+		// "pending" rows (fresh bank imports) are excluded from budget activity
+		// until reviewed and accepted; "cleared" is the default for everything
+		// entered directly and for rows a user has accepted.
+		status: text("status").notNull().default("cleared"),
+		// Links the two legs of a transfer between the user's own accounts.
+		// Transfer legs carry no category and are excluded from income/expense
+		// summaries and (for on-budget <-> on-budget transfers) budget activity.
+		transfer_id: text("transfer_id"),
 	},
 	(table) => [
 		index("idx_transactions_account").on(table.account_id),
 		index("idx_transactions_date").on(table.date),
 		index("idx_transactions_category_date").on(table.category_id, table.date),
+		index("idx_transactions_status").on(table.status),
+		index("idx_transactions_transfer").on(table.transfer_id),
+		index("idx_transactions_source").on(table.source),
 		uniqueIndex("idx_transactions_external_hash").on(table.external_hash),
 	],
 );
@@ -75,7 +89,7 @@ export const monthly_budgets = sqliteTable(
 			.notNull()
 			.references(() => categories.id, { onDelete: "cascade" }),
 		month: text("month").notNull(),
-		amount: real("amount").notNull().default(0),
+		amount: integer("amount").notNull().default(0),
 	},
 	(table) => [
 		primaryKey({ columns: [table.category_id, table.month] }),
@@ -127,6 +141,9 @@ export const bank_sender_configs = sqliteTable(
 		id: text("id").primaryKey(),
 		sender_email: text("sender_email").notNull().unique(),
 		account_name: text("account_name").notNull(),
+		account_id: text("account_id").references(() => accounts.id, {
+			onDelete: "set null",
+		}),
 		enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
 		created_at: text("created_at").default(sql`(datetime('now'))`),
 	},

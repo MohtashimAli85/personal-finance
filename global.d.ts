@@ -1,10 +1,12 @@
 declare global {
+	/** All money fields are integer cents (see lib/money.ts). */
 	interface Account {
 		id: string;
 		name: string;
 		balance: number;
 		account_type: "on_budget" | "off_budget";
-		created_at: string;
+		closed_at: string | null;
+		created_at: string | null;
 	}
 	interface Category {
 		id: string;
@@ -21,18 +23,22 @@ declare global {
 	interface GroupedCategory extends CategoryGroup {
 		categories: Category[];
 	}
+	/** payment/deposit are integer cents (see lib/money.ts); date is YYYY-MM-DD. */
 	interface Transaction {
 		id: string;
-		payment: number | undefined;
-		deposit: number | undefined;
+		payment: number | null;
+		deposit: number | null;
 		date: string;
-		notes: string | undefined;
-		account_id: string;
-		category_id: string;
+		notes: string | null;
+		account_id: string | null;
+		category_id: string | null;
+		source?: string;
+		status?: "pending" | "cleared";
+		transfer_id?: string | null;
 	}
 	interface TransactionRow extends Transaction {
-		account_name: string;
-		category_name: string | undefined;
+		account_name: string | null;
+		category_name: string | null;
 	}
 	interface ActionState {
 		success: boolean;
@@ -55,13 +61,15 @@ declare global {
 		searchParams: Promise<SearchParams>;
 	}
 
+	/** budgeted/activity/available are integer cents; available is the
+	 * cumulative carryover balance through the viewed month. */
 	interface BudgetCategoryRow {
 		id: string;
 		name: string;
 		group_id: string;
 		budgeted: number;
 		activity: number;
-		balance: number;
+		available: number;
 	}
 
 	interface BudgetGroup {
@@ -73,14 +81,17 @@ declare global {
 		categories: BudgetCategoryRow[];
 	}
 
+	/** All amounts are integer cents. */
 	interface BudgetView {
 		month: string;
 		totalBalance: number;
-		totalBudgeted: number;
+		totalAssignedAllTime: number;
 		toBudget: number;
+		uncategorizedActivity: number;
 		groups: BudgetGroup[];
 	}
 
+	/** income/expense are integer cents. */
 	interface SummaryResponse {
 		income: number;
 		expense: number;

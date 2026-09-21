@@ -9,36 +9,36 @@ import AccountContextMenu from "./account-context-menu";
 import CloseAccount from "./close-account";
 
 export const AccountItem = ({ account }: { account: Account }) => {
-  const { containerRef, startEditing, handleBlur, handleKeyDown } =
-    useInlineEdit((value) => {
-      updateAccount(account.id, value);
-    });
+	const { containerRef, startEditing, handleBlur, handleKeyDown } =
+		useInlineEdit((value) => {
+			updateAccount(account.id, { name: value });
+		});
 
-  return (
-    <Dialog>
-      <AccountContextMenu onRename={startEditing}>
-        <SidebarMenuItem>
-          <NavItem href={`/transactions/${account.id}`}>
-            <div className="grow max-w-30" ref={containerRef}>
-              <input
-                data-edit
-                key={account.name}
-                hidden
-                id={"name"}
-                defaultValue={account.name}
-                className="outline-none"
-                onBlur={handleBlur}
-                onKeyDown={handleKeyDown}
-              />
-              <span data-view>{account.name}</span>
-            </div>
-            <SidebarMenuBadge>
-              {formatCurrency(account.balance)}
-            </SidebarMenuBadge>
-          </NavItem>
-        </SidebarMenuItem>
-      </AccountContextMenu>
-      <CloseAccount account={account} />
-    </Dialog>
-  );
+	return (
+		<Dialog>
+			<AccountContextMenu onRename={startEditing}>
+				<SidebarMenuItem>
+					<NavItem href={`/transactions/${account.id}`}>
+						<div className="grow max-w-30" ref={containerRef}>
+							<input
+								data-edit
+								key={account.name}
+								hidden
+								id={"name"}
+								defaultValue={account.name}
+								className="outline-none"
+								onBlur={handleBlur}
+								onKeyDown={handleKeyDown}
+							/>
+							<span data-view>{account.name}</span>
+						</div>
+						<SidebarMenuBadge>
+							{formatCurrency(account.balance)}
+						</SidebarMenuBadge>
+					</NavItem>
+				</SidebarMenuItem>
+			</AccountContextMenu>
+			<CloseAccount account={account} />
+		</Dialog>
+	);
 };

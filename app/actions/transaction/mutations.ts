@@ -1,52 +1,23 @@
 "use server";
+import { createHash } from "node:crypto";
 import { eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { applyBalanceDelta, signedAmount } from "@/lib/balance";
+import { toDateKey, tryParseDateKey } from "@/lib/date";
 import { db } from "@/lib/db";
-import { accounts, categories, category_group, transactions } from "@/lib/db/schema";
+import { categories, category_group, transactions } from "@/lib/db/schema";
+import { toCents } from "@/lib/money";
 
-function toAmount(value: unknown): number {
-	const amount = Number(value);
-	if (!Number.isFinite(amount)) return 0;
-	return Math.abs(amount);
-}
+// All amounts crossing this module's boundary are integer cents (see
+// lib/money.ts) unless a function's doc says otherwise (bulkImportTransactions
+// takes decimal amounts, matching what a CSV file contains, and converts
+// internally).
 
-function normalizeDateInput(input: FormDataEntryValue | string | null): string {
-	if (!input) return new Date().toISOString();
-	const raw = String(input).trim();
-	if (!raw) return new Date().toISOString();
-	const asNumber = Number(raw);
-	if (!Number.isNaN(asNumber) && asNumber > 100000000000) {
-		return new Date(asNumber).toISOString();
-	}
-	const parsed = Date.parse(raw);
-	if (Number.isNaN(parsed)) return new Date().toISOString();
-	return new Date(parsed).toISOString();
-}
-
-function adjustBalance(accountId: string, amount: number) {
-	db.update(accounts)
-		.set({ balance: sql`coalesce(${accounts.balance}, 0) + ${amount}` })
-		.where(eq(accounts.id, accountId))
-		.run();
-}
-
-function updateAccountBalance(
-	accountId?: string | null,
-	payment?: number | null,
-	deposit?: number | null,
-	reverse = false,
-) {
-	if (!accountId) return;
-	if (payment) {
-		const amount = reverse ? Math.abs(payment) : -Math.abs(payment);
-		adjustBalance(accountId, amount);
-		return amount;
-	}
-	if (deposit) {
-		const amount = reverse ? -Math.abs(deposit) : Math.abs(deposit);
-		adjustBalance(accountId, amount);
-		return amount;
-	}
+/** Converts a decimal amount (string from an input, or number from a draft
+ * transaction) to absolute integer cents. Always treats the input as
+ * decimal - never already-cents - regardless of its JS type. */
+function toCentsAmount(value: unknown): number {
+	return Math.abs(toCents(value));
 }
 
 function revalidateAll() {
@@ -54,117 +25,22 @@ function revalidateAll() {
 	revalidatePath("/transactions");
 	revalidatePath("/budget");
 }
+
+const EDITABLE_COLUMNS = [
+	"account_id",
+	"category_id",
+	"payment",
+	"deposit",
+	"date",
+	"notes",
+] as const;
+type EditableColumn = (typeof EDITABLE_COLUMNS)[number];
+
 export async function updateTransactionColumn(
 	id: string,
-	column: keyof Omit<Transaction, "id">,
-	value: Transaction[keyof Omit<Transaction, "id">],
+	column: EditableColumn,
+	value: unknown,
 ) {
-	const existing = db
-		.select({ account_id: transactions.account_id })
-		.from(transactions)
-		.where(eq(transactions.id, id))
-		.get();
-
-	if (!existing) return;
-
-	const accountId = existing.account_id;
-
-	db.transaction(() => {
-		const tx = db
-			.select({
-				payment: transactions.payment,
-				deposit: transactions.deposit,
-			})
-			.from(transactions)
-			.where(eq(transactions.id, id))
-			.get();
-
-		if (column === "account_id") {
-			if (tx) {
-				// Reverse balance impact on old account
-				updateAccountBalance(accountId, tx.payment, tx.deposit, true);
-				// Apply balance impact on new account
-				updateAccountBalance(value as string, tx.payment, tx.deposit);
-			}
-		}
-
-		// Update transaction row. If updating payment, clear deposit. If updating deposit, clear payment.
-		if (column === "payment") {
-			const nextPayment = toAmount(value);
-			if (tx?.deposit) {
-				updateAccountBalance(accountId, 0, tx.deposit, true); // Reverse old deposit
-			}
-			if (tx?.payment) {
-				updateAccountBalance(accountId, tx.payment, 0, true); // Reverse old payment
-			}
-			updateAccountBalance(accountId, nextPayment); // Apply new payment
-			db.update(transactions)
-				.set({ payment: nextPayment, deposit: null })
-				.where(eq(transactions.id, id))
-				.run();
-		} else if (column === "deposit") {
-			const nextDeposit = toAmount(value);
-			if (tx?.payment) {
-				updateAccountBalance(accountId, tx.payment, 0, true); // Reverse old payment
-			}
-			if (tx?.deposit) {
-				updateAccountBalance(accountId, 0, tx.deposit, true); // Reverse old deposit
-			}
-			updateAccountBalance(accountId, 0, nextDeposit); // Apply new deposit
-			db.update(transactions)
-				.set({ deposit: nextDeposit, payment: null })
-				.where(eq(transactions.id, id))
-				.run();
-		} else if (column === "date") {
-			db.update(transactions)
-				.set({ date: normalizeDateInput(value as string) })
-				.where(eq(transactions.id, id))
-				.run();
-		} else if (column === "notes") {
-			db.update(transactions)
-				.set({ notes: value as string | null })
-				.where(eq(transactions.id, id))
-				.run();
-		} else if (column === "category_id") {
-			db.update(transactions)
-				.set({ category_id: value as string | null })
-				.where(eq(transactions.id, id))
-				.run();
-		} else {
-			throw new Error(`Unsupported column update: ${column}`);
-		}
-	});
-	revalidateAll();
-}
-export async function createTransaction(tx: Omit<Transaction, "id">) {
-	db.transaction(() => {
-		db.insert(transactions)
-			.values({
-				id: crypto.randomUUID(),
-				payment: tx.payment,
-				deposit: tx.deposit,
-				date: normalizeDateInput(tx.date),
-				account_id: tx.account_id,
-				category_id: tx.category_id,
-				notes: tx.notes,
-			})
-			.run();
-		if (tx.account_id) {
-			updateAccountBalance(tx.account_id, tx.payment, tx.deposit);
-		}
-	});
-	revalidateAll();
-}
-
-export async function updateTransaction(formData: FormData) {
-	const payment = toAmount(formData.get("payment"));
-	const deposit = toAmount(formData.get("deposit"));
-	const id = String(formData.get("id"));
-	const newDate = normalizeDateInput(formData.get("date"));
-	const newAccountId = (formData.get("accountId") as string) ?? null;
-	const newCategoryId = (formData.get("categoryId") as string) ?? null;
-	const newNotes = (formData.get("notes") as string) ?? null;
-
 	const existing = db
 		.select({
 			account_id: transactions.account_id,
@@ -174,39 +50,99 @@ export async function updateTransaction(formData: FormData) {
 		.from(transactions)
 		.where(eq(transactions.id, id))
 		.get();
-
 	if (!existing) return;
 
-	const oldAccountId = existing.account_id ?? null;
+	db.transaction(() => {
+		switch (column) {
+			case "account_id": {
+				const nextAccountId = (value as string) || null;
+				if (nextAccountId === existing.account_id) return;
+				// Reverse the balance impact on the old account, apply it to the new one.
+				applyBalanceDelta(
+					existing.account_id,
+					-signedAmount(existing.payment, existing.deposit),
+				);
+				applyBalanceDelta(
+					nextAccountId,
+					signedAmount(existing.payment, existing.deposit),
+				);
+				db.update(transactions)
+					.set({ account_id: nextAccountId })
+					.where(eq(transactions.id, id))
+					.run();
+				break;
+			}
+			case "payment": {
+				const nextPayment = toCentsAmount(value) || null;
+				const delta =
+					signedAmount(nextPayment, null) -
+					signedAmount(existing.payment, existing.deposit);
+				applyBalanceDelta(existing.account_id, delta);
+				db.update(transactions)
+					.set({ payment: nextPayment, deposit: null })
+					.where(eq(transactions.id, id))
+					.run();
+				break;
+			}
+			case "deposit": {
+				const nextDeposit = toCentsAmount(value) || null;
+				const delta =
+					signedAmount(null, nextDeposit) -
+					signedAmount(existing.payment, existing.deposit);
+				applyBalanceDelta(existing.account_id, delta);
+				db.update(transactions)
+					.set({ deposit: nextDeposit, payment: null })
+					.where(eq(transactions.id, id))
+					.run();
+				break;
+			}
+			case "date": {
+				const dateKey = tryParseDateKey(value as string);
+				if (!dateKey) return;
+				db.update(transactions)
+					.set({ date: dateKey })
+					.where(eq(transactions.id, id))
+					.run();
+				break;
+			}
+			case "notes": {
+				db.update(transactions)
+					.set({ notes: (value as string) || null })
+					.where(eq(transactions.id, id))
+					.run();
+				break;
+			}
+			case "category_id": {
+				db.update(transactions)
+					.set({ category_id: (value as string) || null })
+					.where(eq(transactions.id, id))
+					.run();
+				break;
+			}
+		}
+	});
+	revalidateAll();
+}
+
+export async function createTransaction(tx: Omit<Transaction, "id">) {
+	const accountId = tx.account_id || null;
+	const categoryId = tx.category_id || null;
+	const payment = tx.payment ? toCentsAmount(tx.payment) : null;
+	const deposit = tx.deposit ? toCentsAmount(tx.deposit) : null;
 
 	db.transaction(() => {
-		// Reverse old balance impact on old account
-		if (oldAccountId) {
-			updateAccountBalance(
-				oldAccountId,
-				existing.payment,
-				existing.deposit,
-				true,
-			);
-		}
-
-		// Apply new balance impact on new account (could be same account)
-		if (newAccountId) {
-			updateAccountBalance(newAccountId, payment, deposit);
-		}
-
-		// Update transaction row
-		db.update(transactions)
-			.set({
+		db.insert(transactions)
+			.values({
+				id: crypto.randomUUID(),
 				payment,
 				deposit,
-				date: newDate,
-				account_id: newAccountId,
-				category_id: newCategoryId,
-				notes: newNotes,
+				date: toDateKey(tx.date),
+				account_id: accountId,
+				category_id: categoryId,
+				notes: tx.notes || null,
 			})
-			.where(eq(transactions.id, id))
 			.run();
+		applyBalanceDelta(accountId, signedAmount(payment, deposit));
 	});
 	revalidateAll();
 }
@@ -223,24 +159,19 @@ export async function deleteTransaction(formData: FormData) {
 		.from(transactions)
 		.where(eq(transactions.id, id))
 		.get();
-
 	if (!tx) return;
 
 	db.transaction(() => {
-		// Reverse balance impact before deleting
-		if (tx.account_id) {
-			updateAccountBalance(tx.account_id, tx.payment, tx.deposit, true);
-		}
+		applyBalanceDelta(tx.account_id, -signedAmount(tx.payment, tx.deposit));
 		db.delete(transactions).where(eq(transactions.id, id)).run();
 	});
-
 	revalidateAll();
 }
 
 export async function bulkDeleteTransactions(ids: string[]) {
 	if (!ids || ids.length === 0) return;
 
-	const transactionsToDelete = db
+	const rows = db
 		.select({
 			id: transactions.id,
 			payment: transactions.payment,
@@ -250,27 +181,75 @@ export async function bulkDeleteTransactions(ids: string[]) {
 		.from(transactions)
 		.where(inArray(transactions.id, ids))
 		.all();
-
-	if (!transactionsToDelete || transactionsToDelete.length === 0) return;
+	if (rows.length === 0) return;
 
 	db.transaction(() => {
-		// Reverse balance impact for each transaction
-		for (const tx of transactionsToDelete) {
-			if (tx.account_id) {
-				updateAccountBalance(tx.account_id, tx.payment, tx.deposit, true);
-			}
+		for (const tx of rows) {
+			applyBalanceDelta(tx.account_id, -signedAmount(tx.payment, tx.deposit));
 		}
-
-		// Delete all transactions at once
 		db.delete(transactions).where(inArray(transactions.id, ids)).run();
 	});
+	revalidateAll();
+}
 
+/**
+ * Creates a linked pair of transactions moving money between two of the
+ * user's own accounts. Transfer legs carry no category and are excluded from
+ * income/expense summaries and (for on-budget <-> on-budget moves) budget
+ * activity, so moving your own money is never counted as income or spending.
+ */
+export async function createTransfer(input: {
+	fromAccountId: string;
+	toAccountId: string;
+	amount: number; // decimal, e.g. 150.50
+	date: string;
+	notes?: string;
+}) {
+	if (input.fromAccountId === input.toAccountId) {
+		throw new Error("Cannot transfer an account to itself");
+	}
+	const cents = toCentsAmount(input.amount);
+	if (cents <= 0) throw new Error("Transfer amount must be greater than zero");
+
+	const transferId = crypto.randomUUID();
+	const dateKey = toDateKey(input.date);
+
+	db.transaction(() => {
+		db.insert(transactions)
+			.values({
+				id: crypto.randomUUID(),
+				account_id: input.fromAccountId,
+				payment: cents,
+				deposit: null,
+				date: dateKey,
+				notes: input.notes || "Transfer",
+				source: "transfer",
+				status: "cleared",
+				transfer_id: transferId,
+			})
+			.run();
+		db.insert(transactions)
+			.values({
+				id: crypto.randomUUID(),
+				account_id: input.toAccountId,
+				payment: null,
+				deposit: cents,
+				date: dateKey,
+				notes: input.notes || "Transfer",
+				source: "transfer",
+				status: "cleared",
+				transfer_id: transferId,
+			})
+			.run();
+		applyBalanceDelta(input.fromAccountId, -cents);
+		applyBalanceDelta(input.toAccountId, cents);
+	});
 	revalidateAll();
 }
 
 export interface ImportRow {
-	payment?: number;
-	deposit?: number;
+	payment?: number; // decimal, as it appears in the CSV
+	deposit?: number; // decimal, as it appears in the CSV
 	date: string;
 	notes?: string;
 	category_id?: string;
@@ -332,19 +311,57 @@ function resolveOrCreateCategory(
 	return categoryId;
 }
 
+/** Stable hash used to detect a re-imported CSV row. */
+function csvRowHash(
+	accountId: string,
+	date: string,
+	payment: number | null,
+	deposit: number | null,
+	notes: string,
+): string {
+	return createHash("sha256")
+		.update(
+			`${accountId}|${date}|${payment ?? ""}|${deposit ?? ""}|${notes.trim().toLowerCase()}`,
+		)
+		.digest("hex");
+}
+
 export async function bulkImportTransactions(
 	accountId: string,
 	rows: ImportRow[],
-) {
-	if (!rows.length) return { count: 0 };
+): Promise<{ inserted: number; duplicates: number }> {
+	if (!rows.length) return { inserted: 0, duplicates: 0 };
+
+	const known = new Set(
+		db
+			.select({ hash: transactions.external_hash })
+			.from(transactions)
+			.where(eq(transactions.account_id, accountId))
+			.all()
+			.map((r) => r.hash)
+			.filter((h): h is string => Boolean(h)),
+	);
+
+	let inserted = 0;
+	let duplicates = 0;
 
 	db.transaction(() => {
 		const categoryCache = new Map<string, string>();
 		const groupCache = new Map<string, string>();
 
 		for (const row of rows) {
-			const payment = row.payment ? Math.abs(row.payment) : undefined;
-			const deposit = row.deposit ? Math.abs(row.deposit) : undefined;
+			const payment = row.payment ? toCentsAmount(row.payment) : null;
+			const deposit = row.deposit ? toCentsAmount(row.deposit) : null;
+			const dateKey = toDateKey(row.date);
+			const notes = row.notes || "";
+			const hash = csvRowHash(accountId, dateKey, payment, deposit, notes);
+
+			if (known.has(hash)) {
+				duplicates += 1;
+				continue;
+			}
+			known.add(hash);
+
 			const categoryId = row.category_name
 				? resolveOrCreateCategory(
 						row.category_name,
@@ -357,20 +374,24 @@ export async function bulkImportTransactions(
 			db.insert(transactions)
 				.values({
 					id: crypto.randomUUID(),
-					payment: payment || null,
-					deposit: deposit || null,
-					date: normalizeDateInput(row.date),
+					payment,
+					deposit,
+					date: dateKey,
 					account_id: accountId,
 					category_id: categoryId,
-					notes: row.notes || null,
+					notes: notes || null,
+					source: "csv",
+					external_hash: hash,
+					status: "pending",
 				})
 				.run();
-			updateAccountBalance(accountId, payment, deposit);
+			applyBalanceDelta(accountId, signedAmount(payment, deposit));
+			inserted += 1;
 		}
 	});
 
 	revalidateAll();
-	return { count: rows.length };
+	return { inserted, duplicates };
 }
 
 export async function exportAllTransactions(
@@ -378,12 +399,13 @@ export async function exportAllTransactions(
 ): Promise<string | null> {
 	const { getTransactions } = await import("@/lib/transaction");
 	const { serializeCSV } = await import("@/lib/csv");
+	const { fromCents } = await import("@/lib/money");
 
 	const params: SearchParams = { limit: "0" };
 	if (accountId) params.accountId = accountId;
 
-	const { data: transactions } = getTransactions(params);
-	if (transactions.length === 0) return null;
+	const { data: rows } = getTransactions(params);
+	if (rows.length === 0) return null;
 
 	const headers = [
 		"Date",
@@ -393,14 +415,14 @@ export async function exportAllTransactions(
 		"Payment",
 		"Deposit",
 	];
-	const rows = transactions.map((tx) => [
-		tx.date ? new Date(tx.date).toLocaleDateString("en-CA") : "",
+	const csvRows = rows.map((tx) => [
+		tx.date ?? "",
 		tx.account_name ?? "",
 		tx.notes ?? "",
 		tx.category_name ?? "",
-		tx.payment ? String(tx.payment) : "",
-		tx.deposit ? String(tx.deposit) : "",
+		tx.payment ? fromCents(tx.payment).toFixed(2) : "",
+		tx.deposit ? fromCents(tx.deposit).toFixed(2) : "",
 	]);
 
-	return serializeCSV(headers, rows);
+	return serializeCSV(headers, csvRows);
 }

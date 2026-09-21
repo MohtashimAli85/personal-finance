@@ -1,6 +1,8 @@
-import { bootstrapDatabase } from "./bootstrap";
+import { ensureDatabaseReady } from "./bootstrap";
+import { registerShutdownHandlers } from "./shutdown";
 
-bootstrapDatabase();
+ensureDatabaseReady();
+registerShutdownHandlers();
 
 export { db, sqlite } from "./client";
 export * as schema from "./schema";

@@ -22,9 +22,12 @@ import {
 	type UnparsedEmail,
 } from "@/app/actions/bank/sender-config";
 import {
+	acceptBankTransaction,
+	rejectBankTransaction,
 	rescanBankTransactions,
 	syncBankTransactions,
 } from "@/app/actions/bank/sync";
+import CategoryCombobox from "@/components/categories/category-combobox";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -49,6 +52,7 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import type { BankTransactionRow } from "@/lib/bank-transaction";
+import { fromCents } from "@/lib/money";
 
 function SenderConfigCard({ configs }: { configs: BankSenderConfig[] }) {
 	const router = useRouter();
@@ -96,8 +100,8 @@ function SenderConfigCard({ configs }: { configs: BankSenderConfig[] }) {
 			<CardHeader>
 				<CardTitle className="text-base">Bank senders</CardTitle>
 				<p className="text-sm text-muted-foreground">
-					Only emails from these senders are read and imported. Each sender
-					maps to its own account.
+					Only emails from these senders are read and imported. Each sender maps
+					to its own account.
 				</p>
 			</CardHeader>
 			<CardContent className="space-y-4">
@@ -202,8 +206,8 @@ function SenderConfigCard({ configs }: { configs: BankSenderConfig[] }) {
 						</AlertDialogTitle>
 						<AlertDialogDescription>
 							New emails from {pendingDelete?.senderEmail} will no longer be
-							imported. Transactions already imported are kept. To pause
-							imports without removing the sender, untick it instead.
+							imported. Transactions already imported are kept. To pause imports
+							without removing the sender, untick it instead.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -272,21 +276,25 @@ function UnparsedCard({ emails }: { emails: UnparsedEmail[] }) {
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2 text-base text-amber-600">
 					<AlertCircle className="h-4 w-4" />
-					{emails.length} bank email{emails.length === 1 ? "" : "s"} couldn&apos;t
-					be read
+					{emails.length} bank email{emails.length === 1 ? "" : "s"}{" "}
+					couldn&apos;t be read
 				</CardTitle>
 				<p className="text-sm text-muted-foreground">
-					These look like transaction alerts but no parser matched their
-					format, so they were not imported. Ordinary mail such as login
-					alerts is not listed here.
+					These look like transaction alerts but no parser matched their format,
+					so they were not imported. Ordinary mail such as login alerts is not
+					listed here.
 				</p>
 			</CardHeader>
 			<CardContent>
 				<ul className="space-y-1 text-sm">
 					{emails.map((email) => (
 						<li key={email.id} className="flex gap-2 text-muted-foreground">
-							<span className="whitespace-nowrap">{formatDate(email.date)}</span>
-							<span className="truncate">{email.subject ?? "(no subject)"}</span>
+							<span className="whitespace-nowrap">
+								{formatDate(email.date)}
+							</span>
+							<span className="truncate">
+								{email.subject ?? "(no subject)"}
+							</span>
 						</li>
 					))}
 				</ul>
@@ -334,6 +342,7 @@ export default function BankTransactionsClient({
 	senderConfigs: BankSenderConfig[];
 	unparsed: UnparsedEmail[];
 }) {
+	const [acceptingId, setAcceptingId] = useState<string | null>(null);
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [status, setStatus] = useState<{
@@ -369,7 +378,15 @@ export default function BankTransactionsClient({
 		return unsubscribe;
 	}, [router]);
 
-	const totalSpent = transactions.reduce((sum, t) => sum + (t.payment ?? 0), 0);
+	const totalSpent = fromCents(
+		transactions.reduce((sum, t) => sum + (t.payment ?? 0), 0),
+	);
+	const pendingTransactions = transactions.filter(
+		(t) => t.status === "pending",
+	);
+	const [acceptCategory, setAcceptCategory] = useState<Record<string, string>>(
+		{},
+	);
 
 	const refresh = () => router.refresh();
 
@@ -502,6 +519,105 @@ export default function BankTransactionsClient({
 				</Card>
 			</div>
 
+			{pendingTransactions.length > 0 && (
+				<Card>
+					<CardHeader>
+						<CardTitle>Review imported transactions</CardTitle>
+						<p className="text-sm text-muted-foreground">
+							{pendingTransactions.length} transaction
+							{pendingTransactions.length === 1 ? "" : "s"} imported but not yet
+							in your budget. Assign a category and accept, or reject to remove
+							it.
+						</p>
+					</CardHeader>
+					<CardContent>
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>Date</TableHead>
+									<TableHead>Description</TableHead>
+									<TableHead>Account</TableHead>
+									<TableHead className="text-right">Amount</TableHead>
+									<TableHead className="w-48">Category</TableHead>
+									<TableHead className="w-32">Action</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{pendingTransactions.map((t) => {
+									const isExpense = t.payment != null;
+									return (
+										<TableRow key={t.id}>
+											<TableCell className="whitespace-nowrap">
+												{formatDate(t.date)}
+											</TableCell>
+											<TableCell>{t.notes ?? "-"}</TableCell>
+											<TableCell className="text-muted-foreground whitespace-nowrap">
+												{t.account_name ?? "-"}
+											</TableCell>
+											<TableCell
+												className={`text-right font-medium whitespace-nowrap ${isExpense ? "text-red-600" : "text-emerald-600"}`}
+											>
+												PKR{" "}
+												{fromCents(
+													t.payment ?? t.deposit ?? 0,
+												).toLocaleString()}
+											</TableCell>
+											<TableCell>
+												<CategoryCombobox
+													value={
+														acceptCategory[t.id] ?? t.category_id ?? undefined
+													}
+													label={t.category_name ?? undefined}
+													onChange={(value) =>
+														setAcceptCategory((prev) => ({
+															...prev,
+															[t.id]: value,
+														}))
+													}
+												/>
+											</TableCell>
+											<TableCell>
+												<div className="flex gap-1">
+													<Button
+														size="sm"
+														disabled={acceptingId === t.id}
+														onClick={() => {
+															setAcceptingId(t.id);
+															startTransition(async () => {
+																await acceptBankTransaction(
+																	t.id,
+																	acceptCategory[t.id] ?? t.category_id ?? null,
+																);
+																setAcceptingId(null);
+																refresh();
+															});
+														}}
+													>
+														Accept
+													</Button>
+													<Button
+														size="sm"
+														variant="outline"
+														onClick={() => {
+															startTransition(async () => {
+																await rejectBankTransaction(t.id);
+																refresh();
+															});
+														}}
+													>
+														Reject
+													</Button>
+												</div>
+											</TableCell>
+										</TableRow>
+									);
+								})}
+							</TableBody>
+						</Table>
+					</CardContent>
+				</Card>
+			)}
+
 			<Card>
 				<CardHeader>
 					<CardTitle>History</CardTitle>
@@ -514,6 +630,7 @@ export default function BankTransactionsClient({
 								<TableHead>Description</TableHead>
 								<TableHead>Account</TableHead>
 								<TableHead>Type</TableHead>
+								<TableHead>Status</TableHead>
 								<TableHead className="text-right">Amount</TableHead>
 							</TableRow>
 						</TableHeader>
@@ -521,7 +638,7 @@ export default function BankTransactionsClient({
 							{transactions.length === 0 ? (
 								<TableRow>
 									<TableCell
-										colSpan={5}
+										colSpan={6}
 										className="text-center py-10 text-muted-foreground"
 									>
 										{senderConfigs.some((c) => c.enabled)
@@ -548,12 +665,24 @@ export default function BankTransactionsClient({
 													<Badge>income</Badge>
 												)}
 											</TableCell>
+											<TableCell>
+												{t.status === "pending" ? (
+													<Badge variant="outline">pending</Badge>
+												) : (
+													<span className="text-muted-foreground text-xs">
+														cleared
+													</span>
+												)}
+											</TableCell>
 											<TableCell className="text-right font-bold whitespace-nowrap">
 												<span className="inline-flex items-center gap-1">
 													{isExpense ? null : (
 														<ArrowUpRight className="h-3.5 w-3.5 text-emerald-600" />
 													)}
-													PKR {(t.payment ?? t.deposit ?? 0).toLocaleString()}
+													PKR{" "}
+													{fromCents(
+														t.payment ?? t.deposit ?? 0,
+													).toLocaleString()}
 												</span>
 											</TableCell>
 										</TableRow>

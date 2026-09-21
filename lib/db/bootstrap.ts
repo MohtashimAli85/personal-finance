@@ -1,12 +1,10 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { format } from "date-fns";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { parseBankEmail } from "../bank-email-parse";
 import { db } from "./client";
 import {
-	accounts,
 	bank_sender_configs,
 	categories,
 	category_group,
@@ -17,7 +15,9 @@ import {
 const uid = () => crypto.randomUUID();
 
 export const runMigrations = () => {
-	migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+	const migrationsFolder =
+		process.env.APP_MIGRATIONS_PATH ?? path.join(process.cwd(), "drizzle");
+	migrate(db, { migrationsFolder });
 };
 
 export const ensureIncomeGroupTrigger = () => {
@@ -29,28 +29,6 @@ export const ensureIncomeGroupTrigger = () => {
       SELECT RAISE(ABORT, 'Income group cannot be deleted');
     END;
   `);
-};
-
-const seedAccounts = () => {
-	const existing = db.select({ id: accounts.id }).from(accounts).limit(1).get();
-	if (existing) return;
-
-	const now = new Date(new Date().toUTCString());
-	now.setHours(6);
-	const sqliteUTC = (date: Date) => format(date, "yyyy-MM-dd HH:mm:ss");
-
-	db.transaction(() => {
-		for (const [name, balance] of [
-			["Savings", 50000],
-			["Wife", 20000],
-			["Mohtashim", 20000],
-		] as const) {
-			db.insert(accounts)
-				.values({ id: uid(), name, balance, created_at: sqliteUTC(now) })
-				.run();
-			now.setHours(now.getHours() + 1);
-		}
-	});
 };
 
 // Preserves the pre-multi-sender behavior: anyone upgrading from the
@@ -124,7 +102,7 @@ const backfillEmailTransactionHashes = () => {
 		if (!parsed) continue;
 		const hash = messageIdHash(row.id);
 		if (claimed.has(hash)) continue;
-		const key = `${parsed.date}|${parsed.amount.toFixed(2)}|${parsed.type}`;
+		const key = `${parsed.date}|${Math.round(parsed.amount * 100)}|${parsed.type}`;
 		const bucket = byFacts.get(key);
 		if (bucket) bucket.push(hash);
 		else byFacts.set(key, [hash]);
@@ -134,7 +112,7 @@ const backfillEmailTransactionHashes = () => {
 	for (const row of legacyRows) {
 		const type = row.payment != null ? "expense" : "income";
 		const amount = row.payment ?? row.deposit ?? 0;
-		const key = `${row.date}|${amount.toFixed(2)}|${type}`;
+		const key = `${row.date}|${amount}|${type}`;
 		const bucket = byFacts.get(key);
 		const hash = bucket?.shift();
 		if (!hash) continue;
@@ -315,12 +293,28 @@ const normalizeCategoryGroupState = () => {
 	}
 };
 
-export const bootstrapDatabase = () => {
-	runMigrations();
-	seedAccounts();
-	seedCategories();
-	seedBankSenderConfigs();
-	backfillEmailTransactionHashes();
-	normalizeCategoryGroupState();
-	ensureIncomeGroupTrigger();
+let ready = false;
+
+/**
+ * Runs migrations and one-time setup. Safe to call more than once - only the
+ * first call does anything. Call this explicitly from a single entry point
+ * (lib/db/index.ts) rather than relying on module-import side effects.
+ */
+export const ensureDatabaseReady = () => {
+	if (ready) return;
+	try {
+		runMigrations();
+		seedCategories();
+		seedBankSenderConfigs();
+		backfillEmailTransactionHashes();
+		normalizeCategoryGroupState();
+		ensureIncomeGroupTrigger();
+		ready = true;
+	} catch (error) {
+		console.error("Database bootstrap failed:", error);
+		throw error;
+	}
 };
+
+// Back-compat alias.
+export const bootstrapDatabase = ensureDatabaseReady;

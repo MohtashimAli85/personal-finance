@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, like, lte, or, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, like, lt, or, type SQL } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/lib/db";
 import { accounts, categories, transactions } from "@/lib/db/schema";
@@ -43,7 +43,9 @@ export const getTransactions = cache(
 			}
 
 			if (to) {
-				conditions.push(lte(transactions.date, to));
+				// `to` is an exclusive upper bound (e.g. the first day of the next
+				// month), matching lib/date.ts getMonthRange - see budget-category-row.
+				conditions.push(lt(transactions.date, to));
 			}
 
 			if (search) {

@@ -2,9 +2,11 @@
 
 import { and, asc, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { copyBudgetFromMonth } from "@/lib/budget";
 import { isMonthKey } from "@/lib/date";
 import { db } from "@/lib/db";
 import { categories, category_group, monthly_budgets } from "@/lib/db/schema";
+import { toCents } from "@/lib/money";
 
 const revalidateBudget = () => {
 	revalidatePath("/budget");
@@ -30,6 +32,8 @@ const resequenceExpenseGroups = () => {
 		.run();
 };
 
+/** `amount` is decimal (e.g. 1500.50) - the amount actually assigned this
+ * month, not cumulative. Stored internally as cents. */
 export async function setBudgetedAmount(
 	categoryId: string,
 	month: string,
@@ -38,7 +42,7 @@ export async function setBudgetedAmount(
 	if (!isMonthKey(month)) {
 		throw new Error(`Invalid month key: ${month}`);
 	}
-	const normalizedAmount = Number.isFinite(amount) ? amount : 0;
+	const normalizedAmount = Number.isFinite(amount) ? toCents(amount) : 0;
 	const category = db
 		.select({ id: categories.id })
 		.from(categories)
@@ -223,4 +227,17 @@ export async function deleteBudgetCategory(categoryId: string) {
 	if (!category) return;
 	db.delete(categories).where(eq(categories.id, category.id)).run();
 	revalidateBudget();
+}
+
+/** Copies every category's assignment from the previous month into this one. */
+export async function copyPreviousMonthBudget(month: string) {
+	if (!isMonthKey(month)) {
+		throw new Error(`Invalid month key: ${month}`);
+	}
+	const [year, m] = month.split("-").map(Number);
+	const prevDate = new Date(year, m - 2, 1);
+	const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+	const copied = copyBudgetFromMonth(prevMonth, month);
+	revalidateBudget();
+	return { copied };
 }

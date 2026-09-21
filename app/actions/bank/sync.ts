@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
 import { applyBalanceDelta, signedAmount } from "@/lib/balance";
 import { type BankEmail, parseBankEmail } from "@/lib/bank-email-parse";
+import { toDateKey } from "@/lib/date";
 import { db } from "@/lib/db";
 import { accounts, gmail_messages, transactions } from "@/lib/db/schema";
 import {
@@ -21,7 +22,6 @@ import {
 	getEnabledBankSenderConfigs,
 	matchSenderConfig,
 } from "@/lib/mail/bank-sender-config";
-import { RefreshTokenRevokedError } from "@/lib/refresh";
 import { getMailStatus, type MailStatus } from "@/lib/mail/credentials";
 import {
 	getAllEmails,
@@ -31,6 +31,8 @@ import {
 	saveHistoryId,
 	upsertEmails,
 } from "@/lib/mail/gmail-store";
+import { toCents } from "@/lib/money";
+import { RefreshTokenRevokedError } from "@/lib/refresh";
 
 export type { MailStatus } from "@/lib/mail/credentials";
 
@@ -177,6 +179,8 @@ async function hashKey(emailId: string) {
 		.join("");
 }
 
+// Fallback only - normally every enabled sender config already carries a
+// resolved account_id (see lib/mail/bank-sender-config.ts).
 function ensureAccount(name: string): string {
 	const existing = db
 		.select({ id: accounts.id })
@@ -305,7 +309,6 @@ async function importTransactions(
 	configs: BankSenderConfig[],
 	{ repairDescriptions = false }: { repairDescriptions?: boolean } = {},
 ): Promise<ImportResult> {
-	const accountIds = new Map<string, string>();
 	const known = new Map(
 		db
 			.select({ hash: transactions.external_hash, notes: transactions.notes })
@@ -348,14 +351,11 @@ async function importTransactions(
 		}
 		known.set(hash, tx.description);
 
-		let accountId = accountIds.get(config.accountName);
-		if (!accountId) {
-			accountId = ensureAccount(config.accountName);
-			accountIds.set(config.accountName, accountId);
-		}
+		const accountId = config.accountId || ensureAccount(config.accountName);
 
-		const payment = tx.type === "expense" ? tx.amount : null;
-		const deposit = tx.type === "income" ? tx.amount : null;
+		const cents = toCents(tx.amount);
+		const payment = tx.type === "expense" ? cents : null;
+		const deposit = tx.type === "income" ? cents : null;
 
 		db.transaction(() => {
 			db.insert(transactions)
@@ -364,10 +364,14 @@ async function importTransactions(
 					account_id: accountId,
 					payment,
 					deposit,
-					date: isoDate,
+					date: toDateKey(isoDate),
 					notes: tx.description,
 					source: "email",
 					external_hash: hash,
+					// Lands in the bank-transactions review queue rather than
+					// auto-committing into budget activity - see
+					// app/bank-transactions/bank-transactions-client.tsx.
+					status: "pending",
 				})
 				.run();
 			applyBalanceDelta(accountId, signedAmount(payment, deposit));
@@ -466,4 +470,70 @@ export async function rescanBankTransactions(): Promise<
 			needsReauth: error instanceof RefreshTokenRevokedError,
 		};
 	}
+}
+
+// ============================================================================
+// Review queue: pending imports don't reach the budget until accepted.
+// ============================================================================
+
+/** Accepts a pending imported transaction into the ledger, optionally
+ * assigning a category so it counts toward budget activity immediately. */
+export async function acceptBankTransaction(
+	id: string,
+	categoryId?: string | null,
+) {
+	db.update(transactions)
+		.set({
+			status: "cleared",
+			...(categoryId !== undefined ? { category_id: categoryId || null } : {}),
+		})
+		.where(eq(transactions.id, id))
+		.run();
+	revalidatePath("/bank-transactions");
+	revalidatePath("/budget");
+	revalidatePath("/transactions");
+	revalidatePath("/");
+}
+
+export async function bulkAcceptBankTransactions(
+	ids: string[],
+	categoryId?: string | null,
+) {
+	if (!ids.length) return;
+	db.transaction(() => {
+		for (const id of ids) {
+			db.update(transactions)
+				.set({
+					status: "cleared",
+					...(categoryId ? { category_id: categoryId } : {}),
+				})
+				.where(eq(transactions.id, id))
+				.run();
+		}
+	});
+	revalidatePath("/bank-transactions");
+	revalidatePath("/budget");
+	revalidatePath("/transactions");
+	revalidatePath("/");
+}
+
+/** Rejects a pending imported transaction: removes it from the ledger and
+ * reverses its balance effect, same as deleting any other transaction. */
+export async function rejectBankTransaction(id: string) {
+	const tx = db
+		.select({
+			payment: transactions.payment,
+			deposit: transactions.deposit,
+			account_id: transactions.account_id,
+		})
+		.from(transactions)
+		.where(eq(transactions.id, id))
+		.get();
+	if (!tx) return;
+	db.transaction(() => {
+		applyBalanceDelta(tx.account_id, -signedAmount(tx.payment, tx.deposit));
+		db.delete(transactions).where(eq(transactions.id, id)).run();
+	});
+	revalidatePath("/bank-transactions");
+	revalidatePath("/");
 }
