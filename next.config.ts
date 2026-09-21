@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
 	/* config options here */
 	output: "standalone",
 	reactCompiler: true,
-	serverExternalPackages: ["better-sqlite3"],
+	serverExternalPackages: ["better-sqlite3", "googleapis", "imapflow"],
 	allowedDevOrigins: ["http://127.0.0.1:3000", "http://localhost:3000"],
 	// cacheComponents: true,
 };

@@ -57,11 +57,14 @@ export const transactions = sqliteTable(
 		notes: text("notes"),
 		date: text("date").default(sql`CURRENT_TIMESTAMP`),
 		deposit: real("deposit"),
+		source: text("source").notNull().default("manual"),
+		external_hash: text("external_hash"),
 	},
 	(table) => [
 		index("idx_transactions_account").on(table.account_id),
 		index("idx_transactions_date").on(table.date),
 		index("idx_transactions_category_date").on(table.category_id, table.date),
+		uniqueIndex("idx_transactions_external_hash").on(table.external_hash),
 	],
 );
 
@@ -81,4 +84,51 @@ export const monthly_budgets = sqliteTable(
 			table.category_id,
 		),
 	],
+);
+
+export const mail_credentials = sqliteTable("mail_credentials", {
+	id: text("id").primaryKey(),
+	email: text("email").notNull(),
+	app_password: text("app_password").notNull(),
+	updated_at: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const gmail_messages = sqliteTable(
+	"gmail_messages",
+	{
+		id: text("id").primaryKey(),
+		thread_id: text("thread_id"),
+		history_id: text("history_id"),
+		from: text("from"),
+		subject: text("subject"),
+		date: text("date"),
+		internal_date: text("internal_date"),
+		snippet: text("snippet"),
+		body_text: text("body_text"),
+		received_at: text("received_at").default(sql`(datetime('now'))`),
+		processed: integer("processed", { mode: "boolean" })
+			.notNull()
+			.default(false),
+	},
+	(table) => [
+		index("idx_gmail_messages_internal_date").on(table.internal_date),
+	],
+);
+
+export const gmail_sync_state = sqliteTable("gmail_sync_state", {
+	id: text("id").primaryKey(),
+	history_id: text("history_id"),
+	updated_at: text("updated_at").default(sql`(datetime('now'))`),
+});
+
+export const bank_sender_configs = sqliteTable(
+	"bank_sender_configs",
+	{
+		id: text("id").primaryKey(),
+		sender_email: text("sender_email").notNull().unique(),
+		account_name: text("account_name").notNull(),
+		enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+		created_at: text("created_at").default(sql`(datetime('now'))`),
+	},
+	(table) => [index("idx_bank_sender_configs_enabled").on(table.enabled)],
 );

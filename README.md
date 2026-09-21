@@ -16,6 +16,14 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Bank Transactions (email import)
+
+The **Bank Transactions** page imports transactions from Gmail alert emails. Before it can store your Gmail app password, you must set an `ENCRYPTION_KEY` (a 32-byte hex key) in your environment (see `.env.example`). If it is not set, saving credentials will be refused so the password is never stored in plaintext.
+
+```bash
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+```
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

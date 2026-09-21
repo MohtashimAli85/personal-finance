@@ -2,7 +2,7 @@
 import { eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/lib/db";
-import { accounts, transactions } from "@/lib/db/schema";
+import { accounts, categories, category_group, transactions } from "@/lib/db/schema";
 
 function toAmount(value: unknown): number {
 	const amount = Number(value);
@@ -274,6 +274,62 @@ export interface ImportRow {
 	date: string;
 	notes?: string;
 	category_id?: string;
+	category_name?: string;
+	category_group_name?: string;
+}
+
+/**
+ * Finds a category by name, creating it (and its group, if named) when it
+ * doesn't exist yet. Caches within the batch so repeated names in the same
+ * import don't race the categories.name unique constraint.
+ */
+function resolveOrCreateCategory(
+	categoryName: string,
+	groupName: string | undefined,
+	categoryCache: Map<string, string>,
+	groupCache: Map<string, string>,
+): string {
+	const cacheKey = categoryName.toLowerCase();
+	const cached = categoryCache.get(cacheKey);
+	if (cached) return cached;
+
+	const existing = db
+		.select({ id: categories.id })
+		.from(categories)
+		.where(sql`lower(${categories.name}) = ${cacheKey}`)
+		.get();
+	if (existing) {
+		categoryCache.set(cacheKey, existing.id);
+		return existing.id;
+	}
+
+	let groupId: string | null = null;
+	if (groupName) {
+		const groupKey = groupName.toLowerCase();
+		groupId = groupCache.get(groupKey) ?? null;
+		if (!groupId) {
+			const existingGroup = db
+				.select({ id: category_group.id })
+				.from(category_group)
+				.where(sql`lower(${category_group.name}) = ${groupKey}`)
+				.get();
+			groupId = existingGroup?.id ?? null;
+			if (!groupId) {
+				groupId = crypto.randomUUID();
+				db.insert(category_group)
+					.values({ id: groupId, name: groupName })
+					.run();
+			}
+			groupCache.set(groupKey, groupId);
+		}
+	}
+
+	const categoryId = crypto.randomUUID();
+	db.insert(categories)
+		.values({ id: categoryId, name: categoryName, group_id: groupId })
+		.run();
+	categoryCache.set(cacheKey, categoryId);
+	return categoryId;
 }
 
 export async function bulkImportTransactions(
@@ -283,9 +339,21 @@ export async function bulkImportTransactions(
 	if (!rows.length) return { count: 0 };
 
 	db.transaction(() => {
+		const categoryCache = new Map<string, string>();
+		const groupCache = new Map<string, string>();
+
 		for (const row of rows) {
 			const payment = row.payment ? Math.abs(row.payment) : undefined;
 			const deposit = row.deposit ? Math.abs(row.deposit) : undefined;
+			const categoryId = row.category_name
+				? resolveOrCreateCategory(
+						row.category_name,
+						row.category_group_name,
+						categoryCache,
+						groupCache,
+					)
+				: (row.category_id ?? null);
+
 			db.insert(transactions)
 				.values({
 					id: crypto.randomUUID(),
@@ -293,7 +361,7 @@ export async function bulkImportTransactions(
 					deposit: deposit || null,
 					date: normalizeDateInput(row.date),
 					account_id: accountId,
-					category_id: row.category_id || null,
+					category_id: categoryId,
 					notes: row.notes || null,
 				})
 				.run();

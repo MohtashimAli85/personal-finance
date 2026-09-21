@@ -5,9 +5,14 @@ db.sqlite-wal
 
 .next
 .env
-.github
+.env.local
+.env.production
 .agents
 
 dist-electron
 release
 .codegraph
+tsconfig.tsbuildinfo
+
+# local db backups (see lib/db/backup.ts)
+*.sqlite.bak

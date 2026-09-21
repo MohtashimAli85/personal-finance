@@ -90,6 +90,22 @@ declare global {
 		data: T[];
 		hasMore: boolean;
 	}
+
+	interface OAuthPayload {
+		accessToken: string;
+		refreshToken: string | null;
+		expiresIn: number | null;
+	}
+
+	interface ElectronAPI {
+		platform: string;
+		isElectron: boolean;
+		onOAuthCallback: (callback: (payload: OAuthPayload) => void) => void;
+	}
+
+	interface Window {
+		electronAPI?: ElectronAPI;
+	}
 }
 
 export {};

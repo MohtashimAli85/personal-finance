@@ -89,7 +89,9 @@ const FIELD_ALIASES: Record<string, string> = {
 	description: "notes",
 	payee: "notes",
 	category: "category",
-	group: "category",
+	category_group: "category_group",
+	"category group": "category_group",
+	group: "category_group",
 	amount: "amount",
 	total: "amount",
 	sum: "amount",
@@ -106,6 +108,7 @@ export type MappableField =
 	| "date"
 	| "notes"
 	| "category"
+	| "category_group"
 	| "amount"
 	| "payment"
 	| "deposit"
