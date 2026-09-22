@@ -11,3 +11,4 @@ db.sqlite-wal
 dist-electron
 release
 .codegraph
+.env.local
