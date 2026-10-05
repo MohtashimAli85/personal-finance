@@ -31,10 +31,12 @@ export default function TransactionList({
 
   const getScrollElement = useCallback(() => {
     if (scrollElementRef.current) return scrollElementRef.current;
-    // Walk up from the anchor row to find the table-container div
-    const el = anchorRef.current?.closest(
-      '[data-slot="table-container"]',
-    ) as HTMLElement | null;
+    // The viewport owns scrolling; keep the container fallback for other table implementations.
+    const el = (anchorRef.current?.closest(
+      '[data-slot="scroll-area-viewport"]',
+    ) ?? anchorRef.current?.closest('[data-slot="table-container"]')) as
+      | HTMLElement
+      | null;
     if (el) scrollElementRef.current = el;
     return el;
   }, []);

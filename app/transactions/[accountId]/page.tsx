@@ -50,7 +50,7 @@ export default async function Page(props: PageIdProps) {
           </CardHeader>
           <CardContent className="grow flex flex-col space-y-4 p-0 overflow-hidden">
             <TransactionToolbar accountId={accountId} />
-            <Table className="border-t" scrollable>
+            <Table>
               <TableHeader>
                 <tr>
                   <TableHead className="w-10 pt-1">

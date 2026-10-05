@@ -295,7 +295,7 @@ export default function ImportTransactions({
 					{rawRows.length > 0 && (
 						<>
 							<div className="flex flex-col min-w-0 max-h-72 rounded-lg border">
-								<Table scrollable>
+								<Table>
 									<TableHeader>
 										<TableRow>
 											{headers.map((h, i) => (

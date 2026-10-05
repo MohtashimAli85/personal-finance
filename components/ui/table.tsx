@@ -3,27 +3,36 @@
 import type * as React from "react";
 import { forwardRef } from "react";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/tailwindcss/utils";
 
 const Table = forwardRef<
   HTMLDivElement,
-  React.ComponentProps<"table"> & { scrollable?: boolean }
->(({ className, scrollable, ...props }, ref) => {
+  React.ComponentProps<"table"> & { scrollbarOutside?: boolean }
+>(({ className, scrollbarOutside, ...props }, ref) => {
   return (
-    <div
+    <ScrollArea
       ref={ref}
       data-slot="table-container"
-      className={cn(
-        "relative w-full overflow-x-auto",
-        scrollable && "flex-1 overflow-y-auto",
-      )}
+      className="relative min-h-0 w-full flex-1 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:z-20 before:h-px before:bg-border"
+      scrollbarClassName="!top-10"
     >
-      <table
-        data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
-        {...props}
-      />
-    </div>
+      <div
+        className={cn(
+          "min-w-full pb-3",
+          scrollbarOutside && "w-[calc(100%-1.5rem)] min-w-0",
+        )}
+      >
+        <table
+          data-slot="table"
+          className={cn(
+            "w-full caption-bottom text-sm [&_th:last-child]:pr-4 [&_td:last-child]:pr-4",
+            className,
+          )}
+          {...props}
+        />
+      </div>
+    </ScrollArea>
   );
 });
 Table.displayName = "Table";
@@ -32,10 +41,7 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn(
-        "[&_tr]:border-b sticky top-0 z-10 bg-background",
-        className,
-      )}
+      className={cn("[&_tr]:border-b-0", className)}
       {...props}
     />
   );
@@ -82,7 +88,7 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "text-foreground h-10 px-2 text-left align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pr-0",
+        "text-foreground sticky top-0 z-10 h-10 bg-background px-2 text-left align-middle font-medium whitespace-nowrap before:absolute before:-top-px before:inset-x-0 before:h-px before:bg-background after:pointer-events-none after:absolute after:-bottom-px after:inset-x-0 after:h-px after:bg-background [&:has([role=checkbox])]:pr-0",
         className,
       )}
       {...props}

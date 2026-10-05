@@ -12,21 +12,42 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useBudgetContext } from "@/context/budget-context";
+import { formatCurrency } from "@/lib/helper";
 
 export default function BudgetTable() {
   const { month, orderedGroups, collapsedGroups } = useBudgetContext();
   const [addingCategoryGroupId, setAddingCategoryGroupId] = useState<
     string | null
   >(null);
+  const totals = orderedGroups.reduce(
+    (result, group) => {
+      for (const category of group.categories) {
+        result.budgeted += category.budgeted;
+        result.activity += category.activity;
+        result.available += category.available;
+      }
+      return result;
+    },
+    { budgeted: 0, activity: 0, available: 0 },
+  );
 
   return (
-    <Table>
+    <Table scrollbarOutside>
       <TableHeader>
         <TableRow>
-          <TableHead>Category</TableHead>
-          <TableHead className="text-right">Budgeted</TableHead>
-          <TableHead className="text-right">Spent</TableHead>
-          <TableHead className="text-right">Balance</TableHead>
+          <TableHead className="w-[30%]">Category</TableHead>
+          <TableHead className="w-[23.333%] text-right">
+            <div>Budgeted</div>
+            <div className="font-semibold">{formatCurrency(totals.budgeted)}</div>
+          </TableHead>
+          <TableHead className="w-[23.333%] text-right">
+            <div>Spent</div>
+            <div className="font-semibold">{formatCurrency(totals.activity)}</div>
+          </TableHead>
+          <TableHead className="w-[23.333%] text-right">
+            <div>Balance</div>
+            <div className="font-semibold">{formatCurrency(totals.available)}</div>
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
