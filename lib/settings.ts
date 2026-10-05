@@ -1,0 +1,76 @@
+import { eq, sql } from "drizzle-orm";
+import { db } from "@/lib/db";
+import { app_settings } from "@/lib/db/schema";
+import { decryptSecret, encryptSecret, hasSecretKey } from "@/lib/secrets";
+
+export const AI_PROVIDERS = ["groq", "gemini"] as const;
+export type AiProvider = (typeof AI_PROVIDERS)[number];
+
+export type ApiKeySource = "env" | "stored" | "unreadable" | "none";
+
+const ENV_KEYS: Record<AiProvider, string> = {
+	groq: "GROQ_API_KEY",
+	gemini: "GEMINI_API_KEY",
+};
+
+const settingKey = (provider: AiProvider) => `${provider}_api_key`;
+
+export const isAiProvider = (value: unknown): value is AiProvider =>
+	AI_PROVIDERS.includes(value as AiProvider);
+
+const readStored = (provider: AiProvider) =>
+	db
+		.select({ value: app_settings.value })
+		.from(app_settings)
+		.where(eq(app_settings.key, settingKey(provider)))
+		.get()?.value ?? null;
+
+function resolveApiKey(provider: AiProvider): {
+	source: ApiKeySource;
+	key: string | null;
+} {
+	const fromEnv = process.env[ENV_KEYS[provider]]?.trim();
+	if (fromEnv) return { source: "env", key: fromEnv };
+
+	const stored = readStored(provider);
+	if (!stored) return { source: "none", key: null };
+	try {
+		return { source: "stored", key: decryptSecret(stored) };
+	} catch {
+		return { source: "unreadable", key: null };
+	}
+}
+
+export const getApiKey = (provider: AiProvider) => resolveApiKey(provider).key;
+
+export interface AiKeyStatus {
+	canStore: boolean;
+	providers: Record<AiProvider, ApiKeySource>;
+}
+
+export function getAiKeyStatus(): AiKeyStatus {
+	return {
+		canStore: hasSecretKey(),
+		providers: {
+			groq: resolveApiKey("groq").source,
+			gemini: resolveApiKey("gemini").source,
+		},
+	};
+}
+
+export function storeApiKey(provider: AiProvider, apiKey: string) {
+	const value = encryptSecret(apiKey);
+	db.insert(app_settings)
+		.values({ key: settingKey(provider), value })
+		.onConflictDoUpdate({
+			target: app_settings.key,
+			set: { value, updated_at: sql`(datetime('now'))` },
+		})
+		.run();
+}
+
+export function removeApiKey(provider: AiProvider) {
+	db.delete(app_settings)
+		.where(eq(app_settings.key, settingKey(provider)))
+		.run();
+}

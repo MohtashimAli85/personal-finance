@@ -1,9 +1,10 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
-import { app, BrowserWindow, dialog, shell } from "electron";
+import { app, BrowserWindow, dialog, safeStorage, shell } from "electron";
 
 let mainWindow: BrowserWindow | null = null;
 let nextServer: ChildProcess | null = null;
@@ -49,6 +50,33 @@ function getNextServerPath(): string {
 	return path.join(process.resourcesPath, "standalone", "server.js");
 }
 
+// The encryption key for secrets the server stores (API keys). It lives
+// outside the database, protected by the OS keychain via safeStorage.
+function loadAppSecretKey(): string | undefined {
+	if (process.env.APP_SECRET_KEY) return process.env.APP_SECRET_KEY;
+	if (!safeStorage.isEncryptionAvailable()) return undefined;
+	if (
+		process.platform === "linux" &&
+		safeStorage.getSelectedStorageBackend() === "basic_text"
+	) {
+		return undefined;
+	}
+
+	const file = path.join(app.getPath("userData"), "secret.key");
+	if (fs.existsSync(file)) {
+		try {
+			return safeStorage.decryptString(fs.readFileSync(file));
+		} catch (err) {
+			console.error("[Secrets] Could not decrypt secret.key, rotating:", err);
+			fs.renameSync(file, `${file}.unreadable-${Date.now()}`);
+		}
+	}
+
+	const key = crypto.randomBytes(32).toString("hex");
+	fs.writeFileSync(file, safeStorage.encryptString(key), { mode: 0o600 });
+	return key;
+}
+
 function startNextServer(): Promise<void> {
 	return new Promise((resolve, reject) => {
 		let command: string;
@@ -79,6 +107,7 @@ function startNextServer(): Promise<void> {
 			);
 		}
 		env.PORT = String(serverPort);
+		env.APP_SECRET_KEY = loadAppSecretKey();
 
 		let settled = false;
 		let stderr = "";

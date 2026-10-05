@@ -142,3 +142,10 @@ export const bank_sender_configs = sqliteTable(
 	},
 	(table) => [index("idx_bank_sender_configs_enabled").on(table.enabled)],
 );
+
+// Secret values (API keys) are AES-256-GCM encrypted - see lib/secrets.ts.
+export const app_settings = sqliteTable("app_settings", {
+	key: text("key").primaryKey(),
+	value: text("value").notNull(),
+	updated_at: text("updated_at").default(sql`(datetime('now'))`),
+});

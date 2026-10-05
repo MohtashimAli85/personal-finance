@@ -36,6 +36,13 @@
       "when": 1790100000000,
       "tag": "0004_drop_mail_credentials",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791179211844,
+      "tag": "0005_app_settings",
+      "breakpoints": true
     }
   ]
 }
