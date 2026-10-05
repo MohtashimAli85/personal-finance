@@ -1,8 +1,8 @@
 "use server";
-import { createHash } from "node:crypto";
 import { eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { applyBalanceDelta, signedAmount } from "@/lib/balance";
+import { type ImportRow, planImport } from "@/lib/csv-import";
 import { toDateKey, tryParseDateKey } from "@/lib/date";
 import { db } from "@/lib/db";
 import { categories, category_group, transactions } from "@/lib/db/schema";
@@ -247,15 +247,7 @@ export async function createTransfer(input: {
 	revalidateAll();
 }
 
-export interface ImportRow {
-	payment?: number; // decimal, as it appears in the CSV
-	deposit?: number; // decimal, as it appears in the CSV
-	date: string;
-	notes?: string;
-	category_id?: string;
-	category_name?: string;
-	category_group_name?: string;
-}
+export type { ImportRow } from "@/lib/csv-import";
 
 /**
  * Finds a category by name, creating it (and its group, if named) when it
@@ -311,19 +303,13 @@ function resolveOrCreateCategory(
 	return categoryId;
 }
 
-/** Stable hash used to detect a re-imported CSV row. */
-function csvRowHash(
+export async function previewImport(
 	accountId: string,
-	date: string,
-	payment: number | null,
-	deposit: number | null,
-	notes: string,
-): string {
-	return createHash("sha256")
-		.update(
-			`${accountId}|${date}|${payment ?? ""}|${deposit ?? ""}|${notes.trim().toLowerCase()}`,
-		)
-		.digest("hex");
+	rows: ImportRow[],
+): Promise<{ newCount: number; duplicates: number }> {
+	if (!accountId || !rows.length) return { newCount: 0, duplicates: 0 };
+	const { newRows, duplicates } = planImport(accountId, rows);
+	return { newCount: newRows.length, duplicates };
 }
 
 export async function bulkImportTransactions(
@@ -332,36 +318,16 @@ export async function bulkImportTransactions(
 ): Promise<{ inserted: number; duplicates: number }> {
 	if (!rows.length) return { inserted: 0, duplicates: 0 };
 
-	const known = new Set(
-		db
-			.select({ hash: transactions.external_hash })
-			.from(transactions)
-			.where(eq(transactions.account_id, accountId))
-			.all()
-			.map((r) => r.hash)
-			.filter((h): h is string => Boolean(h)),
-	);
-
 	let inserted = 0;
 	let duplicates = 0;
 
 	db.transaction(() => {
+		const plan = planImport(accountId, rows);
+		duplicates = plan.duplicates;
 		const categoryCache = new Map<string, string>();
 		const groupCache = new Map<string, string>();
 
-		for (const row of rows) {
-			const payment = row.payment ? toCentsAmount(row.payment) : null;
-			const deposit = row.deposit ? toCentsAmount(row.deposit) : null;
-			const dateKey = toDateKey(row.date);
-			const notes = row.notes || "";
-			const hash = csvRowHash(accountId, dateKey, payment, deposit, notes);
-
-			if (known.has(hash)) {
-				duplicates += 1;
-				continue;
-			}
-			known.add(hash);
-
+		for (const { row, date, payment, deposit, notes } of plan.newRows) {
 			const categoryId = row.category_name
 				? resolveOrCreateCategory(
 						row.category_name,
@@ -376,12 +342,11 @@ export async function bulkImportTransactions(
 					id: crypto.randomUUID(),
 					payment,
 					deposit,
-					date: dateKey,
+					date,
 					account_id: accountId,
 					category_id: categoryId,
 					notes: notes || null,
 					source: "csv",
-					external_hash: hash,
 					status: "pending",
 				})
 				.run();

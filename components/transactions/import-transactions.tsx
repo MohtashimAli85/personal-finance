@@ -1,10 +1,11 @@
 "use client";
 
 import { Download, Upload } from "lucide-react";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
 	bulkImportTransactions,
 	type ImportRow,
+	previewImport,
 } from "@/app/actions/transaction/mutations";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -60,6 +61,118 @@ const DELIMITER_OPTIONS = [
 	{ value: "\t", label: "Tab" },
 	{ value: "|", label: "Pipe (|)" },
 ];
+
+const count = new Intl.NumberFormat("en-US");
+
+function importButtonLabel(isPending: boolean, newCount: number | undefined) {
+	if (isPending) return "Importing...";
+	if (newCount === undefined) return "Checking for duplicates...";
+	if (newCount === 0) return "Nothing new to import";
+	return `Import ${count.format(newCount)} new transaction${newCount !== 1 ? "s" : ""}`;
+}
+
+function ImportFooter({
+	isPending,
+	skippedInvalidDate,
+	preview,
+	onImport,
+}: {
+	isPending: boolean;
+	skippedInvalidDate: number;
+	preview: { newCount: number; duplicates: number } | null;
+	onImport: () => void;
+}) {
+	return (
+		<div className="flex flex-1 items-center justify-end gap-3">
+			{skippedInvalidDate > 0 && (
+				<p className="text-xs text-destructive">
+					{count.format(skippedInvalidDate)} row
+					{skippedInvalidDate !== 1 ? "s have" : " has"} an unreadable date
+				</p>
+			)}
+			{preview && preview.duplicates > 0 && (
+				<p className="text-xs text-muted-foreground">
+					{count.format(preview.duplicates)} already in this account will be
+					skipped
+				</p>
+			)}
+			<Button
+				onClick={onImport}
+				disabled={isPending || !preview || preview.newCount === 0}
+			>
+				<Download className="size-3.5" />
+				{importButtonLabel(isPending, preview?.newCount)}
+			</Button>
+		</div>
+	);
+}
+
+// Rows whose date can't be parsed are dropped rather than silently dated
+// "today"; the count is reported so the source file can be fixed.
+function buildImportRows(
+	dataRows: string[][],
+	columnMap: MappableField[],
+	dateFormat: string,
+	flipAmount: boolean,
+): { rows: ImportRow[]; skippedInvalidDate: number } {
+	let skippedInvalidDate = 0;
+	const rows: ImportRow[] = [];
+
+	for (const row of dataRows) {
+		let date: string | null = null;
+		const record: Partial<ImportRow> = {};
+
+		for (let i = 0; i < columnMap.length; i++) {
+			const field = columnMap[i];
+			const value = row[i]?.trim() || "";
+			if (!value || field === "skip") continue;
+
+			switch (field) {
+				case "date":
+					date = parseDate(value, dateFormat);
+					break;
+				case "notes":
+					record.notes = value;
+					break;
+				case "category":
+					record.category_name = value;
+					break;
+				case "category_group":
+					record.category_group_name = value;
+					break;
+				case "amount": {
+					let num = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
+					if (Number.isNaN(num)) break;
+					if (flipAmount) num = -num;
+					if (num < 0) {
+						record.payment = Math.abs(num);
+					} else {
+						record.deposit = num;
+					}
+					break;
+				}
+				case "payment": {
+					const p = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
+					if (!Number.isNaN(p) && p !== 0) record.payment = Math.abs(p);
+					break;
+				}
+				case "deposit": {
+					const d = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
+					if (!Number.isNaN(d) && d !== 0) record.deposit = Math.abs(d);
+					break;
+				}
+			}
+		}
+
+		if (!date) {
+			skippedInvalidDate += 1;
+			continue;
+		}
+		rows.push({ ...record, date });
+	}
+
+	return { rows, skippedInvalidDate };
+}
 
 export default function ImportTransactions({
 	accountId,
@@ -138,85 +251,57 @@ export default function ImportTransactions({
 		setColumnMap(next);
 	};
 
-	const dataRows = hasHeader
-		? rawRows
-		: rawRows.length > 0
-			? [headers, ...rawRows]
-			: [];
+	const dataRows = useMemo(
+		() =>
+			hasHeader ? rawRows : rawRows.length > 0 ? [headers, ...rawRows] : [],
+		[hasHeader, rawRows, headers],
+	);
 	const previewRows = dataRows.slice(0, 10);
 	const totalRows = dataRows.length;
 
-	// Build import rows from mapped columns. Rows whose date column can't be
-	// parsed are dropped rather than silently dated "today" - buildImportRows
-	// reports how many so the user can see and fix the source file.
-	const buildImportRows = (): {
+	const { rows: importRows, skippedInvalidDate } = useMemo(
+		() => buildImportRows(dataRows, columnMap, dateFormat, flipAmount),
+		[dataRows, columnMap, dateFormat, flipAmount],
+	);
+
+	const [preview, setPreview] = useState<{
 		rows: ImportRow[];
-		skippedInvalidDate: number;
-	} => {
-		let skippedInvalidDate = 0;
-		const rows: ImportRow[] = [];
+		accountId: string;
+		newCount: number;
+		duplicates: number;
+	} | null>(null);
 
-		for (const row of dataRows) {
-			let date: string | null = null;
-			const record: Partial<ImportRow> = {};
-
-			for (let i = 0; i < columnMap.length; i++) {
-				const field = columnMap[i];
-				const value = row[i]?.trim() || "";
-				if (!value || field === "skip") continue;
-
-				switch (field) {
-					case "date":
-						date = parseDate(value, dateFormat);
-						break;
-					case "notes":
-						record.notes = value;
-						break;
-					case "category":
-						record.category_name = value;
-						break;
-					case "category_group":
-						record.category_group_name = value;
-						break;
-					case "amount": {
-						let num = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
-						if (Number.isNaN(num)) break;
-						if (flipAmount) num = -num;
-						if (num < 0) {
-							record.payment = Math.abs(num);
-						} else {
-							record.deposit = num;
-						}
-						break;
-					}
-					case "payment": {
-						const p = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
-						if (!Number.isNaN(p) && p !== 0) record.payment = Math.abs(p);
-						break;
-					}
-					case "deposit": {
-						const d = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
-						if (!Number.isNaN(d) && d !== 0) record.deposit = Math.abs(d);
-						break;
-					}
-				}
+	useEffect(() => {
+		if (!selectedAccountId || importRows.length === 0) return;
+		let cancelled = false;
+		previewImport(selectedAccountId, importRows).then((result) => {
+			if (!cancelled) {
+				setPreview({
+					rows: importRows,
+					accountId: selectedAccountId,
+					...result,
+				});
 			}
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [selectedAccountId, importRows]);
 
-			if (!date) {
-				skippedInvalidDate += 1;
-				continue;
-			}
-			rows.push({ ...record, date });
-		}
-
-		return { rows, skippedInvalidDate };
-	};
+	const currentPreview =
+		importRows.length === 0
+			? { newCount: 0, duplicates: 0 }
+			: preview?.rows === importRows && preview.accountId === selectedAccountId
+				? preview
+				: null;
 
 	const handleImport = () => {
 		if (!selectedAccountId || totalRows === 0) return;
 		startTransition(async () => {
-			const { rows, skippedInvalidDate } = buildImportRows();
-			const result = await bulkImportTransactions(selectedAccountId, rows);
+			const result = await bulkImportTransactions(
+				selectedAccountId,
+				importRows,
+			);
 			setOpen(false);
 			resetState();
 			setImportResult({
@@ -401,16 +486,13 @@ export default function ImportTransactions({
 					)}
 
 					<DialogFooter>
-						{totalRows > 0 && (
-							<Button
-								onClick={handleImport}
-								disabled={!selectedAccountId || isPending}
-							>
-								<Download className="size-3.5" />
-								{isPending
-									? "Importing..."
-									: `Import ${totalRows} transaction${totalRows !== 1 ? "s" : ""}`}
-							</Button>
+						{totalRows > 0 && selectedAccountId && (
+							<ImportFooter
+								isPending={isPending}
+								skippedInvalidDate={skippedInvalidDate}
+								preview={currentPreview}
+								onImport={handleImport}
+							/>
 						)}
 					</DialogFooter>
 				</DialogContent>
