@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Figtree, Geist, Geist_Mono, Raleway } from "next/font/google";
 import { PrivacyToggle } from "@/components/privacy-toggle";
 import AppSidebar from "@/components/sidebar/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -18,6 +18,16 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const figtree = Figtree({
+  variable: "--font-figtree",
+  subsets: ["latin"],
+});
+
+const raleway = Raleway({
+  variable: "--font-raleway",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
   title: "Personal Finance ",
   description: "Made by Mohtashim, github.com/mohtashimali85",
@@ -31,7 +41,7 @@ export default async function RootLayout({
   const accounts = getAccounts();
   const groupedCategories = getGroupedCategories();
   return (
-    <html lang="en" className={`${geistSans.variable} dark`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${figtree.variable} ${raleway.variable} dark`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
