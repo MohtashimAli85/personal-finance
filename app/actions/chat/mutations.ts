@@ -1,7 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { CHAT_ID_RE, deleteChatRecord, setChatTitle } from "@/lib/chat";
+import {
+	CHAT_ID_RE,
+	type ChatSummary,
+	deleteChatRecord,
+	listChats,
+	setChatTitle,
+} from "@/lib/chat";
 
 export async function renameChat(
 	chatId: string,
@@ -22,4 +28,8 @@ export async function deleteChat(chatId: string): Promise<ActionState> {
 	deleteChatRecord(chatId);
 	revalidatePath("/chat", "layout");
 	return { success: true };
+}
+
+export async function listChatsAction(): Promise<ChatSummary[]> {
+	return listChats();
 }

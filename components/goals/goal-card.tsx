@@ -33,7 +33,7 @@ import { cn } from "@/lib/tailwindcss/utils";
 import GoalDialog from "./goal-dialog";
 import { formatMonthLabel } from "./month-label";
 
-export const STATUS_META: Record<
+const STATUS_META: Record<
 	GoalStatus,
 	{ label: string; className: string; bar: string }
 > = {

@@ -3,6 +3,8 @@
 @import "shadcn/tailwind.css";
 @import "./typeset.css";
 
+@source "../node_modules/streamdown/dist/*.js";
+
 .typeset-docs {
 	--typeset-font-body: var(--font-figtree);
 	--typeset-font-heading: var(--font-raleway);
