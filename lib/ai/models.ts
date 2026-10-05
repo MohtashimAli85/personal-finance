@@ -1,6 +1,6 @@
 import { createGoogle } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
-import type { LanguageModel } from "ai";
+import type { LanguageModelV4 } from "@ai-sdk/provider";
 import { type AiProvider, getApiKey } from "@/lib/settings";
 
 export interface ModelEntry {
@@ -16,10 +16,10 @@ export const MODEL_CHAIN: ModelEntry[] = [
 ];
 
 export interface ResolvedModel extends ModelEntry {
-	languageModel: LanguageModel;
+	languageModel: LanguageModelV4;
 }
 
-function createModel(entry: ModelEntry, apiKey: string): LanguageModel {
+function createModel(entry: ModelEntry, apiKey: string): LanguageModelV4 {
 	if (entry.provider === "groq") {
 		return createGroq({ apiKey })(entry.model);
 	}

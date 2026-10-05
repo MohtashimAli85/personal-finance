@@ -61,14 +61,16 @@ declare global {
 		searchParams: Promise<SearchParams>;
 	}
 
-	/** budgeted/activity/available are integer cents; available is the
-	 * cumulative carryover balance through the viewed month. */
+	/** budgeted/activity/spent/available are integer cents. activity and
+	 * available are cumulative through the viewed month; spent is that month
+	 * only. */
 	interface BudgetCategoryRow {
 		id: string;
 		name: string;
 		group_id: string;
 		budgeted: number;
 		activity: number;
+		spent: number;
 		available: number;
 	}
 

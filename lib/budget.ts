@@ -82,6 +82,26 @@ export const getBudgetView = cache((month: string): BudgetView => {
 		.groupBy(transactions.category_id)
 		.all();
 
+	// This month's activity only, for reporting what was spent in the month.
+	const monthActivityRows = db
+		.select({
+			category_id: transactions.category_id,
+			activity: sql<number>`coalesce(sum(coalesce(${transactions.payment},0) - coalesce(${transactions.deposit},0)), 0)`,
+		})
+		.from(transactions)
+		.innerJoin(accounts, eq(transactions.account_id, accounts.id))
+		.where(
+			and(
+				isNotNull(transactions.category_id),
+				eq(accounts.account_type, "on_budget"),
+				eq(transactions.status, "cleared"),
+				sql`${transactions.date} >= ${getMonthRange(month).start}`,
+				sql`${transactions.date} < ${monthEndExclusive}`,
+			),
+		)
+		.groupBy(transactions.category_id)
+		.all();
+
 	// This month's uncategorized on-budget spending - not part of any
 	// envelope, surfaced so it isn't an invisible drain on "To Budget".
 	const uncategorizedActivity =
@@ -114,6 +134,12 @@ export const getBudgetView = cache((month: string): BudgetView => {
 		activityMap.set(row.category_id, Number(row.activity) || 0);
 	}
 
+	const monthActivityMap = new Map<string, number>();
+	for (const row of monthActivityRows) {
+		if (row.category_id == null) continue;
+		monthActivityMap.set(row.category_id, Number(row.activity) || 0);
+	}
+
 	let totalAssignedAllTime = 0;
 	const budgetGroups: BudgetGroup[] = groups.map((group) => ({
 		id: group.id,
@@ -132,6 +158,7 @@ export const getBudgetView = cache((month: string): BudgetView => {
 				group_id: category.group_id,
 				budgeted,
 				activity,
+				spent: monthActivityMap.get(category.id) ?? 0,
 				available: assignedThroughMonth - activity,
 			};
 		}),
