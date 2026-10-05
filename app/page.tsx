@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import {
   Card,
   CardContent,
@@ -28,6 +29,7 @@ export const metadata: Metadata = {
 };
 
 export default async function DashboardPage() {
+  await connection();
   const month = getMonthKey();
   const { start, end } = getMonthRange(month);
   const accounts = getAccounts();

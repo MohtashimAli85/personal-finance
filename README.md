@@ -67,6 +67,42 @@ generic fallback); `lib/bank-parsers/fixtures.ts` holds real-world email fixture
 that run in the test suite and via `npx tsx scripts/check-parsers.ts` for quick
 manual iteration.
 
+## Savings goals
+
+The **Goals** page tracks things you're saving for. Each goal is backed by a
+budget category (created in a "Savings Goals" group, or an existing one you
+link), so saving is just budgeting money into that category each month. A
+goal's progress is the category's available balance, and the page shows how
+much you need to budget per month to hit the target date.
+
+## AI coach
+
+The **AI Coach** page is a chat about your own money: how the month is going,
+where spending can give, and how to save for something. It sees a pre-computed
+snapshot of your accounts, budget, recent months and goals, and can look up
+more (another month's budget, spending by category, a category's trend,
+individual transactions). It can also create or update a goal and change a
+category's budget, but only after you click **Confirm** on the proposed change.
+
+- **Models**: Groq GPT-OSS 120B, falling back to GPT-OSS 20B, then Gemini 3.5
+  Flash / Flash Lite when a provider is rate-limited, down, or rejects the key
+  (`lib/ai/models.ts`, `lib/ai/fallback.ts`).
+- **API keys**: add them on the **Settings** page. They're encrypted
+  (AES-256-GCM) before being saved to the database and are never sent back to
+  the browser. The encryption key is not stored in the database:
+  - the desktop app generates one on first launch and keeps it in the OS
+    keychain (Electron `safeStorage`);
+  - a self-hosted/web deployment must set `APP_SECRET_KEY`
+    (`openssl rand -hex 32`); without it, keys can't be saved from Settings.
+  - `GROQ_API_KEY` / `GEMINI_API_KEY` env vars work too and take precedence.
+- **Privacy**: each chat sends the finance snapshot and any looked-up data to
+  Groq (or Google on fallback).
+- Chats are stored locally in the `chats` / `chat_messages` tables.
+
+> **Self-hosting:** the app has no login. Anyone who can reach a self-hosted
+> instance can see your finances and use your AI keys. Put it behind
+> authentication (a reverse proxy with auth, Tailscale, Cloudflare Access, etc.).
+
 ## Testing
 
 ```bash
@@ -76,7 +112,10 @@ pnpm test
 Tests run against isolated temporary SQLite databases (`test/db-test-utils.ts`),
 never the project's own `db.sqlite`. Coverage so far: money/date/CSV parsing,
 account balance recompute, envelope-budget carryover math, and the bank-parser
-fixtures. See `test/*.test.ts`.
+fixtures, savings goals, encrypted settings, the AI snapshot/tools, and the chat
+route end to end with mock models (fallback, approval-gated writes). A Vitest
+setup file points `APP_DB_PATH` at a throwaway file so a stray import can never
+touch `db.sqlite`. See `test/*.test.ts`.
 
 ## Desktop app (Electron)
 

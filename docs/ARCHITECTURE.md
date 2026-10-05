@@ -52,6 +52,23 @@ and including** the viewed month - not just that month in isolation. This is
 what makes unspent money carry forward and overspending carry forward as a
 negative. See the tests in `test/budget.test.ts` for the exact invariants.
 
+## AI layer (`lib/ai/`)
+
+- `models.ts` builds the provider chain from the stored/env keys;
+  `fallback.ts` wraps it in one `LanguageModelV4` that tries each model in
+  order. Provider errors (bad key, 429, outage, offline) surface before any
+  tokens stream, so falling through is invisible. A rejected key skips the
+  rest of that provider's models.
+- `context.ts` pre-computes a whole-rupee snapshot for the system prompt
+  (`system-prompt.ts`) so the model quotes numbers instead of doing arithmetic.
+- `tools.ts` has read tools (run automatically) and write tools. Write tools
+  are listed in `toolApproval` as `user-approval` in `app/api/chat/route.ts`,
+  so they only execute after the user confirms in the UI; approvals are
+  HMAC-signed (`approval.ts`) so a crafted request can't approve a write.
+  AI-facing amounts are PKR decimals; convert with `pkr()` / `toCents()`.
+- The route validates incoming UI messages, persists them (`lib/chat.ts`)
+  before and after streaming, and names new chats with the cheapest model.
+
 ## Adding a new area (example: a new mutation)
 
 1. Add the table/columns to `lib/db/schema.ts`, then write the migration by
@@ -69,4 +86,6 @@ negative. See the tests in `test/budget.test.ts` for the exact invariants.
    with a `revalidatePath` call.
 5. Add a test in `test/*.test.ts` - for DB-backed logic, use
    `test/db-test-utils.ts`'s `createTestDb()`, which gives you an isolated
-   temp database with migrations applied.
+   temp database with migrations applied. Import app modules dynamically
+   *after* calling it (never a static top-level import of anything that
+   reaches `lib/db`), or the module binds to the wrong database.
