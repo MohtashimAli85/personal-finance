@@ -249,4 +249,63 @@ describe("POST /api/chat", () => {
 		const goals = ctx.db.select().from(ctx.schema.goals).all();
 		expect(goals.some((g) => g.name === "Forged Goal")).toBe(false);
 	});
+	it("explains what an approval will change", async () => {
+		let call = 0;
+		const model = new MockLanguageModelV4({
+			doStream: async () => {
+				call += 1;
+				return call === 1
+					? toolCallStream("setBudgetAmount", {
+							category: "Route Laptop",
+							month: "2026-11",
+							amount: 20_000,
+						})
+					: textStream("ok");
+			},
+			doGenerate: titleModel().doGenerate,
+		});
+		mockModels = [resolved(model, "openai/gpt-oss-120b")];
+		const { body } = await post("chat-reason", [userMessage("fund it")]);
+		expect(body).toContain(
+			"Savings Goals / Route Laptop currently has PKR 0 budgeted for 2026-11.",
+		);
+	});
+
+	it("gates every write tool behind approval", async () => {
+		const { writeToolApproval } = await import("@/lib/ai/approval");
+		const { WRITE_TOOL_NAMES } = await import("@/lib/ai/tool-names");
+		const { writeTools } = await import("@/lib/ai/tools");
+		expect(Object.keys(writeToolApproval()).sort()).toEqual(
+			[...WRITE_TOOL_NAMES].sort(),
+		);
+		expect(Object.keys(writeTools).sort()).toEqual(
+			[...WRITE_TOOL_NAMES].sort(),
+		);
+	});
+});
+
+describe("chat store", () => {
+	it("skips a stale save that would drop newer messages", () => {
+		chatStore.ensureChat("chat-stale");
+		const first = userMessage("one");
+		const second = userMessage("two");
+		chatStore.saveChatMessages("chat-stale", [first, second]);
+		expect(
+			chatStore.saveChatMessages("chat-stale", [first], {
+				onlyIfCurrent: true,
+			}),
+		).toBe(false);
+		expect(chatStore.loadChatMessages("chat-stale")).toHaveLength(2);
+	});
+
+	it("doesn't bring back a deleted chat", () => {
+		chatStore.ensureChat("chat-deleted");
+		chatStore.deleteChatRecord("chat-deleted");
+		expect(
+			chatStore.saveChatMessages("chat-deleted", [userMessage("late")], {
+				onlyIfCurrent: true,
+			}),
+		).toBe(false);
+		expect(chatStore.getChat("chat-deleted")).toBeNull();
+	});
 });

@@ -28,7 +28,7 @@ export const getBudgetView = cache((month: string): BudgetView => {
 	// Income-group categories are for tagging income transactions, not for
 	// assigning budget money to - they never appear as budgetable envelopes.
 	const groups = allGroups.filter((g) => !g.is_income);
-	const { end: monthEndExclusive } = getMonthRange(month);
+	const { start: monthStart, end: monthEndExclusive } = getMonthRange(month);
 
 	const totalBalance =
 		db
@@ -68,6 +68,7 @@ export const getBudgetView = cache((month: string): BudgetView => {
 		.select({
 			category_id: transactions.category_id,
 			activity: sql<number>`coalesce(sum(coalesce(${transactions.payment},0) - coalesce(${transactions.deposit},0)), 0)`,
+			spent: sql<number>`coalesce(sum(CASE WHEN ${transactions.date} >= ${monthStart} THEN coalesce(${transactions.payment},0) - coalesce(${transactions.deposit},0) ELSE 0 END), 0)`,
 		})
 		.from(transactions)
 		.innerJoin(accounts, eq(transactions.account_id, accounts.id))
@@ -76,26 +77,6 @@ export const getBudgetView = cache((month: string): BudgetView => {
 				isNotNull(transactions.category_id),
 				eq(accounts.account_type, "on_budget"),
 				eq(transactions.status, "cleared"),
-				sql`${transactions.date} < ${monthEndExclusive}`,
-			),
-		)
-		.groupBy(transactions.category_id)
-		.all();
-
-	// This month's activity only, for reporting what was spent in the month.
-	const monthActivityRows = db
-		.select({
-			category_id: transactions.category_id,
-			activity: sql<number>`coalesce(sum(coalesce(${transactions.payment},0) - coalesce(${transactions.deposit},0)), 0)`,
-		})
-		.from(transactions)
-		.innerJoin(accounts, eq(transactions.account_id, accounts.id))
-		.where(
-			and(
-				isNotNull(transactions.category_id),
-				eq(accounts.account_type, "on_budget"),
-				eq(transactions.status, "cleared"),
-				sql`${transactions.date} >= ${getMonthRange(month).start}`,
 				sql`${transactions.date} < ${monthEndExclusive}`,
 			),
 		)
@@ -134,10 +115,10 @@ export const getBudgetView = cache((month: string): BudgetView => {
 		activityMap.set(row.category_id, Number(row.activity) || 0);
 	}
 
-	const monthActivityMap = new Map<string, number>();
-	for (const row of monthActivityRows) {
+	const monthSpentMap = new Map<string, number>();
+	for (const row of activityRows) {
 		if (row.category_id == null) continue;
-		monthActivityMap.set(row.category_id, Number(row.activity) || 0);
+		monthSpentMap.set(row.category_id, Number(row.spent) || 0);
 	}
 
 	let totalAssignedAllTime = 0;
@@ -158,7 +139,7 @@ export const getBudgetView = cache((month: string): BudgetView => {
 				group_id: category.group_id,
 				budgeted,
 				activity,
-				spent: monthActivityMap.get(category.id) ?? 0,
+				spent: monthSpentMap.get(category.id) ?? 0,
 				available: assignedThroughMonth - activity,
 			};
 		}),

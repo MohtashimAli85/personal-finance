@@ -24,12 +24,6 @@ const rupees = (value: unknown) =>
 const monthText = (value: unknown) =>
 	typeof value === "string" ? formatMonthLabel(value) : "-";
 
-export const WRITE_TOOLS = new Set([
-	"createSavingsGoal",
-	"updateSavingsGoal",
-	"setBudgetAmount",
-]);
-
 function readToolLabel(name: string, input: Input): string {
 	switch (name) {
 		case "getBudgetMonth":
@@ -142,31 +136,25 @@ function outcomeText(name: string, output: unknown): string {
 	return "Budget updated.";
 }
 
-export function ApprovalCard({
+function ApprovalStatus({
 	part,
+	name,
 	onRespond,
 }: {
 	part: CoachToolPart;
+	name: string;
 	onRespond: (approvalId: string, approved: boolean) => void;
 }) {
-	const name = getToolName(part);
-	const rows = proposalRows(name, (part.input ?? {}) as Input);
-	const failedOutput =
-		part.state === "output-available" &&
-		(part.output as { ok?: boolean } | undefined)?.ok === false;
-
-	let status: React.ReactNode = null;
 	switch (part.state) {
 		case "input-streaming":
 		case "input-available":
-			status = (
+			return (
 				<span className="flex items-center gap-1.5 text-muted-foreground">
 					<Loader2 className="h-3.5 w-3.5 animate-spin" /> Preparing…
 				</span>
 			);
-			break;
 		case "approval-requested":
-			status = (
+			return (
 				<div className="flex gap-2">
 					<Button size="sm" onClick={() => onRespond(part.approval.id, true)}>
 						<Check /> Confirm
@@ -180,44 +168,59 @@ export function ApprovalCard({
 					</Button>
 				</div>
 			);
-			break;
 		case "approval-responded":
-			status = part.approval.approved ? (
+			return part.approval.approved ? (
 				<span className="flex items-center gap-1.5 text-muted-foreground">
 					<Loader2 className="h-3.5 w-3.5 animate-spin" /> Applying…
 				</span>
 			) : (
 				<span className="text-muted-foreground">Cancelled.</span>
 			);
-			break;
-		case "output-available":
-			status = (
+		case "output-available": {
+			const failed =
+				(part.output as { ok?: boolean } | undefined)?.ok === false;
+			return (
 				<span
 					className={
-						failedOutput
+						failed
 							? "text-destructive"
 							: "flex items-center gap-1.5 text-emerald-500"
 					}
 				>
-					{!failedOutput && <Check className="h-3.5 w-3.5" />}
+					{!failed && <Check className="h-3.5 w-3.5" />}
 					{outcomeText(name, part.output)}
 				</span>
 			);
-			break;
+		}
 		case "output-denied":
-			status = <span className="text-muted-foreground">Cancelled.</span>;
-			break;
+			return <span className="text-muted-foreground">Cancelled.</span>;
 		case "output-error":
-			status = <span className="text-destructive">{part.errorText}</span>;
-			break;
+			return <span className="text-destructive">{part.errorText}</span>;
+		default:
+			return null;
 	}
+}
 
+export function ApprovalCard({
+	part,
+	onRespond,
+}: {
+	part: CoachToolPart;
+	onRespond: (approvalId: string, approved: boolean) => void;
+}) {
+	const name = getToolName(part);
+	const rows = proposalRows(name, (part.input ?? {}) as Input);
+	const requestReason =
+		"approval" in part ? part.approval?.requestReason : undefined;
 	return (
 		<div className="not-typeset max-w-md rounded-lg border bg-card p-4 text-sm">
 			<p className="mb-3 flex items-center gap-2 font-medium">
 				<ShieldQuestion className="h-4 w-4 text-sky-500" />
 				{PROPOSAL_TITLES[name] ?? name}
 			</p>
+			{requestReason && (
+				<p className="mb-2 text-muted-foreground">{requestReason}</p>
+			)}
 			<dl className="mb-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
 				{rows.map(([label, value]) => (
 					<div key={label} className="contents">
@@ -234,7 +237,7 @@ export function ApprovalCard({
 					</div>
 				))}
 			</dl>
-			{status}
+			<ApprovalStatus part={part} name={name} onRespond={onRespond} />
 		</div>
 	);
 }

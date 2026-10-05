@@ -14,8 +14,6 @@ const firstUserText = (messages: CoachUIMessage[]) =>
 const truncate = (text: string, max: number) =>
 	text.length > max ? `${text.slice(0, max - 1).trimEnd()}…` : text;
 
-/** Names a chat from its opening message. The smallest model goes first; a
- * truncated copy of the message is the fallback. */
 export async function generateChatTitle(
 	chatId: string,
 	messages: CoachUIMessage[],

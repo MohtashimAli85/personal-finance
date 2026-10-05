@@ -10,7 +10,6 @@ import {
 } from "@/lib/db/schema";
 import { fromCents } from "@/lib/money";
 
-/** Whole-rupee decimal for AI-facing payloads. */
 export const pkr = (cents: number) => Math.round(fromCents(cents) * 100) / 100;
 
 const spentExpr = sql<number>`coalesce(sum(coalesce(${transactions.payment},0) - coalesce(${transactions.deposit},0)), 0)`;
@@ -37,7 +36,6 @@ export interface CategorySpending {
 	spent: number;
 }
 
-/** Net spending (payments minus refunds) per category in [from, to), cents. */
 export function getCategorySpending(
 	from: string,
 	to: string,
@@ -69,7 +67,6 @@ export interface MonthTotals {
 	expense: number;
 }
 
-/** Income and expense per month for `fromMonth`..`toMonth` inclusive, cents. */
 export function getMonthlyTotals(
 	fromMonth: string,
 	toMonth: string,
@@ -100,6 +97,7 @@ export function getMonthlyTotals(
 export interface CategoryRef {
 	id: string;
 	name: string;
+	group: string | null;
 	isIncome: boolean;
 }
 
@@ -109,12 +107,16 @@ export function resolveCategory(nameOrId: string): CategoryRef | null {
 		.select({
 			id: categories.id,
 			name: categories.name,
+			group: category_group.name,
 			isIncome: sql<number>`coalesce(${category_group.is_income}, 0)`,
 		})
 		.from(categories)
 		.leftJoin(category_group, eq(categories.group_id, category_group.id))
 		.where(
 			sql`${categories.id} = ${value} OR lower(${categories.name}) = lower(${value})`,
+		)
+		.orderBy(
+			sql`CASE WHEN ${categories.id} = ${value} OR ${categories.name} = ${value} THEN 0 ELSE 1 END`,
 		)
 		.get();
 	return row ? { ...row, isIncome: Boolean(row.isIncome) } : null;
@@ -126,7 +128,6 @@ export interface CategoryMonth {
 	spent: number;
 }
 
-/** Budgeted and spent per month for one category, cents. */
 export function getCategoryTrend(
 	categoryId: string,
 	fromMonth: string,

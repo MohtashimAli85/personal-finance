@@ -32,8 +32,6 @@ const PLAIN_TAGS = [
 
 type PlainProps = ComponentProps<"div"> & { node?: unknown };
 
-// Typeset styles bare HTML, so Streamdown's own Tailwind-styled renderers are
-// swapped for plain elements.
 const plainComponents = Object.fromEntries(
 	PLAIN_TAGS.map((tag) => [
 		tag,

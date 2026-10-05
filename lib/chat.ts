@@ -50,11 +50,22 @@ export function loadChatMessages(chatId: string): CoachUIMessage[] {
 		}));
 }
 
-/** Replaces the stored conversation with `messages` - the client and stream
- * both work with the whole list, and approvals edit earlier messages. */
-export function saveChatMessages(chatId: string, messages: CoachUIMessage[]) {
-	db.transaction(() => {
-		ensureChat(chatId);
+export function saveChatMessages(
+	chatId: string,
+	messages: CoachUIMessage[],
+	options: { onlyIfCurrent?: boolean } = {},
+): boolean {
+	return db.transaction(() => {
+		if (!getChat(chatId)) return false;
+		if (options.onlyIfCurrent) {
+			const incoming = new Set(messages.map((message) => message.id));
+			const stored = db
+				.select({ id: chat_messages.id })
+				.from(chat_messages)
+				.where(eq(chat_messages.chat_id, chatId))
+				.all();
+			if (stored.some((row) => !incoming.has(row.id))) return false;
+		}
 		db.delete(chat_messages).where(eq(chat_messages.chat_id, chatId)).run();
 		messages.forEach((message, position) => {
 			db.insert(chat_messages)
@@ -72,6 +83,7 @@ export function saveChatMessages(chatId: string, messages: CoachUIMessage[]) {
 			.set({ updated_at: sql`(datetime('now'))` })
 			.where(eq(chats.id, chatId))
 			.run();
+		return true;
 	});
 }
 

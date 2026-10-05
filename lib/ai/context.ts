@@ -15,10 +15,6 @@ export const CURRENCY = "PKR";
 const money = (cents: number) =>
 	Math.round(fromCents(cents)).toLocaleString("en-US");
 
-/**
- * A compact, pre-computed picture of the user's finances for the system
- * prompt. Numbers are whole rupees so the model can quote them directly.
- */
 export function buildFinanceSnapshot(now: Date = new Date()): string {
 	const month = getMonthKey(now);
 	const lines: string[] = [];
@@ -107,7 +103,7 @@ export function buildFinanceSnapshot(now: Date = new Date()): string {
 		}
 	}
 
-	const goals = getGoals({ month });
+	const goals = getGoals({ month, budget });
 	lines.push("", "SAVINGS GOALS:");
 	if (goals.length === 0) {
 		lines.push("None yet.");

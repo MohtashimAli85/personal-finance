@@ -16,9 +16,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { modelLabel } from "@/lib/ai/labels";
 import type { CoachUIMessage } from "@/lib/ai/message-types";
+import { isWriteToolName } from "@/lib/ai/tool-names";
 import { useChatShell } from "./chat-shell";
 import Markdown from "./markdown";
-import { ApprovalCard, ToolActivity, WRITE_TOOLS } from "./tool-parts";
+import { ApprovalCard, ToolActivity } from "./tool-parts";
 
 const SUGGESTIONS = [
 	"How am I doing this month?",
@@ -73,7 +74,7 @@ function AssistantMessage({
 				}
 				if (isStaticToolUIPart(part)) {
 					const name = part.type.replace(/^tool-/, "");
-					return WRITE_TOOLS.has(name) ? (
+					return isWriteToolName(name) ? (
 						<ApprovalCard
 							key={key}
 							part={part}

@@ -37,8 +37,6 @@ export interface GoalView extends GoalProgress {
 	archivedAt: string | null;
 }
 
-/** All amounts are integer cents. `available` is the goal category's
- * cumulative envelope balance through `currentMonth`. */
 export function computeGoalProgress(input: {
 	targetAmount: number;
 	available: number;
@@ -86,7 +84,13 @@ export function computeGoalProgress(input: {
 }
 
 export const getGoals = cache(
-	(options: { includeArchived?: boolean; month?: string } = {}): GoalView[] => {
+	(
+		options: {
+			includeArchived?: boolean;
+			month?: string;
+			budget?: BudgetView;
+		} = {},
+	): GoalView[] => {
 		const month = options.month ?? getMonthKey();
 		const rows = db
 			.select({
@@ -113,7 +117,7 @@ export const getGoals = cache(
 			string,
 			{ available: number; budgeted: number }
 		>();
-		for (const group of getBudgetView(month).groups) {
+		for (const group of (options.budget ?? getBudgetView(month)).groups) {
 			for (const category of group.categories) {
 				envelopes.set(category.id, {
 					available: category.available,
@@ -200,8 +204,6 @@ export interface GoalRecordInput {
 	notes?: string | null;
 }
 
-/** `targetAmount` is in cents. Creates the backing category in the
- * "Savings Goals" group unless an existing `categoryId` is linked. */
 export function createGoalRecord(input: GoalRecordInput): string {
 	const name = input.name.trim();
 	if (!name) throw new GoalError("Goal name is required.");
@@ -263,7 +265,6 @@ function requireGoal(id: string) {
 	return goal;
 }
 
-/** Renaming a goal also renames its category when the two still match. */
 export function updateGoalRecord(
 	id: string,
 	input: Partial<Omit<GoalRecordInput, "categoryId">>,
@@ -327,7 +328,6 @@ export function setGoalAchieved(id: string, achieved: boolean) {
 		.run();
 }
 
-/** Removes the goal only; its category and any money in it stay put. */
 export function deleteGoalRecord(id: string) {
 	db.delete(goals).where(eq(goals.id, id)).run();
 }

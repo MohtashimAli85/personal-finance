@@ -50,8 +50,6 @@ function getNextServerPath(): string {
 	return path.join(process.resourcesPath, "standalone", "server.js");
 }
 
-// The encryption key for secrets the server stores (API keys). It lives
-// outside the database, protected by the OS keychain via safeStorage.
 function loadAppSecretKey(): string | undefined {
 	if (process.env.APP_SECRET_KEY) return process.env.APP_SECRET_KEY;
 	if (!safeStorage.isEncryptionAvailable()) return undefined;
@@ -67,8 +65,8 @@ function loadAppSecretKey(): string | undefined {
 		try {
 			return safeStorage.decryptString(fs.readFileSync(file));
 		} catch (err) {
-			console.error("[Secrets] Could not decrypt secret.key, rotating:", err);
-			fs.renameSync(file, `${file}.unreadable-${Date.now()}`);
+			console.error("[Secrets] Could not decrypt secret.key:", err);
+			return undefined;
 		}
 	}
 

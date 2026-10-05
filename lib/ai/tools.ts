@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { type Tool, tool } from "ai";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { setBudgetedAmount } from "@/app/actions/budget/mutations";
@@ -21,6 +21,7 @@ import {
 	pkr,
 	resolveCategory,
 } from "./finance-data";
+import type { WriteToolName } from "./tool-names";
 
 const monthKey = z
 	.string()
@@ -346,10 +347,7 @@ export const writeTools = {
 			};
 		},
 	}),
-};
+} satisfies Record<WriteToolName, Tool>;
 
 export const financeTools = { ...readTools, ...writeTools };
 export type FinanceTools = typeof financeTools;
-export const WRITE_TOOL_NAMES = Object.keys(
-	writeTools,
-) as (keyof typeof writeTools)[];

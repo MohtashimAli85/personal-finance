@@ -96,9 +96,9 @@ export default function GoalDialog({
 			open={open}
 			onOpenChange={(value) => {
 				setOpen(value);
-				if (!value) {
+				if (value) {
 					setFormError(null);
-					setTimeout(() => form.reset(defaultValues), 300);
+					form.reset(defaultValues);
 				}
 			}}
 		>

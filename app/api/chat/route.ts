@@ -8,7 +8,7 @@ import {
 	validateUIMessages,
 } from "ai";
 import { NextResponse } from "next/server";
-import { toolApprovalSecret } from "@/lib/ai/approval";
+import { toolApprovalSecret, writeToolApproval } from "@/lib/ai/approval";
 import { createFallbackModel, describeChatError } from "@/lib/ai/fallback";
 import {
 	type CoachUIMessage,
@@ -17,20 +17,14 @@ import {
 import { availableModels, type ResolvedModel } from "@/lib/ai/models";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import { generateChatTitle } from "@/lib/ai/title";
-import { financeTools, WRITE_TOOL_NAMES } from "@/lib/ai/tools";
+import { financeTools } from "@/lib/ai/tools";
 import { CHAT_ID_RE, ensureChat, getChat, saveChatMessages } from "@/lib/chat";
 
 const MAX_HISTORY_MESSAGES = 20;
 
-const toolApproval = Object.fromEntries(
-	WRITE_TOOL_NAMES.map((name) => [name, "user-approval" as const]),
-);
-
 const badRequest = (error: string, status = 400) =>
 	NextResponse.json({ error }, { status });
 
-/** Keeps the latest messages, starting on a user turn so the model never
- * sees a reply without the question that prompted it. */
 function recentHistory(messages: CoachUIMessage[]): CoachUIMessage[] {
 	const recent = messages.slice(-MAX_HISTORY_MESSAGES);
 	const firstUser = recent.findIndex((message) => message.role === "user");
@@ -68,8 +62,10 @@ export async function POST(request: Request) {
 	}
 
 	ensureChat(chatId);
-	const isFirstExchange = !getChat(chatId)?.title;
 	saveChatMessages(chatId, messages);
+	if (!getChat(chatId)?.title) {
+		void generateChatTitle(chatId, messages, models);
+	}
 
 	let usedModel: ResolvedModel | undefined;
 	const model = createFallbackModel(models, (entry) => {
@@ -84,14 +80,13 @@ export async function POST(request: Request) {
 			ignoreIncompleteToolCalls: true,
 		}),
 		tools: financeTools,
-		toolApproval,
+		toolApproval: writeToolApproval(),
 		experimental_toolApprovalSecret: toolApprovalSecret(),
 		stopWhen: isStepCount(6),
 		reasoning: "medium",
 		maxRetries: 0,
+		abortSignal: request.signal,
 	});
-
-	result.consumeStream();
 
 	return createUIMessageStreamResponse({
 		stream: toUIMessageStream<typeof financeTools, CoachUIMessage>({
@@ -108,10 +103,7 @@ export async function POST(request: Request) {
 			},
 			onError: describeChatError,
 			onEnd: ({ messages: finalMessages }) => {
-				saveChatMessages(chatId, finalMessages);
-				if (isFirstExchange) {
-					void generateChatTitle(chatId, finalMessages, models);
-				}
+				saveChatMessages(chatId, finalMessages, { onlyIfCurrent: true });
 			},
 		}),
 	});
