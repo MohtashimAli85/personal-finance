@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/table";
 import { getAccounts } from "@/lib/account";
 import { formateDate, getMonthKey, getMonthRange } from "@/lib/date";
+import { getGoals } from "@/lib/goal";
 import { formatCurrency } from "@/lib/helper";
 import { getSummary } from "@/lib/summary";
 import { getTransactions } from "@/lib/transaction";
@@ -32,6 +33,8 @@ export default async function DashboardPage() {
   const accounts = getAccounts();
   const summary = getSummary(start, end);
   const { data: recentTransactions } = getTransactions({ limit: "20" });
+
+  const goals = getGoals().filter((goal) => !goal.achievedAt).slice(0, 4);
 
   const netWorth = accounts.reduce((sum, account) => sum + account.balance, 0);
 
@@ -57,6 +60,37 @@ export default async function DashboardPage() {
           </CardHeader>
         </Card>
       </div>
+
+      {goals.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Savings Goals</CardTitle>
+            <CardDescription>
+              <Link href="/goals" className="underline">
+                View all
+              </Link>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            {goals.map((goal) => (
+              <div key={goal.id} className="space-y-1.5">
+                <div className="flex justify-between gap-2 text-sm">
+                  <span className="truncate font-medium">{goal.name}</span>
+                  <span className="text-muted-foreground" data-money>
+                    {formatCurrency(goal.saved)} / {formatCurrency(goal.targetAmount)}
+                  </span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${goal.percent}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

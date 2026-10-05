@@ -34,6 +34,12 @@ export default function AppSidebar() {
               <NavItem href="/bank-transactions">Bank Transactions</NavItem>
             </SidebarMenuItem>
             <SidebarMenuItem>
+              <NavItem href="/goals">Goals</NavItem>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <NavItem href="/chat">AI Coach</NavItem>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
               <NavItem href="/settings">Settings</NavItem>
             </SidebarMenuItem>
           </SidebarMenu>

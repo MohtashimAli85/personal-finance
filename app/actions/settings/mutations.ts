@@ -3,7 +3,8 @@
 import { generateText } from "ai";
 import { revalidatePath } from "next/cache";
 import { describeAiError } from "@/lib/ai/errors";
-import { availableModels, MODEL_CHAIN, modelLabel } from "@/lib/ai/models";
+import { modelLabel } from "@/lib/ai/labels";
+import { availableModels, MODEL_CHAIN } from "@/lib/ai/models";
 import { hasSecretKey } from "@/lib/secrets";
 import { isAiProvider, removeApiKey, storeApiKey } from "@/lib/settings";
 

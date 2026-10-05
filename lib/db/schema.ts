@@ -149,3 +149,20 @@ export const app_settings = sqliteTable("app_settings", {
 	value: text("value").notNull(),
 	updated_at: text("updated_at").default(sql`(datetime('now'))`),
 });
+
+// A goal is backed by a budget category: money saved toward it is that
+// category's available balance, so it flows through normal envelope budgeting.
+export const goals = sqliteTable("goals", {
+	id: text("id").primaryKey(),
+	name: text("name").notNull(),
+	target_amount: integer("target_amount").notNull(),
+	target_month: text("target_month"),
+	category_id: text("category_id")
+		.notNull()
+		.unique()
+		.references(() => categories.id, { onDelete: "cascade" }),
+	notes: text("notes"),
+	created_at: text("created_at").default(sql`(datetime('now'))`),
+	achieved_at: text("achieved_at"),
+	archived_at: text("archived_at"),
+});

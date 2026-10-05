@@ -1,7 +1,7 @@
 import { APICallError, RetryError } from "ai";
 import { describe, expect, it } from "vitest";
 import { describeAiError, isKeyRejected } from "@/lib/ai/errors";
-import { modelLabel } from "@/lib/ai/models";
+import { modelLabel } from "@/lib/ai/labels";
 
 const apiError = (statusCode: number) =>
 	new APICallError({

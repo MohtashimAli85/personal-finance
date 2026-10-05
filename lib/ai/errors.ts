@@ -1,6 +1,6 @@
 import { APICallError, RetryError } from "ai";
 import type { AiProvider } from "@/lib/settings";
-import { PROVIDER_LABELS } from "./models";
+import { PROVIDER_LABELS } from "./labels";
 
 const unwrap = (error: unknown): unknown =>
 	RetryError.isInstance(error) ? error.lastError : error;
