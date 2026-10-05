@@ -1,17 +1,26 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
-import { format } from "date-fns";
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { parseBankEmail } from "../bank-email-parse";
 import { db } from "./client";
-import { accounts, categories, category_group } from "./schema";
+import {
+	bank_sender_configs,
+	categories,
+	category_group,
+	gmail_messages,
+	transactions,
+} from "./schema";
 
 const uid = () => crypto.randomUUID();
 
-const runMigrations = () => {
-	migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+export const runMigrations = () => {
+	const migrationsFolder =
+		process.env.APP_MIGRATIONS_PATH ?? path.join(process.cwd(), "drizzle");
+	migrate(db, { migrationsFolder });
 };
 
-const ensureIncomeGroupTrigger = () => {
+export const ensureIncomeGroupTrigger = () => {
 	db.run(sql`
     CREATE TRIGGER IF NOT EXISTS prevent_income_group_delete
     BEFORE DELETE ON category_group
@@ -22,26 +31,102 @@ const ensureIncomeGroupTrigger = () => {
   `);
 };
 
-const seedAccounts = () => {
-	const existing = db.select({ id: accounts.id }).from(accounts).limit(1).get();
+// Preserves the pre-multi-sender behavior: anyone upgrading from the
+// hardcoded Meezan-only sync keeps working without re-configuring anything.
+const seedBankSenderConfigs = () => {
+	const existing = db
+		.select({ id: bank_sender_configs.id })
+		.from(bank_sender_configs)
+		.limit(1)
+		.get();
 	if (existing) return;
 
-	const now = new Date(new Date().toUTCString());
-	now.setHours(6);
-	const sqliteUTC = (date: Date) => format(date, "yyyy-MM-dd HH:mm:ss");
+	db.insert(bank_sender_configs)
+		.values({
+			id: uid(),
+			sender_email: "no-reply@meezanbank.com",
+			account_name: "Meezan Bank",
+		})
+		.run();
+};
 
-	db.transaction(() => {
-		for (const [name, balance] of [
-			["Savings", 50000],
-			["Wife", 20000],
-			["Mohtashim", 20000],
-		] as const) {
-			db.insert(accounts)
-				.values({ id: uid(), name, balance, created_at: sqliteUTC(now) })
-				.run();
-			now.setHours(now.getHours() + 1);
-		}
-	});
+// Email transactions used to be keyed by a hash of (date, amount, description),
+// which collapsed genuinely distinct transactions that happened to match - two
+// equal ATM withdrawals in one sitting became one row. They are keyed by Gmail
+// message id now. This re-keys the rows written under the old scheme so that
+// re-reading a mailbox reconciles against them instead of duplicating them.
+// Idempotent: once every row carries a message-id hash, it does nothing.
+const messageIdHash = (id: string) =>
+	createHash("sha256").update(id).digest("hex");
+
+const backfillEmailTransactionHashes = () => {
+	const emailRows = db
+		.select({
+			id: gmail_messages.id,
+			from: gmail_messages.from,
+			subject: gmail_messages.subject,
+			date: gmail_messages.date,
+			body_text: gmail_messages.body_text,
+		})
+		.from(gmail_messages)
+		.all();
+	if (emailRows.length === 0) return;
+
+	const txRows = db
+		.select()
+		.from(transactions)
+		.where(eq(transactions.source, "email"))
+		.all();
+	if (txRows.length === 0) return;
+
+	const emailHashes = new Set(emailRows.map((row) => messageIdHash(row.id)));
+	const legacyRows = txRows.filter(
+		(row) => !row.external_hash || !emailHashes.has(row.external_hash),
+	);
+	if (legacyRows.length === 0) return;
+
+	// Group candidate emails by the facts that survived the parser changes.
+	const claimed = new Set(
+		txRows
+			.map((row) => row.external_hash)
+			.filter((hash): hash is string => Boolean(hash)),
+	);
+	const byFacts = new Map<string, string[]>();
+	for (const row of emailRows) {
+		const parsed = parseBankEmail({
+			from: row.from,
+			subject: row.subject,
+			body: row.body_text ?? "",
+			receivedAt: row.date,
+		}).transaction;
+		if (!parsed) continue;
+		const hash = messageIdHash(row.id);
+		if (claimed.has(hash)) continue;
+		const key = `${parsed.date}|${Math.round(parsed.amount * 100)}|${parsed.type}`;
+		const bucket = byFacts.get(key);
+		if (bucket) bucket.push(hash);
+		else byFacts.set(key, [hash]);
+	}
+
+	let rekeyed = 0;
+	for (const row of legacyRows) {
+		const type = row.payment != null ? "expense" : "income";
+		const amount = row.payment ?? row.deposit ?? 0;
+		const key = `${row.date}|${amount}|${type}`;
+		const bucket = byFacts.get(key);
+		const hash = bucket?.shift();
+		if (!hash) continue;
+
+		db.update(transactions)
+			.set({ external_hash: hash })
+			.where(eq(transactions.id, row.id))
+			.run();
+		rekeyed += 1;
+	}
+
+	if (rekeyed > 0) {
+		console.log(`Re-keyed ${rekeyed} imported transaction(s) to message ids.`);
+	}
 };
 
 const DEFAULT_GROUPS = [
@@ -208,10 +293,28 @@ const normalizeCategoryGroupState = () => {
 	}
 };
 
-export const bootstrapDatabase = () => {
-	runMigrations();
-	seedAccounts();
-	seedCategories();
-	normalizeCategoryGroupState();
-	ensureIncomeGroupTrigger();
+let ready = false;
+
+/**
+ * Runs migrations and one-time setup. Safe to call more than once - only the
+ * first call does anything. Call this explicitly from a single entry point
+ * (lib/db/index.ts) rather than relying on module-import side effects.
+ */
+export const ensureDatabaseReady = () => {
+	if (ready) return;
+	try {
+		runMigrations();
+		seedCategories();
+		seedBankSenderConfigs();
+		backfillEmailTransactionHashes();
+		normalizeCategoryGroupState();
+		ensureIncomeGroupTrigger();
+		ready = true;
+	} catch (error) {
+		console.error("Database bootstrap failed:", error);
+		throw error;
+	}
 };
+
+// Back-compat alias.
+export const bootstrapDatabase = ensureDatabaseReady;

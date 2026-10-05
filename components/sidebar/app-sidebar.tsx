@@ -31,7 +31,7 @@ export default function AppSidebar() {
               <NavItem href="/transactions">Transactions</NavItem>
             </SidebarMenuItem>
             <SidebarMenuItem>
-              <NavItem href="/meezan">Meezan Transactions</NavItem>
+              <NavItem href="/bank-transactions">Bank Transactions</NavItem>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>

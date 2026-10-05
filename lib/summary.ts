@@ -1,8 +1,14 @@
-import { and, gte, lt, sql } from "drizzle-orm";
+import { and, eq, gte, isNull, lt, sql } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/lib/db";
-import { transactions } from "@/lib/db/schema";
+import { accounts, transactions } from "@/lib/db/schema";
 
+/**
+ * Income/expense for on-budget accounts within [from, to). Cents. Transfers
+ * between the user's own accounts and pending (unreviewed) imports are
+ * excluded so moving your own money, or an import nobody has looked at yet,
+ * never inflates these figures.
+ */
 export const getSummary = cache((from: string, to: string): SummaryResponse => {
 	const row = db
 		.select({
@@ -10,7 +16,16 @@ export const getSummary = cache((from: string, to: string): SummaryResponse => {
 			expense: sql<number>`coalesce(sum(${transactions.payment}), 0)`,
 		})
 		.from(transactions)
-		.where(and(gte(transactions.date, from), lt(transactions.date, to)))
+		.innerJoin(accounts, eq(transactions.account_id, accounts.id))
+		.where(
+			and(
+				gte(transactions.date, from),
+				lt(transactions.date, to),
+				eq(accounts.account_type, "on_budget"),
+				eq(transactions.status, "cleared"),
+				isNull(transactions.transfer_id),
+			),
+		)
 		.get();
 
 	return {

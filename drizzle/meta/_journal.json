@@ -8,6 +8,34 @@
       "when": 1787360951145,
       "tag": "0000_init",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788463685938,
+      "tag": "0001_plain_norman_osborn",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789311745361,
+      "tag": "0002_illegal_firedrake",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790000000000,
+      "tag": "0003_money_cents_and_dates",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790100000000,
+      "tag": "0004_drop_mail_credentials",
+      "breakpoints": true
     }
   ]
 }

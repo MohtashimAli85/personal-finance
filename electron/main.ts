@@ -11,6 +11,25 @@ let serverPort = 6300;
 
 const isDev = process.env.NODE_ENV === "development";
 
+const deepLinkScheme = process.env.ELECTRON_DEEP_LINK_SCHEME || "myfinanceapp";
+
+function handleDeepLink(url: string): void {
+	console.log("[DeepLink]", url);
+	const parsed = new URL(url);
+	if (parsed.pathname !== "/oauth-callback") return;
+
+	const accessToken = parsed.searchParams.get("access_token");
+	const refreshToken = parsed.searchParams.get("refresh_token");
+	const expiresIn = parsed.searchParams.get("expires_in");
+	if (!accessToken) return;
+
+	mainWindow?.webContents.send("oauth-callback", {
+		accessToken,
+		refreshToken: refreshToken ?? null,
+		expiresIn: expiresIn ? Number(expiresIn) : null,
+	});
+}
+
 function getFreePort(): Promise<number> {
 	return new Promise((resolve, reject) => {
 		const server = net.createServer();
@@ -34,14 +53,15 @@ function startNextServer(): Promise<void> {
 	return new Promise((resolve, reject) => {
 		let command: string;
 		let args: string[];
-		const env: NodeJS.ProcessEnv = { ...process.env };
+		let serverFile = "";
+		const env: Record<string, string | undefined> = { ...process.env };
 
 		if (isDev) {
 			command = process.platform === "win32" ? "next.cmd" : "next";
-			args = ["dev", "--port"];
+			args = ["dev", "--port", String(serverPort)];
 			env.ELECTRON_RUN_AS_NODE = undefined;
 		} else {
-			const serverFile = getNextServerPath();
+			serverFile = getNextServerPath();
 			if (!fs.existsSync(serverFile)) {
 				reject(new Error(`Next.js server not found at ${serverFile}`));
 				return;
@@ -52,19 +72,16 @@ function startNextServer(): Promise<void> {
 			env.NODE_ENV = "production";
 			env.ELECTRON_RUN_AS_NODE = "1";
 			env.APP_DB_PATH = path.join(app.getPath("userData"), "db.sqlite");
+			env.APP_MIGRATIONS_PATH = path.join(
+				process.resourcesPath,
+				"standalone",
+				"drizzle",
+			);
 		}
 		env.PORT = String(serverPort);
 
 		let settled = false;
 		let stderr = "";
-
-		nextServer = spawn(command, args, {
-			env,
-			cwd: isDev ? app.getAppPath() : path.dirname(serverFile),
-			stdio: ["pipe", "pipe", "pipe"],
-			shell: process.platform === "win32",
-		});
-
 		const finish = (error?: Error) => {
 			if (settled) return;
 			settled = true;
@@ -72,22 +89,31 @@ function startNextServer(): Promise<void> {
 			else resolve();
 		};
 
-		nextServer.stdout?.on("data", (data: Buffer) => {
+		nextServer = spawn(command, args, {
+			env: env as NodeJS.ProcessEnv,
+			cwd: isDev ? app.getAppPath() : path.dirname(serverFile),
+			stdio: ["pipe", "pipe", "pipe"],
+			shell: process.platform === "win32",
+		});
+		const child = nextServer;
+		if (!child) return;
+
+		child.stdout?.on("data", (data: Buffer) => {
 			console.log("[Next.js]", data.toString());
 		});
 
-		nextServer.stderr?.on("data", (data: Buffer) => {
+		child.stderr?.on("data", (data: Buffer) => {
 			const text = data.toString();
 			stderr += text;
 			console.error("[Next.js Error]", text);
 		});
 
-		nextServer.on("error", (err) => {
+		child.on("error", (err) => {
 			console.error("Failed to start Next.js server:", err);
 			finish(err);
 		});
 
-		nextServer.on("exit", (code) => {
+		child.on("exit", (code) => {
 			console.log(`Next.js server exited with code ${code}`);
 			nextServer = null;
 			finish(
@@ -174,14 +200,24 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
 	app.quit();
 } else {
-	app.on("second-instance", () => {
+	app.on("second-instance", (_event, argv) => {
+		const url = argv.find((arg) => arg.startsWith(`${deepLinkScheme}://`));
+		if (url) handleDeepLink(url);
+
 		if (!mainWindow) return;
 		if (mainWindow.isMinimized()) mainWindow.restore();
 		mainWindow.focus();
 	});
+
+	app.on("open-url", (event, url) => {
+		event.preventDefault();
+		handleDeepLink(url);
+	});
 }
 
 app.whenReady().then(async () => {
+	app.setAsDefaultProtocolClient(deepLinkScheme);
+
 	try {
 		serverPort = await getFreePort();
 		console.log(`Starting Next.js server on port ${serverPort}`);
@@ -209,9 +245,25 @@ app.on("activate", () => {
 	}
 });
 
-app.on("before-quit", () => {
-	if (nextServer) {
-		nextServer.kill();
-		nextServer = null;
-	}
+let quitting = false;
+
+app.on("before-quit", (event) => {
+	if (quitting || !nextServer) return;
+	quitting = true;
+	event.preventDefault();
+
+	const server = nextServer;
+	nextServer = null;
+
+	// Give the server a chance to checkpoint its WAL and close the sqlite
+	// handle (see lib/db/shutdown.ts) before the process is torn down.
+	const forceKillTimer = setTimeout(() => {
+		server.kill("SIGKILL");
+	}, 3000);
+
+	server.once("exit", () => {
+		clearTimeout(forceKillTimer);
+		app.quit();
+	});
+	server.kill("SIGTERM");
 });

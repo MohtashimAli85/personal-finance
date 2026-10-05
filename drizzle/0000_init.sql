@@ -49,3 +49,14 @@ CREATE TABLE `transactions` (
 CREATE INDEX `idx_transactions_account` ON `transactions` (`account_id`);--> statement-breakpoint
 CREATE INDEX `idx_transactions_date` ON `transactions` (`date`);--> statement-breakpoint
 CREATE INDEX `idx_transactions_category_date` ON `transactions` (`category_id`,`date`);
+--> statement-breakpoint
+CREATE TABLE `mail_credentials` (
+	`id` text PRIMARY KEY NOT NULL,
+	`email` text NOT NULL,
+	`app_password` text NOT NULL,
+	`updated_at` text DEFAULT (datetime('now'))
+);
+--> statement-breakpoint
+ALTER TABLE `transactions` ADD `source` text DEFAULT 'manual' NOT NULL;--> statement-breakpoint
+ALTER TABLE `transactions` ADD `external_hash` text;--> statement-breakpoint
+CREATE UNIQUE INDEX `idx_transactions_external_hash` ON `transactions` (`external_hash`);

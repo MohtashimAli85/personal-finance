@@ -89,7 +89,9 @@ const FIELD_ALIASES: Record<string, string> = {
 	description: "notes",
 	payee: "notes",
 	category: "category",
-	group: "category",
+	category_group: "category_group",
+	"category group": "category_group",
+	group: "category_group",
 	amount: "amount",
 	total: "amount",
 	sum: "amount",
@@ -106,6 +108,7 @@ export type MappableField =
 	| "date"
 	| "notes"
 	| "category"
+	| "category_group"
 	| "amount"
 	| "payment"
 	| "deposit"
@@ -121,33 +124,51 @@ export function autoMapColumns(headers: string[]): MappableField[] {
 	});
 }
 
-const DATE_PARSERS: Record<string, (value: string) => Date | null> = {
+// Each parser returns a YYYY-MM-DD calendar-date key directly (no Date
+// round-trip), so a CSV date is never shifted by a UTC/local timezone
+// conversion the way `new Date(y,m,d).toISOString()` would shift it.
+const pad2 = (n: number | string) => String(n).padStart(2, "0");
+
+const DATE_PARSERS: Record<string, (value: string) => string | null> = {
 	"YYYY-MM-DD": (v) => {
 		const m = v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
 		if (!m) return null;
-		return new Date(+m[1], +m[2] - 1, +m[3]);
+		return `${m[1]}-${pad2(m[2])}-${pad2(m[3])}`;
 	},
 	"DD/MM/YYYY": (v) => {
 		const m = v.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/);
 		if (!m) return null;
-		return new Date(+m[3], +m[2] - 1, +m[1]);
+		return `${m[3]}-${pad2(m[2])}-${pad2(m[1])}`;
 	},
 	"MM/DD/YYYY": (v) => {
 		const m = v.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4})/);
 		if (!m) return null;
-		return new Date(+m[3], +m[1] - 1, +m[2]);
+		return `${m[3]}-${pad2(m[1])}-${pad2(m[2])}`;
 	},
 };
 
 export const DATE_FORMATS = Object.keys(DATE_PARSERS);
 
 /**
- * Parse a date string using the specified format.
+ * Parses a date string in the given format to a YYYY-MM-DD calendar-date
+ * key, or null if it cannot be parsed - callers should surface unparseable
+ * rows rather than silently substituting today's date.
  */
-export function parseDate(value: string, format: string): string {
+export function parseDate(value: string, format: string): string | null {
 	const parser = DATE_PARSERS[format];
-	if (!parser) return new Date().toISOString();
-	const date = parser(value.trim());
-	if (!date || Number.isNaN(date.getTime())) return new Date().toISOString();
-	return date.toISOString();
+	if (!parser) return null;
+	const key = parser(value.trim());
+	if (!key) return null;
+	// Validate: reject e.g. 2026-02-31 which the regex accepts but is not a
+	// real date.
+	const [y, m, d] = key.split("-").map(Number);
+	const check = new Date(y, m - 1, d);
+	if (
+		check.getFullYear() !== y ||
+		check.getMonth() !== m - 1 ||
+		check.getDate() !== d
+	) {
+		return null;
+	}
+	return key;
 }

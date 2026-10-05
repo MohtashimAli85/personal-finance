@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { PrivacyToggle } from "@/components/privacy-toggle";
 import AppSidebar from "@/components/sidebar/app-sidebar";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import StoreProvider from "@/context/store-context";
@@ -32,21 +33,21 @@ export default async function RootLayout({
   return (
     <html lang="en" className={`${geistSans.variable} dark`}>
       <head>
-        {/* {process.env.NODE_ENV === "development" && ( */}
-        {/* <script
-          // id="react-scan"
-          // crossOrigin="anonymous"
-          // strategy="afterInteractive"
-          src="//unpkg.com/react-scan/dist/auto.global.js"
-        /> */}
-        {/* )} */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `document.documentElement.dataset.privacy=localStorage.getItem("privacy-mode")==="on"?"on":"off"`,
+          }}
+        />
       </head>
       <body className={`${geistMono.variable} antialiased`}>
         <StoreProvider initialData={{ accounts, groupedCategories }}>
           <SidebarProvider>
             <AppSidebar />
             <main className="h-screen bg-background w-full flex flex-col p-4 gap-2 overflow-hidden">
-              <SidebarTrigger />
+              <div className="flex items-center gap-1">
+                <SidebarTrigger />
+                <PrivacyToggle />
+              </div>
               {children}
             </main>
           </SidebarProvider>
