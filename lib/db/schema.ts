@@ -166,3 +166,33 @@ export const goals = sqliteTable("goals", {
 	achieved_at: text("achieved_at"),
 	archived_at: text("archived_at"),
 });
+
+export const chats = sqliteTable(
+	"chats",
+	{
+		id: text("id").primaryKey(),
+		title: text("title"),
+		created_at: text("created_at").default(sql`(datetime('now'))`),
+		updated_at: text("updated_at").default(sql`(datetime('now'))`),
+	},
+	(table) => [index("idx_chats_updated_at").on(table.updated_at)],
+);
+
+// `parts` and `metadata` hold AI SDK UIMessage JSON as-is.
+export const chat_messages = sqliteTable(
+	"chat_messages",
+	{
+		id: text("id").primaryKey(),
+		chat_id: text("chat_id")
+			.notNull()
+			.references(() => chats.id, { onDelete: "cascade" }),
+		position: integer("position").notNull(),
+		role: text("role").notNull(),
+		parts: text("parts").notNull(),
+		metadata: text("metadata"),
+		created_at: text("created_at").default(sql`(datetime('now'))`),
+	},
+	(table) => [
+		index("idx_chat_messages_chat").on(table.chat_id, table.position),
+	],
+);

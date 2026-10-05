@@ -3,7 +3,7 @@ import type {
 	LanguageModelV4CallOptions,
 } from "@ai-sdk/provider";
 import type { AiProvider } from "@/lib/settings";
-import { isKeyRejected } from "./errors";
+import { describeAiError, isKeyRejected } from "./errors";
 import type { ResolvedModel } from "./models";
 
 export interface FailedAttempt {
@@ -75,4 +75,20 @@ export function createFallbackModel(
 			attempt(options, (model) => model.doGenerate(options)),
 		doStream: (options) => attempt(options, (model) => model.doStream(options)),
 	};
+}
+
+export function describeChatError(error: unknown): string {
+	if (error instanceof AllModelsFailedError) {
+		const last = error.last;
+		if (!last) return "No AI provider key is set. Add one in Settings.";
+		const message = describeAiError(last.error, last.provider);
+		return error.attempts.length > 1
+			? `${message} (tried ${error.attempts.length} models)`
+			: message;
+	}
+	if (error instanceof Error && error.name === "AbortError") {
+		return "The response was stopped.";
+	}
+	console.error("[ai] chat error:", error);
+	return "Something went wrong while answering. Try again.";
 }
