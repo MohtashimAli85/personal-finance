@@ -1,6 +1,7 @@
-import { eq, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { app_settings } from "@/lib/db/schema";
+import type { Profile } from "@/lib/profile-schema";
 import { decryptSecret, encryptSecret, hasSecretKey } from "@/lib/secrets";
 
 export const AI_PROVIDERS = ["groq", "gemini"] as const;
@@ -73,4 +74,44 @@ export function removeApiKey(provider: AiProvider) {
 	db.delete(app_settings)
 		.where(eq(app_settings.key, settingKey(provider)))
 		.run();
+}
+
+const PROFILE_KEYS: Record<keyof Profile, string> = {
+	name: "profile_name",
+	about: "profile_about",
+	style: "profile_style",
+};
+
+export function getProfile(): Profile {
+	const rows = db
+		.select({ key: app_settings.key, value: app_settings.value })
+		.from(app_settings)
+		.where(inArray(app_settings.key, Object.values(PROFILE_KEYS)))
+		.all();
+	const values = new Map(rows.map((row) => [row.key, row.value]));
+	return {
+		name: values.get(PROFILE_KEYS.name) ?? "",
+		about: values.get(PROFILE_KEYS.about) ?? "",
+		style: values.get(PROFILE_KEYS.style) ?? "",
+	};
+}
+
+export function storeProfile(profile: Profile) {
+	db.transaction(() => {
+		for (const field of Object.keys(PROFILE_KEYS) as (keyof Profile)[]) {
+			const key = PROFILE_KEYS[field];
+			const value = profile[field].trim();
+			if (!value) {
+				db.delete(app_settings).where(eq(app_settings.key, key)).run();
+				continue;
+			}
+			db.insert(app_settings)
+				.values({ key, value })
+				.onConflictDoUpdate({
+					target: app_settings.key,
+					set: { value, updated_at: sql`(datetime('now'))` },
+				})
+				.run();
+		}
+	});
 }

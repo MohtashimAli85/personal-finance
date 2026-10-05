@@ -5,8 +5,14 @@ import { revalidatePath } from "next/cache";
 import { describeAiError } from "@/lib/ai/errors";
 import { modelLabel } from "@/lib/ai/labels";
 import { availableModels, MODEL_CHAIN } from "@/lib/ai/models";
+import { profileSchema } from "@/lib/profile-schema";
 import { hasSecretKey } from "@/lib/secrets";
-import { isAiProvider, removeApiKey, storeApiKey } from "@/lib/settings";
+import {
+	isAiProvider,
+	removeApiKey,
+	storeApiKey,
+	storeProfile,
+} from "@/lib/settings";
 
 const revalidateSettings = () => {
 	revalidatePath("/settings");
@@ -76,4 +82,24 @@ export async function testAiConnection(provider: string): Promise<ActionState> {
 	} catch (error) {
 		return { success: false, message: describeAiError(error, provider) };
 	}
+}
+
+export async function saveProfile(
+	_prev: ActionState,
+	input: { name: string; about: string; style: string },
+): Promise<ActionState> {
+	const parsed = profileSchema.safeParse(input);
+	if (!parsed.success) {
+		const errors: ActionState["errors"] = {};
+		for (const issue of parsed.error.issues) {
+			errors[String(issue.path[0])] ??= { message: issue.message };
+		}
+		return { success: false, errors };
+	}
+	storeProfile(parsed.data);
+	revalidatePath("/settings");
+	return {
+		success: true,
+		message: "Saved. The coach will use this from your next message.",
+	};
 }

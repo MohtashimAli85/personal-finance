@@ -1,16 +1,26 @@
 "use client";
 
-import { AlertCircle, KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import {
+	AlertCircle,
+	KeyRound,
+	Loader2,
+	ShieldCheck,
+	UserRound,
+} from "lucide-react";
 import { useState, useTransition } from "react";
 import {
 	clearApiKey,
 	saveApiKey,
+	saveProfile,
 	testAiConnection,
 } from "@/app/actions/settings/mutations";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { PROFILE_LIMITS, type Profile } from "@/lib/profile-schema";
 import type { AiKeyStatus, AiProvider, ApiKeySource } from "@/lib/settings";
 
 const PROVIDERS: {
@@ -177,16 +187,134 @@ function ProviderCard({
 	);
 }
 
-export default function SettingsClient({ status }: { status: AiKeyStatus }) {
+function ProfileCard({ profile }: { profile: Profile }) {
+	const [values, setValues] = useState(profile);
+	const [feedback, setFeedback] = useState<Feedback>(null);
+	const [isPending, startTransition] = useTransition();
+	const dirty =
+		values.name !== profile.name ||
+		values.about !== profile.about ||
+		values.style !== profile.style;
+
+	const update =
+		(field: keyof Profile) =>
+		(event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+			setFeedback(null);
+			setValues((prev) => ({ ...prev, [field]: event.target.value }));
+		};
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="flex items-center gap-2 text-base">
+					<UserRound className="h-4 w-4" />
+					About you
+				</CardTitle>
+				<p className="text-sm text-muted-foreground">
+					Tell the AI coach about yourself so its advice fits your life. This
+					stays in your local database and is sent to the AI provider with each
+					chat.
+				</p>
+			</CardHeader>
+			<CardContent>
+				<form
+					className="space-y-4"
+					onSubmit={(event) => {
+						event.preventDefault();
+						startTransition(async () => {
+							const result = await saveProfile({ success: false }, values);
+							const fieldError = Object.values(result.errors ?? {})[0]?.message;
+							setFeedback({
+								tone: result.success ? "success" : "error",
+								text: fieldError ?? result.message ?? "",
+							});
+						});
+					}}
+				>
+					<Field>
+						<FieldLabel>What should the coach call you?</FieldLabel>
+						<Input
+							value={values.name}
+							onChange={update("name")}
+							maxLength={PROFILE_LIMITS.name}
+							placeholder="Mohtashim"
+						/>
+					</Field>
+					<Field>
+						<FieldLabel>About you</FieldLabel>
+						<Textarea
+							value={values.about}
+							onChange={update("about")}
+							maxLength={PROFILE_LIMITS.about}
+							rows={6}
+							placeholder={
+								"e.g. I'm a software engineer in Lahore, paid on the 1st. I live with my parents and help with household bills. Saving for a car next year and want a 6-month emergency fund. Eating out is my weak spot."
+							}
+						/>
+						<FieldDescription>
+							Work and payday, who you support, big plans, habits you want help
+							with. {values.about.length}/{PROFILE_LIMITS.about}
+						</FieldDescription>
+					</Field>
+					<Field>
+						<FieldLabel>How should the coach talk to you?</FieldLabel>
+						<Textarea
+							value={values.style}
+							onChange={update("style")}
+							maxLength={PROFILE_LIMITS.style}
+							rows={2}
+							placeholder="e.g. Be blunt, keep it short, use Roman Urdu sometimes."
+						/>
+					</Field>
+					<div className="flex items-center gap-3">
+						<Button type="submit" disabled={isPending || !dirty}>
+							{isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+							Save
+						</Button>
+						{feedback?.text && (
+							<p
+								className={
+									feedback.tone === "success"
+										? "text-sm text-emerald-500"
+										: "text-sm text-destructive"
+								}
+							>
+								{feedback.text}
+							</p>
+						)}
+					</div>
+				</form>
+			</CardContent>
+		</Card>
+	);
+}
+
+export default function SettingsClient({
+	status,
+	profile,
+}: {
+	status: AiKeyStatus;
+	profile: Profile;
+}) {
 	return (
 		<div className="max-w-2xl w-full mx-auto p-6 space-y-6 overflow-auto">
 			<div>
 				<h1 className="text-2xl font-bold">Settings</h1>
 				<p className="text-sm text-muted-foreground">
-					API keys for the AI coach. Keys are encrypted before they are saved
-					and are never sent back to this page.
+					Your profile and API keys for the AI coach.
 				</p>
 			</div>
+
+			<ProfileCard profile={profile} />
+
+			<h2 className="flex items-center gap-2 text-lg font-semibold">
+				<KeyRound className="h-5 w-5" />
+				AI providers
+			</h2>
+			<p className="-mt-4 text-sm text-muted-foreground">
+				Keys are encrypted before they are saved and are never sent back to this
+				page.
+			</p>
 
 			{status.canStore ? (
 				<p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -216,10 +344,6 @@ export default function SettingsClient({ status }: { status: AiKeyStatus }) {
 			)}
 
 			<div className="space-y-4">
-				<h2 className="flex items-center gap-2 text-lg font-semibold">
-					<KeyRound className="h-5 w-5" />
-					AI providers
-				</h2>
 				{PROVIDERS.map((provider) => (
 					<ProviderCard
 						key={provider.id}

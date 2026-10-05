@@ -74,3 +74,32 @@ describe("AI key settings", () => {
 		expect(settings.getAiKeyStatus().canStore).toBe(false);
 	});
 });
+
+describe("profile", () => {
+	it("stores, reads back and clears profile fields", () => {
+		expect(settings.getProfile()).toEqual({ name: "", about: "", style: "" });
+		settings.storeProfile({
+			name: "Mo",
+			about: "Paid on the 1st, saving for a car.",
+			style: "",
+		});
+		expect(settings.getProfile()).toEqual({
+			name: "Mo",
+			about: "Paid on the 1st, saving for a car.",
+			style: "",
+		});
+		settings.storeProfile({ name: "", about: "Updated", style: "Be blunt" });
+		expect(settings.getProfile()).toEqual({
+			name: "",
+			about: "Updated",
+			style: "Be blunt",
+		});
+		const keys = ctx.db
+			.select()
+			.from(ctx.schema.app_settings)
+			.all()
+			.map((row) => row.key)
+			.sort();
+		expect(keys).toEqual(["profile_about", "profile_style"]);
+	});
+});

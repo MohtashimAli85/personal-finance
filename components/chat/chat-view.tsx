@@ -100,11 +100,13 @@ export default function ChatView({
 	initialMessages,
 	isNew,
 	hasKey,
+	hasProfile,
 }: {
 	id: string;
 	initialMessages: CoachUIMessage[];
 	isNew: boolean;
 	hasKey: boolean;
+	hasProfile: boolean;
 }) {
 	const { refreshChats } = useChatShell();
 	const [input, setInput] = useState("");
@@ -170,7 +172,7 @@ export default function ChatView({
 									something. It can see your accounts, budget and goals.
 								</p>
 							</div>
-							{hasKey ? (
+							{hasKey && (
 								<div className="flex flex-wrap justify-center gap-2">
 									{SUGGESTIONS.map((suggestion) => (
 										<Button
@@ -183,7 +185,16 @@ export default function ChatView({
 										</Button>
 									))}
 								</div>
-							) : (
+							)}
+							{hasKey && !hasProfile && (
+								<Link
+									href="/settings"
+									className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+								>
+									Tell the coach about yourself for more personal advice
+								</Link>
+							)}
+							{!hasKey && (
 								<Button asChild>
 									<Link href="/settings">
 										<KeyRound /> Add a Groq or Gemini key in Settings

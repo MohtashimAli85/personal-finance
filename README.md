@@ -95,8 +95,11 @@ category's budget, but only after you click **Confirm** on the proposed change.
   - a self-hosted/web deployment must set `APP_SECRET_KEY`
     (`openssl rand -hex 32`); without it, keys can't be saved from Settings.
   - `GROQ_API_KEY` / `GEMINI_API_KEY` env vars work too and take precedence.
-- **Privacy**: each chat sends the finance snapshot and any looked-up data to
-  Groq (or Google on fallback).
+- **About you**: Settings has a profile (name, a free-text "about me", and how
+  you want to be coached) that is added to the coach's instructions so advice
+  fits your situation. Stored locally in `app_settings`.
+- **Privacy**: each chat sends the finance snapshot, your profile and any
+  looked-up data to Groq (or Google on fallback).
 - Chats are stored locally in the `chats` / `chat_messages` tables.
 
 > **Self-hosting:** the app has no login. Anyone who can reach a self-hosted

@@ -271,6 +271,27 @@ describe("POST /api/chat", () => {
 		);
 	});
 
+	it("tells the model about the user when a profile is saved", async () => {
+		const { storeProfile } = await import("@/lib/settings");
+		storeProfile({
+			name: "Mo",
+			about: "Paid on the 1st. Saving for a car.",
+			style: "Keep it short.",
+		});
+		const model = new MockLanguageModelV4({
+			doStream: async () => textStream("Hi Mo"),
+			doGenerate: titleModel().doGenerate,
+		});
+		mockModels = [resolved(model, "openai/gpt-oss-120b")];
+		await post("chat-profile", [userMessage("hi")]);
+		const system = JSON.stringify(model.doStreamCalls[0].prompt[0].content);
+		expect(system).toContain("ABOUT THE USER");
+		expect(system).toContain("Call them: Mo");
+		expect(system).toContain("Saving for a car.");
+		expect(system).toContain("Keep it short.");
+		storeProfile({ name: "", about: "", style: "" });
+	});
+
 	it("gates every write tool behind approval", async () => {
 		const { writeToolApproval } = await import("@/lib/ai/approval");
 		const { WRITE_TOOL_NAMES } = await import("@/lib/ai/tool-names");
