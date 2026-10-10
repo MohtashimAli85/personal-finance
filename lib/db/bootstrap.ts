@@ -5,7 +5,6 @@ import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { parseBankEmail } from "../bank-email-parse";
 import { db } from "./client";
 import {
-	bank_sender_configs,
 	categories,
 	category_group,
 	gmail_messages,
@@ -29,25 +28,6 @@ export const ensureIncomeGroupTrigger = () => {
       SELECT RAISE(ABORT, 'Income group cannot be deleted');
     END;
   `);
-};
-
-// Preserves the pre-multi-sender behavior: anyone upgrading from the
-// hardcoded Meezan-only sync keeps working without re-configuring anything.
-const seedBankSenderConfigs = () => {
-	const existing = db
-		.select({ id: bank_sender_configs.id })
-		.from(bank_sender_configs)
-		.limit(1)
-		.get();
-	if (existing) return;
-
-	db.insert(bank_sender_configs)
-		.values({
-			id: uid(),
-			sender_email: "no-reply@meezanbank.com",
-			account_name: "Meezan Bank",
-		})
-		.run();
 };
 
 // Email transactions used to be keyed by a hash of (date, amount, description),
@@ -127,56 +107,6 @@ const backfillEmailTransactionHashes = () => {
 	if (rekeyed > 0) {
 		console.log(`Re-keyed ${rekeyed} imported transaction(s) to message ids.`);
 	}
-};
-
-const DEFAULT_GROUPS = [
-	{
-		group: "Usual Expenses",
-		categories: ["Food", "General", "Bills", "Bills (Flexible)"],
-	},
-	{
-		group: "Investments and Savings",
-		categories: ["Savings"],
-	},
-	{
-		group: "Income",
-		categories: ["Income", "Starting Balances"],
-	},
-];
-
-const seedCategories = () => {
-	const existing = db
-		.select({ id: category_group.id })
-		.from(category_group)
-		.limit(1)
-		.get();
-	if (existing) return;
-
-	db.transaction(() => {
-		DEFAULT_GROUPS.forEach(({ group, categories: groupCategories }, index) => {
-			const isIncome = group.toLowerCase() === "income";
-			const groupId = uid();
-			db.insert(category_group)
-				.values({
-					id: groupId,
-					name: group,
-					sort_order: isIncome ? 9999 : index + 1,
-					is_income: isIncome,
-				})
-				.run();
-
-			groupCategories.forEach((name, categoryIndex) => {
-				db.insert(categories)
-					.values({
-						id: uid(),
-						name,
-						group_id: groupId,
-						sort_order: categoryIndex + 1,
-					})
-					.run();
-			});
-		});
-	});
 };
 
 const normalizeCategoryGroupState = () => {
@@ -304,8 +234,6 @@ export const ensureDatabaseReady = () => {
 	if (ready) return;
 	try {
 		runMigrations();
-		seedCategories();
-		seedBankSenderConfigs();
 		backfillEmailTransactionHashes();
 		normalizeCategoryGroupState();
 		ensureIncomeGroupTrigger();

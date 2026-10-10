@@ -17,3 +17,6 @@ tsconfig.tsbuildinfo
 
 # local db backups (see lib/db/backup.ts)
 *.sqlite.bak
+
+# local database backups
+backups/
