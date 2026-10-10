@@ -1,11 +1,16 @@
 "use server";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { copyBudgetFromMonth } from "@/lib/budget";
-import { isMonthKey } from "@/lib/date";
+import { copyBudgetFromMonth, getBudgetView } from "@/lib/budget";
+import { isMonthKey, monthsBetween } from "@/lib/date";
 import { db } from "@/lib/db";
-import { categories, category_group, monthly_budgets } from "@/lib/db/schema";
+import {
+	budget_months,
+	categories,
+	category_group,
+	monthly_budgets,
+} from "@/lib/db/schema";
 import { toCents } from "@/lib/money";
 
 const revalidateBudget = () => {
@@ -53,7 +58,17 @@ export async function setBudgetedAmount(
 	}
 
 	db.transaction(() => {
-		if (normalizedAmount === 0) {
+		const existing = db
+			.select({ carryover: monthly_budgets.carryover })
+			.from(monthly_budgets)
+			.where(
+				and(
+					eq(monthly_budgets.category_id, categoryId),
+					eq(monthly_budgets.month, month),
+				),
+			)
+			.get();
+		if (normalizedAmount === 0 && !existing?.carryover) {
 			db.delete(monthly_budgets)
 				.where(
 					and(
@@ -69,6 +84,7 @@ export async function setBudgetedAmount(
 				category_id: categoryId,
 				month,
 				amount: normalizedAmount,
+				carryover: inheritedCarryover(categoryId, month),
 			})
 			.onConflictDoUpdate({
 				target: [monthly_budgets.category_id, monthly_budgets.month],
@@ -77,6 +93,77 @@ export async function setBudgetedAmount(
 			.run();
 	});
 
+	revalidateBudget();
+}
+
+const inheritedCarryover = (categoryId: string, month: string) =>
+	db
+		.select({ carryover: monthly_budgets.carryover })
+		.from(monthly_budgets)
+		.where(
+			and(
+				eq(monthly_budgets.category_id, categoryId),
+				lt(monthly_budgets.month, month),
+			),
+		)
+		.orderBy(desc(monthly_budgets.month))
+		.get()?.carryover ?? false;
+
+/** Like Actual, the flag applies to this month and every later month. */
+export async function setCategoryCarryover(
+	categoryId: string,
+	month: string,
+	carryover: boolean,
+) {
+	if (!isMonthKey(month)) {
+		throw new Error(`Invalid month key: ${month}`);
+	}
+	const lastMonth =
+		db
+			.select({ month: sql<string>`max(${monthly_budgets.month})` })
+			.from(monthly_budgets)
+			.get()?.month ?? month;
+	db.transaction(() => {
+		for (const m of monthsBetween(
+			month,
+			lastMonth > month ? lastMonth : month,
+		)) {
+			db.insert(monthly_budgets)
+				.values({ category_id: categoryId, month: m, amount: 0, carryover })
+				.onConflictDoUpdate({
+					target: [monthly_budgets.category_id, monthly_budgets.month],
+					set: { carryover },
+				})
+				.run();
+		}
+	});
+	revalidateBudget();
+}
+
+/** `amount` is decimal; it can't exceed what's left to budget this month. */
+export async function holdForNextMonth(month: string, amount: number) {
+	if (!isMonthKey(month)) {
+		throw new Error(`Invalid month key: ${month}`);
+	}
+	const view = getBudgetView(month);
+	const available = view.toBudget + view.buffered;
+	const buffered = Math.min(
+		Math.max(toCents(amount), 0),
+		Math.max(available, 0),
+	);
+	db.insert(budget_months)
+		.values({ month, buffered })
+		.onConflictDoUpdate({ target: budget_months.month, set: { buffered } })
+		.run();
+	revalidateBudget();
+	return { buffered };
+}
+
+export async function resetHold(month: string) {
+	if (!isMonthKey(month)) {
+		throw new Error(`Invalid month key: ${month}`);
+	}
+	db.delete(budget_months).where(eq(budget_months.month, month)).run();
 	revalidateBudget();
 }
 

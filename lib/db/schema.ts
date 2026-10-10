@@ -29,6 +29,7 @@ export const category_group = sqliteTable(
 		is_income: integer("is_income", { mode: "boolean" })
 			.notNull()
 			.default(false),
+		hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
 	},
 	(table) => [
 		uniqueIndex("idx_category_group_single_income")
@@ -44,6 +45,7 @@ export const categories = sqliteTable("categories", {
 		onDelete: "set null",
 	}),
 	sort_order: integer("sort_order").notNull().default(0),
+	hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
 });
 
 export const transactions = sqliteTable(
@@ -90,6 +92,9 @@ export const monthly_budgets = sqliteTable(
 			.references(() => categories.id, { onDelete: "cascade" }),
 		month: text("month").notNull(),
 		amount: integer("amount").notNull().default(0),
+		carryover: integer("carryover", { mode: "boolean" })
+			.notNull()
+			.default(false),
 	},
 	(table) => [
 		primaryKey({ columns: [table.category_id, table.month] }),
@@ -99,6 +104,11 @@ export const monthly_budgets = sqliteTable(
 		),
 	],
 );
+
+export const budget_months = sqliteTable("budget_months", {
+	month: text("month").primaryKey(),
+	buffered: integer("buffered").notNull().default(0),
+});
 
 export const gmail_messages = sqliteTable(
 	"gmail_messages",

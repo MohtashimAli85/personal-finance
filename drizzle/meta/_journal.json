@@ -57,6 +57,13 @@
       "when": 1791180823810,
       "tag": "0007_chats",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791207599020,
+      "tag": "0008_actual_budget",
+      "breakpoints": true
     }
   ]
 }

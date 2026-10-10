@@ -11,6 +11,8 @@ type CategoryRow = {
 	group_name: string;
 	group_sort_order: number;
 	group_is_income: boolean;
+	category_hidden: boolean | null;
+	group_hidden: boolean;
 };
 
 const groupedSelect = {
@@ -21,6 +23,8 @@ const groupedSelect = {
 	group_name: category_group.name,
 	group_sort_order: category_group.sort_order,
 	group_is_income: category_group.is_income,
+	category_hidden: categories.hidden,
+	group_hidden: category_group.hidden,
 };
 
 export const getGroupedCategories = cache((): GroupedCategory[] => {
@@ -47,6 +51,7 @@ export const getGroupedCategories = cache((): GroupedCategory[] => {
 				name: row.group_name,
 				sort_order: row.group_sort_order ?? 9998,
 				is_income: row.group_is_income,
+				hidden: row.group_hidden,
 				categories: [],
 			});
 		}
@@ -59,6 +64,7 @@ export const getGroupedCategories = cache((): GroupedCategory[] => {
 				name: row.category_name ?? "",
 				group_id: groupId,
 				sort_order: row.category_sort_order ?? 0,
+				hidden: row.category_hidden ?? false,
 			});
 		}
 	}

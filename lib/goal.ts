@@ -113,14 +113,11 @@ export const getGoals = cache(
 
 		if (rows.length === 0) return [];
 
-		const envelopes = new Map<
-			string,
-			{ available: number; budgeted: number }
-		>();
+		const envelopes = new Map<string, { balance: number; budgeted: number }>();
 		for (const group of (options.budget ?? getBudgetView(month)).groups) {
 			for (const category of group.categories) {
 				envelopes.set(category.id, {
-					available: category.available,
+					balance: category.balance,
 					budgeted: category.budgeted,
 				});
 			}
@@ -132,7 +129,7 @@ export const getGoals = cache(
 				...row,
 				...computeGoalProgress({
 					targetAmount: row.targetAmount,
-					available: envelope?.available ?? 0,
+					available: envelope?.balance ?? 0,
 					budgetedThisMonth: envelope?.budgeted ?? 0,
 					targetMonth: row.targetMonth,
 					currentMonth: month,

@@ -9,7 +9,9 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { useBudgetContext } from "@/context/budget-context";
 import { useInlineEdit } from "@/hooks/use-inline-edit";
 import { formatCurrency } from "@/lib/helper";
+import { cn } from "@/lib/tailwindcss/utils";
 import BudgetGroupMenu from "./budget-group-menu";
+import { groupTotals } from "./group-totals";
 
 const BudgetGroupRow = ({
 	group,
@@ -34,22 +36,11 @@ const BudgetGroupRow = ({
 	const isCollapsed = collapsedGroups[group.id] ?? false;
 	const canMutateGroup = !group.is_income;
 
-	const groupBudgeted = group.categories.reduce(
-		(sum, c) => sum + c.budgeted,
-		0,
-	);
-	const groupActivity = group.categories.reduce(
-		(sum, c) => sum + c.activity,
-		0,
-	);
-	const groupAvailable = group.categories.reduce(
-		(sum, c) => sum + c.available,
-		0,
-	);
+	const totals = groupTotals(group.categories);
 
 	return (
 		<TableRow
-			className="group bg-muted/40"
+			className={cn("group bg-muted/40", group.hidden && "opacity-50")}
 			draggable={canMutateGroup}
 			onDragStart={() => canMutateGroup && onDragStart(group.id)}
 			onDragEnter={() => onDragEnter(group.id)}
@@ -104,13 +95,13 @@ const BudgetGroupRow = ({
 				</div>
 			</TableCell>
 			<TableCell className="text-right font-semibold">
-				{formatCurrency(groupBudgeted)}
+				{formatCurrency(totals.budgeted)}
 			</TableCell>
 			<TableCell className="text-right font-semibold">
-				{formatCurrency(groupActivity)}
+				{formatCurrency(totals.spent)}
 			</TableCell>
 			<TableCell className="text-right font-semibold">
-				{formatCurrency(groupAvailable)}
+				{formatCurrency(totals.balance)}
 			</TableCell>
 		</TableRow>
 	);

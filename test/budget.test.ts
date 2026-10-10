@@ -1,206 +1,268 @@
 import { randomUUID } from "node:crypto";
-import { beforeAll, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "./db-test-utils";
 
+vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
+let budget: typeof import("@/lib/budget");
+let actions: typeof import("@/app/actions/budget/mutations");
+let incomeCategoryId: string;
+let account: string;
 
 beforeAll(async () => {
 	ctx = await createTestDb();
+	budget = await import("@/lib/budget");
+	actions = await import("@/app/actions/budget/mutations");
+	const incomeGroup = ctx.db
+		.select()
+		.from(ctx.schema.category_group)
+		.where(eq(ctx.schema.category_group.is_income, true))
+		.get();
+	incomeCategoryId = randomUUID();
+	ctx.db
+		.insert(ctx.schema.categories)
+		.values({
+			id: incomeCategoryId,
+			name: "Salary Test",
+			group_id: incomeGroup?.id,
+		})
+		.run();
 });
 
-function seedCategory(
-	groupName: string,
-	categoryName: string,
-	isIncome = false,
-) {
+beforeEach(() => {
 	const { db, schema } = ctx;
-	const groupId = randomUUID();
-	const categoryId = randomUUID();
-	db.insert(schema.category_group)
-		.values({ id: groupId, name: groupName, is_income: isIncome })
-		.run();
-	db.insert(schema.categories)
-		.values({ id: categoryId, name: categoryName, group_id: groupId })
-		.run();
-	return { groupId, categoryId };
-}
+	db.delete(schema.transactions).run();
+	db.delete(schema.monthly_budgets).run();
+	db.delete(schema.budget_months).run();
+	db.delete(schema.accounts).run();
+	account = seedAccount("Checking", "on_budget");
+});
 
-function seedAccount(name: string, balanceCents: number) {
-	const { db, schema } = ctx;
+function seedAccount(name: string, type: "on_budget" | "off_budget") {
 	const id = randomUUID();
-	db.insert(schema.accounts)
-		.values({ id, name, balance: balanceCents, account_type: "on_budget" })
+	ctx.db
+		.insert(ctx.schema.accounts)
+		.values({ id, name: `${name} ${id}`, account_type: type })
 		.run();
 	return id;
 }
 
-function spend(
-	accountId: string,
-	categoryId: string,
+function seedCategory(hidden = false) {
+	const groupId = randomUUID();
+	const categoryId = randomUUID();
+	ctx.db
+		.insert(ctx.schema.category_group)
+		.values({ id: groupId, name: `Group ${groupId}` })
+		.run();
+	ctx.db
+		.insert(ctx.schema.categories)
+		.values({
+			id: categoryId,
+			name: `Category ${categoryId}`,
+			group_id: groupId,
+			hidden,
+		})
+		.run();
+	return categoryId;
+}
+
+function tx(
+	categoryId: string | null,
 	date: string,
-	cents: number,
+	amount: number,
+	options: { accountId?: string; status?: string } = {},
 ) {
-	const { db, schema } = ctx;
-	db.insert(schema.transactions)
+	ctx.db
+		.insert(ctx.schema.transactions)
 		.values({
 			id: randomUUID(),
-			account_id: accountId,
+			account_id: options.accountId ?? account,
 			category_id: categoryId,
-			payment: cents,
+			payment: amount < 0 ? -amount : null,
+			deposit: amount > 0 ? amount : null,
 			date,
-			status: "cleared",
+			status: options.status ?? "cleared",
 		})
 		.run();
 }
 
-function assign(categoryId: string, month: string, cents: number) {
-	const { db, schema } = ctx;
-	db.insert(schema.monthly_budgets)
-		.values({ category_id: categoryId, month, amount: cents })
+function assign(
+	categoryId: string,
+	month: string,
+	amount: number,
+	carryover = false,
+) {
+	ctx.db
+		.insert(ctx.schema.monthly_budgets)
+		.values({ category_id: categoryId, month, amount, carryover })
 		.run();
 }
 
-describe("envelope budgeting carryover", () => {
-	it("carries an unspent surplus forward into the next month for free", async () => {
-		const { getBudgetView } = await import("@/lib/budget");
-		const account = seedAccount("Carryover Checking", 1_000_000_00);
-		const { categoryId } = seedCategory("Carryover Group", "Groceries");
+const categoryIn = (month: string, categoryId: string) =>
+	budget
+		.getBudgetView(month)
+		.groups.flatMap((g) => g.categories)
+		.find((c) => c.id === categoryId);
 
-		// Assign 100 in January, spend only 40 - 60 should be available.
-		assign(categoryId, "2026-01", 10000);
-		spend(account, categoryId, "2026-01-15", 4000);
+describe("Actual-style envelope budget", () => {
+	it("builds To Budget from income and carries the leftover forward", () => {
+		const rent = seedCategory();
+		tx(incomeCategoryId, "2026-01-01", 100_000);
+		assign(rent, "2026-01", 60_000);
+		assign(rent, "2026-02", 10_000);
 
-		const jan = getBudgetView("2026-01");
-		const janCat = jan.groups
-			.flatMap((g) => g.categories)
-			.find((c) => c.id === categoryId);
-		expect(janCat?.available).toBe(6000);
+		const jan = budget.getBudgetView("2026-01");
+		expect(jan).toMatchObject({
+			income: 100_000,
+			availableFunds: 100_000,
+			budgeted: 60_000,
+			toBudget: 40_000,
+		});
 
-		// February: no new assignment, no new spending - the 60 surplus must
-		// still be there. This is the core carryover behavior; the previous
-		// single-month math would show 0 here.
-		const feb = getBudgetView("2026-02");
-		const febCat = feb.groups
-			.flatMap((g) => g.categories)
-			.find((c) => c.id === categoryId);
-		expect(febCat?.available).toBe(6000);
-		expect(febCat?.budgeted).toBe(0); // nothing newly assigned in February
+		const feb = budget.getBudgetView("2026-02");
+		expect(feb).toMatchObject({
+			income: 0,
+			fromLastMonth: 40_000,
+			availableFunds: 40_000,
+			budgeted: 10_000,
+			toBudget: 30_000,
+		});
 	});
 
-	it("carries overspending forward as a negative balance", async () => {
-		const { getBudgetView } = await import("@/lib/budget");
-		const account = seedAccount("Overspend Checking", 1_000_000_00);
-		const { categoryId } = seedCategory("Overspend Group", "Dining");
+	it("rolls a positive balance forward", () => {
+		const groceries = seedCategory();
+		assign(groceries, "2026-01", 10_000);
+		tx(groceries, "2026-01-15", -4_000);
 
-		assign(categoryId, "2026-03", 5000);
-		spend(account, categoryId, "2026-03-10", 8000); // overspent by 3000
-
-		const mar = getBudgetView("2026-03");
-		const marCat = mar.groups
-			.flatMap((g) => g.categories)
-			.find((c) => c.id === categoryId);
-		expect(marCat?.available).toBe(-3000);
-
-		const apr = getBudgetView("2026-04");
-		const aprCat = apr.groups
-			.flatMap((g) => g.categories)
-			.find((c) => c.id === categoryId);
-		expect(aprCat?.available).toBe(-3000); // still overspent, nothing assigned since
+		expect(categoryIn("2026-01", groceries)).toMatchObject({
+			budgeted: 10_000,
+			spent: -4_000,
+			balance: 6_000,
+		});
+		expect(categoryIn("2026-02", groceries)).toMatchObject({
+			budgeted: 0,
+			spent: 0,
+			balance: 6_000,
+		});
 	});
 
-	it("nets a deposit (refund) against activity instead of ignoring it", async () => {
-		const { db, schema } = ctx;
-		const { getBudgetView } = await import("@/lib/budget");
-		const account = seedAccount("Refund Checking", 1_000_000_00);
-		const { categoryId } = seedCategory("Refund Group", "Shopping");
+	it("resets overspending to 0 and takes it from next month's To Budget", () => {
+		const dining = seedCategory();
+		tx(incomeCategoryId, "2026-03-01", 50_000);
+		assign(dining, "2026-03", 5_000);
+		tx(dining, "2026-03-10", -8_000);
 
-		assign(categoryId, "2026-05", 10000);
-		spend(account, categoryId, "2026-05-05", 8000);
-		db.insert(schema.transactions)
-			.values({
-				id: randomUUID(),
-				account_id: account,
-				category_id: categoryId,
-				deposit: 2000,
-				date: "2026-05-06",
-				status: "cleared",
-			})
+		expect(categoryIn("2026-03", dining)?.balance).toBe(-3_000);
+		expect(budget.getBudgetView("2026-03").toBudget).toBe(45_000);
+
+		const apr = budget.getBudgetView("2026-04");
+		expect(categoryIn("2026-04", dining)?.balance).toBe(0);
+		expect(apr.lastMonthOverspent).toBe(-3_000);
+		expect(apr.toBudget).toBe(42_000);
+	});
+
+	it("carries overspending forward instead when rollover is on", () => {
+		const dining = seedCategory();
+		tx(incomeCategoryId, "2026-03-01", 50_000);
+		assign(dining, "2026-03", 5_000, true);
+		tx(dining, "2026-03-10", -8_000);
+
+		const apr = budget.getBudgetView("2026-04");
+		expect(categoryIn("2026-04", dining)?.balance).toBe(-3_000);
+		expect(apr.lastMonthOverspent).toBe(0);
+		expect(apr.toBudget).toBe(45_000);
+	});
+
+	it("holds money for next month", () => {
+		tx(incomeCategoryId, "2026-05-01", 100_000);
+		ctx.db
+			.insert(ctx.schema.budget_months)
+			.values({ month: "2026-05", buffered: 30_000 })
 			.run();
 
-		const may = getBudgetView("2026-05");
-		const cat = may.groups
-			.flatMap((g) => g.categories)
-			.find((c) => c.id === categoryId);
-		// activity = 8000 - 2000 = 6000; available = 10000 - 6000 = 4000
-		expect(cat?.activity).toBe(6000);
-		expect(cat?.available).toBe(4000);
+		expect(budget.getBudgetView("2026-05")).toMatchObject({
+			buffered: 30_000,
+			toBudget: 70_000,
+		});
+		expect(budget.getBudgetView("2026-06")).toMatchObject({
+			fromLastMonth: 100_000,
+			toBudget: 100_000,
+		});
 	});
 
-	it("excludes pending (unreviewed) transactions from activity", async () => {
-		const { db, schema } = ctx;
-		const { getBudgetView } = await import("@/lib/budget");
-		const account = seedAccount("Pending Checking", 1_000_000_00);
-		const { categoryId } = seedCategory("Pending Group", "Imported");
+	it("nets refunds and counts pending transactions like Actual", () => {
+		const shopping = seedCategory();
+		assign(shopping, "2026-05", 10_000);
+		tx(shopping, "2026-05-05", -8_000);
+		tx(shopping, "2026-05-06", 2_000);
+		tx(shopping, "2026-05-07", -1_000, { status: "pending" });
 
-		assign(categoryId, "2026-06", 5000);
-		db.insert(schema.transactions)
-			.values({
-				id: randomUUID(),
-				account_id: account,
-				category_id: categoryId,
-				payment: 3000,
-				date: "2026-06-10",
-				status: "pending",
-			})
-			.run();
-
-		const jun = getBudgetView("2026-06");
-		const cat = jun.groups
-			.flatMap((g) => g.categories)
-			.find((c) => c.id === categoryId);
-		expect(cat?.activity).toBe(0);
-		expect(cat?.available).toBe(5000);
+		expect(categoryIn("2026-05", shopping)).toMatchObject({
+			spent: -7_000,
+			balance: 3_000,
+		});
 	});
 
-	it("excludes income-group categories from the assignable groups", async () => {
-		const { db, schema } = ctx;
-		const { eq } = await import("drizzle-orm");
-		const { getBudgetView } = await import("@/lib/budget");
+	it("ignores off-budget accounts and reports uncategorized spending", () => {
+		const fuel = seedCategory();
+		const savings = seedAccount("Savings", "off_budget");
+		tx(fuel, "2026-07-02", -5_000, { accountId: savings });
+		tx(null, "2026-07-03", -1_500);
 
-		// The database seeds exactly one income group on first boot (enforced
-		// by a unique index), with an "Income" category in it - use that
-		// rather than creating a second income group.
-		const incomeGroup = db
-			.select({ id: schema.category_group.id })
-			.from(schema.category_group)
-			.where(eq(schema.category_group.is_income, true))
-			.get();
-		expect(incomeGroup).toBeDefined();
-
-		const view = getBudgetView("2026-07");
-		const hasIncomeGroup = view.groups.some((g) => g.is_income);
-		expect(hasIncomeGroup).toBe(false);
-
-		const incomeCategoryShowsUp = view.groups
-			.flatMap((g) => g.categories)
-			.some((c) => c.group_id === incomeGroup?.id);
-		expect(incomeCategoryShowsUp).toBe(false);
+		const jul = budget.getBudgetView("2026-07");
+		expect(categoryIn("2026-07", fuel)?.spent).toBe(0);
+		expect(jul.uncategorizedActivity).toBe(1_500);
+		expect(jul.toBudget).toBe(0);
 	});
 
-	it("'To Budget' subtracts every assignment ever made, not just the viewed month's", async () => {
-		const { getBudgetView } = await import("@/lib/budget");
-		const _account = seedAccount("ToBudget Checking", 100_000_00); // 100,000.00
-		const { categoryId } = seedCategory("ToBudget Group", "Rent");
+	it("lists income separately and still counts hidden categories", () => {
+		const hidden = seedCategory(true);
+		tx(incomeCategoryId, "2026-08-01", 20_000);
+		assign(hidden, "2026-08", 5_000);
 
-		assign(categoryId, "2026-08", 20000); // 200.00 assigned in August
+		const aug = budget.getBudgetView("2026-08");
+		expect(aug.groups.some((g) => g.is_income)).toBe(false);
+		expect(
+			aug.incomeGroup?.categories.find((c) => c.id === incomeCategoryId),
+		).toMatchObject({ received: 20_000 });
+		expect(categoryIn("2026-08", hidden)?.hidden).toBe(true);
+		expect(aug.toBudget).toBe(15_000);
+	});
+});
 
-		const aug = getBudgetView("2026-08");
-		expect(aug.toBudget).toBe(aug.totalBalance - aug.totalAssignedAllTime);
-		expect(aug.totalAssignedAllTime).toBeGreaterThanOrEqual(20000);
+describe("budget actions", () => {
+	it("applies rollover to the month and every later month", async () => {
+		const dining = seedCategory();
+		assign(dining, "2026-09", 1_000);
+		assign(dining, "2026-11", 1_000);
 
-		// September: nothing new assigned, but August's assignment must still
-		// count against toBudget - it must not be "available again".
-		const sep = getBudgetView("2026-09");
-		expect(sep.totalAssignedAllTime).toBe(aug.totalAssignedAllTime);
+		await actions.setCategoryCarryover(dining, "2026-10", true);
+
+		expect(categoryIn("2026-09", dining)?.carryover).toBe(false);
+		expect(categoryIn("2026-10", dining)?.carryover).toBe(true);
+		expect(categoryIn("2026-11", dining)?.carryover).toBe(true);
+
+		await actions.setBudgetedAmount(dining, "2026-10", 0);
+		expect(categoryIn("2026-10", dining)?.carryover).toBe(true);
+
+		await actions.setBudgetedAmount(dining, "2026-12", 50);
+		expect(categoryIn("2026-12", dining)?.carryover).toBe(true);
+	});
+
+	it("caps a hold at what's left to budget and can reset it", async () => {
+		tx(incomeCategoryId, "2026-10-01", 40_000);
+
+		expect(await actions.holdForNextMonth("2026-10", 1_000)).toEqual({
+			buffered: 40_000,
+		});
+		expect(budget.getBudgetView("2026-10").toBudget).toBe(0);
+
+		await actions.resetHold("2026-10");
+		expect(budget.getBudgetView("2026-10")).toMatchObject({
+			buffered: 0,
+			toBudget: 40_000,
+		});
 	});
 });

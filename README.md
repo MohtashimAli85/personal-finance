@@ -43,10 +43,12 @@ development).
   floating point, to avoid rounding drift in running-total balances.
 - **Dates** are stored as plain `YYYY-MM-DD` calendar dates (`lib/date.ts`), not
   timestamps - a ledger entry is a calendar date, not an instant.
-- **Budgeting** is cumulative envelope budgeting (`lib/budget.ts`): a category's
-  available balance is everything assigned to it minus everything spent from it,
-  up to and including the viewed month - so unspent money carries forward and
-  overspending carries forward as a negative, the way YNAB-style budgeting works.
+- **Budgeting** works exactly like Actual Budget's envelope budget
+  (`lib/budget.ts`): To Budget = income + last month's leftover To Budget −
+  last month's overspending − this month's budgeted − money held for next
+  month. Positive category balances roll over; overspending resets to 0 and is
+  taken from next month's To Budget unless "Rollover overspending" is on for
+  that category. Every transaction counts, cleared or pending.
 - **Schema and migrations** live in `lib/db/schema.ts` and `drizzle/`. Migrations
   run automatically on boot (`lib/db/bootstrap.ts`); see that file for the exact
   order (migrate, seed default categories, normalize state).
@@ -105,6 +107,20 @@ category's budget, but only after you click **Confirm** on the proposed change.
 > **Self-hosting:** the app has no login. Anyone who can reach a self-hosted
 > instance can see your finances and use your AI keys. Put it behind
 > authentication (a reverse proxy with auth, Tailscale, Cloudflare Access, etc.).
+
+## Importing from Actual Budget
+
+Export a backup from Actual (Settings → Export), unzip it, then:
+
+```bash
+cp db.sqlite db.backup.sqlite
+pnpm tsx scripts/import-actual-db.ts "<unzipped folder>/db.sqlite"
+```
+
+It replaces accounts, categories (including hidden ones), transactions,
+budgets, rollover flags and holds with Actual's, following Actual's mapping for
+merged categories. Savings goals whose category only exists in this app are
+kept. Chats and settings are untouched.
 
 ## Testing
 

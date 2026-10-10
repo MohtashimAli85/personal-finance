@@ -38,28 +38,31 @@ export function buildFinanceSnapshot(now: Date = new Date()): string {
 		"",
 		`BUDGET ${month}:`,
 		`To budget (unassigned cash): ${money(budget.toBudget)}`,
+		`= available funds ${money(budget.availableFunds)} (income ${money(budget.income)} + left from last month ${money(budget.fromLastMonth)}) - overspent last month ${money(-budget.lastMonthOverspent)} - budgeted ${money(budget.budgeted)} - held for next month ${money(budget.buffered)}`,
 	);
 	if (budget.uncategorizedActivity) {
 		lines.push(
 			`Uncategorized spending this month: ${money(budget.uncategorizedActivity)}`,
 		);
 	}
-	lines.push("Category | budgeted this month | spent this month | available");
+	lines.push(
+		"Category | budgeted this month | spent this month | balance (rollover)",
+	);
 	for (const group of budget.groups) {
 		const rows = group.categories.filter(
-			(c) => c.budgeted || c.spent || c.available,
+			(c) => c.budgeted || c.spent || c.balance,
 		);
 		if (rows.length === 0) continue;
 		lines.push(`[${group.name}]`);
 		for (const c of rows) {
 			lines.push(
-				`- ${c.name} | ${money(c.budgeted)} | ${money(c.spent)} | ${money(c.available)}`,
+				`- ${c.name} | ${money(c.budgeted)} | ${money(-c.spent)} | ${money(c.balance)}${c.carryover ? " (rolls over overspending)" : ""}`,
 			);
 		}
 	}
 	const emptyCategories = budget.groups
 		.flatMap((g) => g.categories)
-		.filter((c) => !c.budgeted && !c.spent && !c.available)
+		.filter((c) => !c.budgeted && !c.spent && !c.balance)
 		.map((c) => c.name);
 	if (emptyCategories.length) {
 		lines.push(`Unused categories: ${emptyCategories.join(", ")}`);

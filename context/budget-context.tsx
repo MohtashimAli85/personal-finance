@@ -1,6 +1,7 @@
 "use client";
 import { createContext, use, useEffect, useRef, useState } from "react";
 import { reorderBudgetGroups } from "@/app/actions/budget/mutations";
+import { useShowHidden } from "@/components/budget/use-show-hidden";
 
 const moveGroup = (groups: BudgetGroup[], fromId: string, toId: string) => {
   const fromIndex = groups.findIndex((g) => g.id === fromId);
@@ -13,8 +14,12 @@ const moveGroup = (groups: BudgetGroup[], fromId: string, toId: string) => {
   return next;
 };
 
-interface BudgetContextType {
+type BudgetTotals = Pick<BudgetView, "budgeted" | "spent" | "balance">;
+
+interface BudgetContextType extends ReturnType<typeof useShowHidden> {
   month: string;
+  totals: BudgetTotals;
+  incomeGroup: BudgetView["incomeGroup"];
   orderedGroups: BudgetGroup[];
   collapsedGroups: Record<string, boolean>;
   toggleCollapsed: (groupId: string) => void;
@@ -31,11 +36,17 @@ const BudgetProvider = ({
   children,
   month,
   groups,
+  totals,
+  incomeGroup,
 }: {
   children: React.ReactNode;
   month: string;
   groups: BudgetGroup[];
+  totals: BudgetTotals;
+  incomeGroup: BudgetView["incomeGroup"];
 }) => {
+  const hidden = useShowHidden();
+
   // --- Group ordering (syncs with server props) ---
   const [prevGroups, setPrevGroups] = useState(groups);
   const [groupOrder, setGroupOrder] = useState(() => groups.map((g) => g.id));
@@ -104,7 +115,10 @@ const BudgetProvider = ({
   return (
     <BudgetContext.Provider
       value={{
+        ...hidden,
         month,
+        totals,
+        incomeGroup,
         orderedGroups,
         collapsedGroups,
         toggleCollapsed,

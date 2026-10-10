@@ -3,15 +3,16 @@ import Link from "next/link";
 import {
 	deleteBudgetCategory,
 	renameBudgetCategory,
-	setBudgetedAmount,
 } from "@/app/actions/budget/mutations";
 import { InputNumber } from "@/components/ui/input-number";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useInlineEdit } from "@/hooks/use-inline-edit";
-import { getMonthRange } from "@/lib/date";
 import { formatCurrency } from "@/lib/helper";
-import { fromCents } from "@/lib/money";
+import { cn } from "@/lib/tailwindcss/utils";
+import BalanceCell from "./balance-cell";
 import BudgetCategoryMenu from "./budget-category-menu";
+import { categoryTransactionsHref } from "./category-href";
+import { useBudgetAmount } from "./use-budget-amount";
 
 const BudgetCategoryRow = ({
 	category,
@@ -24,18 +25,11 @@ const BudgetCategoryRow = ({
 		useInlineEdit((value) => {
 			renameBudgetCategory(category.id, value);
 		});
-
-	const { start, end } = getMonthRange(month);
-	const linkHref = `/transactions?${new URLSearchParams({
-		categoryId: category.id,
-		from: start,
-		to: end,
-		draftCategoryId: category.id,
-		new: "1",
-	}).toString()}`;
+	const amount = useBudgetAmount(category.id, month, category.budgeted);
+	const href = categoryTransactionsHref(category.id, month);
 
 	return (
-		<TableRow className="group">
+		<TableRow className={cn("group", category.hidden && "opacity-50")}>
 			<TableCell>
 				<div className="flex items-center gap-1">
 					<div ref={containerRef}>
@@ -48,7 +42,7 @@ const BudgetCategoryRow = ({
 							onBlur={handleBlur}
 							onKeyDown={handleKeyDown}
 						/>
-						<Link data-view href={linkHref} className="hover:underline">
+						<Link data-view href={href} className="hover:underline">
 							{category.name}
 						</Link>
 					</div>
@@ -63,29 +57,16 @@ const BudgetCategoryRow = ({
 					variant="table"
 					className="max-w-28"
 					key={category.budgeted}
-					defaultValue={String(fromCents(category.budgeted) || 0)}
-					onBlur={(e) => {
-						const next = Number(e.currentTarget.value || 0);
-						if (!Number.isNaN(next) && next !== fromCents(category.budgeted)) {
-							setBudgetedAmount(category.id, month, next);
-						}
-					}}
-					onKeyDown={(e) => {
-						if (e.key === "Enter") e.currentTarget.blur();
-					}}
+					{...amount}
 				/>
 			</TableCell>
 			<TableCell className="text-right">
-				<Link href={linkHref} className="hover:underline">
-					{formatCurrency(category.activity)}
+				<Link href={href} className="hover:underline" data-money>
+					{formatCurrency(category.spent)}
 				</Link>
 			</TableCell>
-			<TableCell
-				className={`text-right ${category.available < 0 ? "text-destructive" : ""}`}
-			>
-				<Link href={linkHref} className="hover:underline">
-					{formatCurrency(category.available)}
-				</Link>
+			<TableCell className="text-right">
+				<BalanceCell category={category} month={month} />
 			</TableCell>
 		</TableRow>
 	);

@@ -60,21 +60,27 @@ const goalSummary = (goal: ReturnType<typeof getGoals>[number]) => ({
 export const readTools = {
 	getBudgetMonth: tool({
 		description:
-			"Budget for one month: each category's budgeted amount, spending and cumulative available balance, plus unassigned 'to budget' cash.",
+			"Budget for one month: each category's budgeted amount, spending and balance (rolled over from earlier months), plus how To Budget is made up.",
 		inputSchema: z.object({ month: monthKey }),
 		execute: async ({ month }) => {
 			const view = getBudgetView(month);
 			return {
 				month,
 				toBudget: pkr(view.toBudget),
+				income: pkr(view.income),
+				fromLastMonth: pkr(view.fromLastMonth),
+				overspentLastMonth: pkr(-view.lastMonthOverspent),
+				budgeted: pkr(view.budgeted),
+				heldForNextMonth: pkr(view.buffered),
 				uncategorizedSpending: pkr(view.uncategorizedActivity),
 				groups: view.groups.map((group) => ({
 					group: group.name,
 					categories: group.categories.map((c) => ({
 						category: c.name,
 						budgeted: pkr(c.budgeted),
-						spent: pkr(c.spent),
-						available: pkr(c.available),
+						spent: pkr(-c.spent),
+						balance: pkr(c.balance),
+						rolloverOverspending: c.carryover,
 					})),
 				})),
 			};
@@ -342,7 +348,7 @@ export const writeTools = {
 				category: ref.name,
 				month,
 				budgeted: row ? pkr(row.budgeted) : value,
-				available: row ? pkr(row.available) : null,
+				balance: row ? pkr(row.balance) : null,
 				toBudget: pkr(view.toBudget),
 			};
 		},

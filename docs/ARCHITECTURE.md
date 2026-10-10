@@ -44,13 +44,20 @@ timestamp. A ledger entry is a calendar date, not an instant - storing it as
 one avoids an entire class of timezone-shift bug where the day changes
 depending on which timezone something is read back in.
 
-## Budgeting: cumulative envelope math
+## Budgeting: Actual Budget's envelope math
 
-`lib/budget.ts`'s `getBudgetView(month)` computes each category's available
-balance as everything assigned to it minus everything spent from it, **up to
-and including** the viewed month - not just that month in isolation. This is
-what makes unspent money carry forward and overspending carry forward as a
-negative. See the tests in `test/budget.test.ts` for the exact invariants.
+`lib/budget.ts`'s `getBudgetView(month)` reproduces Actual's
+`loot-core/src/server/budget/envelope.ts`, walking month by month from the
+first month with data:
+
+- category balance = budgeted + spent + previous balance; a negative previous
+  balance only carries if the category had rollover (`monthly_budgets.carryover`)
+- otherwise the overspending resets to 0 and reduces next month's To Budget
+- To Budget = income + (last To Budget + last hold) + last month's overspending
+  − budgeted − hold (`budget_months.buffered`)
+
+Amounts use Actual's signs (spent is negative). `test/budget.test.ts` pins the
+rules; the numbers were checked against a real Actual export.
 
 ## AI layer (`lib/ai/`)
 

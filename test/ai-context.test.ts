@@ -92,7 +92,7 @@ describe("finance snapshot", () => {
 		const snapshot = context.buildFinanceSnapshot();
 		expect(snapshot).toContain(`Current month: ${month}`);
 		expect(snapshot).toContain("- Main Bank (on-budget): 500,000");
-		expect(snapshot).toContain("- Groceries Test | 45,000 | 15,000 | -90,000");
+		expect(snapshot).toContain("- Groceries Test | 45,000 | 15,000 | 30,000");
 		expect(snapshot).toContain(
 			"Average: income 200,000, spending 60,000, saved 140,000 per month",
 		);
@@ -215,7 +215,7 @@ describe("write tools", () => {
 		expect(funded).toMatchObject({
 			ok: true,
 			budgeted: 30_000,
-			available: 30_000,
+			balance: 30_000,
 		});
 
 		const goals = await tools.readTools.getGoals.execute?.({}, opts);

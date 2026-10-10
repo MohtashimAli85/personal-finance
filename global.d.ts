@@ -13,12 +13,14 @@ declare global {
 		name: string;
 		group_id: string;
 		sort_order?: number;
+		hidden?: boolean;
 	}
 	interface CategoryGroup {
 		id: string;
 		name: string;
 		sort_order?: number;
 		is_income?: boolean;
+		hidden?: boolean;
 	}
 	interface GroupedCategory extends CategoryGroup {
 		categories: Category[];
@@ -61,17 +63,17 @@ declare global {
 		searchParams: Promise<SearchParams>;
 	}
 
-	/** budgeted/activity/spent/available are integer cents. activity and
-	 * available are cumulative through the viewed month; spent is that month
-	 * only. */
+	/** Integer cents, Actual-style signs: spent is negative for outflows.
+	 * balance is the envelope balance at the end of the month. */
 	interface BudgetCategoryRow {
 		id: string;
 		name: string;
 		group_id: string;
+		hidden: boolean;
 		budgeted: number;
-		activity: number;
 		spent: number;
-		available: number;
+		balance: number;
+		carryover: boolean;
 	}
 
 	interface BudgetGroup {
@@ -79,18 +81,38 @@ declare global {
 		name: string;
 		sort_order?: number;
 		is_income?: boolean;
+		hidden?: boolean;
 		can_delete?: boolean;
 		categories: BudgetCategoryRow[];
 	}
 
-	/** All amounts are integer cents. */
+	interface IncomeCategoryRow {
+		id: string;
+		name: string;
+		hidden: boolean;
+		received: number;
+	}
+
+	/** Actual's envelope budget for one month, integer cents.
+	 * toBudget = availableFunds + lastMonthOverspent - budgeted - buffered. */
 	interface BudgetView {
 		month: string;
-		totalBalance: number;
-		totalAssignedAllTime: number;
+		income: number;
+		fromLastMonth: number;
+		availableFunds: number;
+		lastMonthOverspent: number;
+		budgeted: number;
+		buffered: number;
 		toBudget: number;
+		spent: number;
+		balance: number;
 		uncategorizedActivity: number;
 		groups: BudgetGroup[];
+		incomeGroup: {
+			id: string;
+			name: string;
+			categories: IncomeCategoryRow[];
+		} | null;
 	}
 
 	/** income/expense are integer cents. */
