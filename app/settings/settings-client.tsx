@@ -14,6 +14,7 @@ import {
 	saveProfile,
 	testAiConnection,
 } from "@/app/actions/settings/mutations";
+import ActualImportCard from "@/components/settings/actual-import-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -306,6 +307,8 @@ export default function SettingsClient({
 			</div>
 
 			<ProfileCard profile={profile} />
+
+			<ActualImportCard />
 
 			<h2 className="flex items-center gap-2 text-lg font-semibold">
 				<KeyRound className="h-5 w-5" />

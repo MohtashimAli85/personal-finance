@@ -3,13 +3,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { afterAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createTestDb } from "./db-test-utils";
+import { buildZip } from "./zip-fixture";
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pf-actual-"));
 const sourcePath = path.join(dir, "actual.sqlite");
 const targetPath = path.join(dir, "app.sqlite");
 
-afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
+afterAll(() => {
+	testDb.cleanup();
+	fs.rmSync(dir, { recursive: true, force: true });
+});
 
 function buildActualExport() {
 	const db = new Database(sourcePath);
@@ -54,18 +59,65 @@ function buildActualExport() {
 	db.close();
 }
 
-const runImport = () =>
-	execFileSync("pnpm", ["tsx", "scripts/import-actual-db.ts", sourcePath], {
-		env: { ...process.env, APP_DB_PATH: targetPath },
-		encoding: "utf8",
+let exportBytes: Buffer;
+let zipBytes: Buffer;
+let testDb: Awaited<ReturnType<typeof createTestDb>>;
+
+beforeAll(async () => {
+	testDb = await createTestDb();
+	buildActualExport();
+	exportBytes = fs.readFileSync(sourcePath);
+	zipBytes = buildZip([
+		{ name: "metadata.json", data: Buffer.from("{}") },
+		{ name: "db.sqlite", data: exportBytes, deflate: true },
+	]);
+});
+
+describe("loadActualData", () => {
+	it("reads a zip and a bare db.sqlite alike", async () => {
+		const { loadActualData } = await import("@/lib/actual-import");
+		const fromZip = loadActualData(zipBytes);
+		expect(fromZip).toEqual(loadActualData(exportBytes));
+		expect(fromZip.accounts).toHaveLength(2);
+		expect(fromZip.transactions).toHaveLength(5);
 	});
 
-describe("scripts/import-actual-db.ts", () => {
-	it("imports Actual's data, then keeps app-only goals on re-import", () => {
-		buildActualExport();
-		runImport();
+	it("rejects files that are not an Actual export", async () => {
+		const { loadActualData, ActualImportError } = await import(
+			"@/lib/actual-import"
+		);
+		const other = path.join(dir, "other.sqlite");
+		const db = new Database(other);
+		db.exec("CREATE TABLE accounts (id TEXT)");
+		db.close();
+		const inputs = [
+			Buffer.from("date,amount\n2026-01-01,5"),
+			buildZip([{ name: "notes.txt", data: Buffer.from("hi") }]),
+			zipBytes.subarray(0, 40),
+			fs.readFileSync(other),
+		];
+		for (const input of inputs) {
+			expect(() => loadActualData(input)).toThrow(ActualImportError);
+		}
+	});
+});
 
-		const app = new Database(targetPath);
+describe("applyActualImport", () => {
+	it("imports Actual's data, then keeps app-only goals on re-import", async () => {
+		const { loadActualData, previewActualImport, applyActualImport } =
+			await import("@/lib/actual-import");
+		const data = loadActualData(zipBytes);
+		const app = testDb.sqlite;
+		expect(previewActualImport(app, data)).toMatchObject({
+			accounts: 2,
+			categories: 3,
+			transactions: 5,
+			budgets: 2,
+			holds: 1,
+			goals: [],
+		});
+		applyActualImport(app, data);
+
 		const groceries = app
 			.prepare("select id, hidden from categories where name = 'Groceries'")
 			.get() as { id: string; hidden: number };
@@ -100,18 +152,20 @@ describe("scripts/import-actual-db.ts", () => {
 		expect(
 			app.prepare("select month, buffered from budget_months").all(),
 		).toEqual([{ month: "2026-09", buffered: 10000 }]);
+		expect(() =>
+			app.prepare("delete from category_group where is_income = 1").run(),
+		).toThrow(/Income group cannot be deleted/);
 
-		const groupId = "goals-group";
 		app
 			.prepare(
-				"insert into category_group (id, name, sort_order) values (?, 'Savings Goals', 5)",
+				"insert into category_group (id, name, sort_order) values ('goals-group', 'Savings Goals', 5)",
 			)
-			.run(groupId);
+			.run();
 		app
 			.prepare(
-				"insert into categories (id, name, group_id) values ('pc', 'PC', ?)",
+				"insert into categories (id, name, group_id) values ('pc', 'PC', 'goals-group')",
 			)
-			.run(groupId);
+			.run();
 		app
 			.prepare(
 				"insert into monthly_budgets (category_id, month, amount) values ('pc', '2026-10', 20000)",
@@ -122,19 +176,21 @@ describe("scripts/import-actual-db.ts", () => {
 				"insert into goals (id, name, target_amount, target_month, category_id) values ('g1', 'PC', 400000, '2028-04', 'pc')",
 			)
 			.run();
-		app.close();
 
-		runImport();
+		expect(previewActualImport(app, data).goals).toEqual([
+			{ name: "PC", category: "PC" },
+		]);
+		applyActualImport(app, data);
 
-		const after = new Database(targetPath);
-		const goal = after
-			.prepare(
-				`select g.name, g.target_amount, g.target_month, c.name as category, cg.name as grp,
-					(select amount from monthly_budgets b where b.category_id = c.id and b.month = '2026-10') as budget
-				from goals g join categories c on c.id = g.category_id join category_group cg on cg.id = c.group_id`,
-			)
-			.get();
-		expect(goal).toEqual({
+		expect(
+			app
+				.prepare(
+					`select g.name, g.target_amount, g.target_month, c.name as category, cg.name as grp,
+						(select amount from monthly_budgets b where b.category_id = c.id and b.month = '2026-10') as budget
+					from goals g join categories c on c.id = g.category_id join category_group cg on cg.id = c.group_id`,
+				)
+				.get(),
+		).toEqual({
 			name: "PC",
 			target_amount: 400000,
 			target_month: "2028-04",
@@ -142,11 +198,37 @@ describe("scripts/import-actual-db.ts", () => {
 			grp: "Savings Goals",
 			budget: 20000,
 		});
+		expect(app.prepare("select count(*) as n from transactions").get()).toEqual(
+			{ n: 5 },
+		);
+	});
+});
+
+describe("backupDatabase", () => {
+	it("writes a restorable copy into the backups folder", async () => {
+		const { backupDatabase } = await import("@/lib/db/backup");
+		const sqlite = testDb.sqlite;
+		const file = backupDatabase(sqlite, path.join(dir, "backups"), "test");
+		expect(path.basename(file)).toMatch(/^db-before-test-\d{8}-\d{6}\.sqlite$/);
+		const copy = new Database(file, { readonly: true });
 		expect(
-			after.prepare("select count(*) as n from transactions").get(),
-		).toEqual({
-			n: 5,
-		});
-		after.close();
+			copy.prepare("select name from accounts order by name").all(),
+		).toEqual([{ name: "Bank" }, { name: "Savings" }]);
+		copy.close();
+	});
+});
+
+describe("scripts/import-actual-db.ts", () => {
+	it("imports a zip and backs up the target first", () => {
+		const zipPath = path.join(dir, "export.zip");
+		fs.writeFileSync(zipPath, zipBytes);
+		const stdout = execFileSync(
+			"pnpm",
+			["tsx", "scripts/import-actual-db.ts", zipPath],
+			{ env: { ...process.env, APP_DB_PATH: targetPath }, encoding: "utf8" },
+		);
+		const output = JSON.parse(stdout.slice(stdout.indexOf("{")));
+		expect(output.transactions).toBe(5);
+		expect(fs.existsSync(output.backupPath)).toBe(true);
 	});
 });

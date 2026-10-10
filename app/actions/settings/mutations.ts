@@ -2,9 +2,19 @@
 
 import { generateText } from "ai";
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import {
+	ActualImportError,
+	type ActualPreview,
+	applyActualImport,
+	previewActualImport as buildPreview,
+	loadActualData,
+} from "@/lib/actual-import";
 import { describeAiError } from "@/lib/ai/errors";
 import { modelLabel } from "@/lib/ai/labels";
 import { availableModels, MODEL_CHAIN } from "@/lib/ai/models";
+import { backupDatabase, backupDirFor } from "@/lib/db/backup";
+import { dbPath, sqlite } from "@/lib/db/client";
 import { profileSchema } from "@/lib/profile-schema";
 import { hasSecretKey } from "@/lib/secrets";
 import {
@@ -102,4 +112,47 @@ export async function saveProfile(
 		success: true,
 		message: "Saved. The coach will use this from your next message.",
 	};
+}
+
+export type ActualPreviewResult =
+	| { success: true; preview: ActualPreview }
+	| { success: false; message: string };
+
+async function readActualUpload(formData: FormData) {
+	const file = formData.get("file");
+	if (!(file instanceof File) || file.size === 0) {
+		throw new ActualImportError("Choose a file to import.");
+	}
+	return loadActualData(Buffer.from(await file.arrayBuffer()));
+}
+
+export async function previewActualImport(
+	formData: FormData,
+): Promise<ActualPreviewResult> {
+	try {
+		const data = await readActualUpload(formData);
+		return { success: true, preview: buildPreview(sqlite, data) };
+	} catch (error) {
+		if (error instanceof ActualImportError) {
+			return { success: false, message: error.message };
+		}
+		throw error;
+	}
+}
+
+export async function importActualBudget(
+	formData: FormData,
+): Promise<ActionState> {
+	try {
+		const data = await readActualUpload(formData);
+		backupDatabase(sqlite, backupDirFor(dbPath), "actual-import");
+		applyActualImport(sqlite, data);
+	} catch (error) {
+		if (error instanceof ActualImportError) {
+			return { success: false, message: error.message };
+		}
+		throw error;
+	}
+	revalidatePath("/", "layout");
+	redirect("/budget");
 }

@@ -110,17 +110,26 @@ category's budget, but only after you click **Confirm** on the proposed change.
 
 ## Importing from Actual Budget
 
-Export a backup from Actual (Settings → Export), unzip it, then:
+Export a backup from Actual (Settings → Export), then either:
 
-```bash
-cp db.sqlite db.backup.sqlite
-pnpm tsx scripts/import-actual-db.ts "<unzipped folder>/db.sqlite"
-```
+- **In the app** (also works in the desktop app): Settings → *Import from
+  Actual Budget*, choose the `.zip` (or its `db.sqlite`), review the preview of
+  accounts, categories, transactions, budgets and the goals that are kept, and
+  confirm. Your current database is copied to a `backups/` folder next to it
+  first, then every page is refreshed and you land on **Budget**.
+- **From the command line**:
 
-It replaces accounts, categories (including hidden ones), transactions,
+  ```bash
+  pnpm tsx scripts/import-actual-db.ts "<export>.zip"   # or the extracted db.sqlite
+  ```
+
+  This backs up the target database the same way.
+
+Files that aren't an Actual export are rejected before anything is written.
+The import replaces accounts, categories (including hidden ones), transactions,
 budgets, rollover flags and holds with Actual's, following Actual's mapping for
 merged categories. Savings goals whose category only exists in this app are
-kept. Chats and settings are untouched.
+kept. Chats and settings are untouched. Uploads up to 200 MB are accepted.
 
 ## Testing
 
@@ -130,7 +139,7 @@ pnpm test
 
 Tests run against isolated temporary SQLite databases (`test/db-test-utils.ts`),
 never the project's own `db.sqlite`. Coverage so far: money/date/CSV parsing,
-account balance recompute, envelope-budget carryover math, and the bank-parser
+account balance recompute, the Actual import (zip reading, validation, backup), envelope-budget carryover math, and the bank-parser
 fixtures, savings goals, encrypted settings, the AI snapshot/tools, and the chat
 route end to end with mock models (fallback, approval-gated writes). A Vitest
 setup file points `APP_DB_PATH` at a throwaway file so a stray import can never

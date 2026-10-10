@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
 	output: "standalone",
 	reactCompiler: true,
 	serverExternalPackages: ["better-sqlite3", "googleapis"],
+	experimental: { serverActions: { bodySizeLimit: "200mb" } },
 	allowedDevOrigins: ["http://127.0.0.1:3000", "http://localhost:3000"],
 	// cacheComponents: true,
 };

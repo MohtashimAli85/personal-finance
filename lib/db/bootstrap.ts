@@ -4,6 +4,7 @@ import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import { parseBankEmail } from "../bank-email-parse";
 import { db } from "./client";
+import { CREATE_INCOME_GROUP_TRIGGER } from "./income-trigger";
 import {
 	categories,
 	category_group,
@@ -20,14 +21,7 @@ export const runMigrations = () => {
 };
 
 export const ensureIncomeGroupTrigger = () => {
-	db.run(sql`
-    CREATE TRIGGER IF NOT EXISTS prevent_income_group_delete
-    BEFORE DELETE ON category_group
-    WHEN OLD.is_income = 1
-    BEGIN
-      SELECT RAISE(ABORT, 'Income group cannot be deleted');
-    END;
-  `);
+	db.run(sql.raw(CREATE_INCOME_GROUP_TRIGGER));
 };
 
 // Email transactions used to be keyed by a hash of (date, amount, description),
