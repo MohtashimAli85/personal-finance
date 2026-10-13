@@ -4,7 +4,7 @@ import ChatShell from "@/components/chat/chat-shell";
 import { listChats } from "@/lib/chat";
 
 export const metadata: Metadata = {
-	title: "AI Coach - Personal Finance",
+	title: "AI Coach",
 	description: "Talk through your budget and savings plans",
 };
 
