@@ -1,37 +1,54 @@
 import type * as React from "react";
+import { useExpressionInput } from "@/hooks/use-expression-input";
 import { cn } from "@/lib/tailwindcss/utils";
 import { Input, type InputProps } from "../ui/input";
 
 interface InputNumberProps extends Omit<InputProps, "onChange"> {
 	onChange?: (value: string) => void;
 }
-export const InputNumber: React.FC<InputNumberProps> = (props) => {
-	const validateNumberFormat = (value: string): boolean => {
-		if (!value) return true;
-		// Allow digits with an optional single decimal point and optional fractional digits.
-		// Accept intermediate states like "." or "1." so typing isn't blocked.
-		const pattern = /^\d*(\.\d*)?$/;
-		return pattern.test(value);
-	};
+export const InputNumber: React.FC<InputNumberProps> = ({
+	value,
+	defaultValue,
+	onChange,
+	onBlur,
+	onKeyDown,
+	...props
+}) => {
+	const { text, setFocused, invalid, change, commit, isExpression } =
+		useExpressionInput({
+			value,
+			defaultValue,
+			onChange,
+		});
 
 	return (
 		<Input
+			data-money
 			{...props}
 			className={cn("text-right", props.className)}
 			type="text"
 			inputMode={props.inputMode ?? "decimal"}
-			pattern={props.pattern ?? "[0-9]*[.]?[0-9]*"}
+			aria-invalid={invalid || props["aria-invalid"]}
+			value={text}
 			onFocus={(e) => {
-				e.target.select();
+				const input = e.target;
+				setFocused(true);
+				requestAnimationFrame(() => input.select());
 			}}
-			onChange={(e) => {
-				const rawValue = e.target.value;
-				// Reject spaces explicitly
-				if (rawValue.includes(" ")) return;
-				// Reject anything that doesn't match the decimal format (allows intermediate states)
-				if (!validateNumberFormat(rawValue)) return;
-				// If valid, propagate the change
-				props.onChange?.(rawValue);
+			onChange={(e) => change(e.target.value)}
+			onBlur={(e) => {
+				if (commit(e.currentTarget)) onBlur?.(e);
+				setFocused(false);
+			}}
+			onKeyDown={(e) => {
+				if (e.key === "Enter" && isExpression) {
+					e.preventDefault();
+					if (!commit(e.currentTarget)) {
+						e.stopPropagation();
+						return;
+					}
+				}
+				onKeyDown?.(e);
 			}}
 		/>
 	);

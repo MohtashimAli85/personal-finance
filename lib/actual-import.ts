@@ -333,6 +333,7 @@ export function applyActualImport(
 
 		const balances = new Map<string, number>();
 		for (const t of data.transactions) {
+			if (t.pending) continue;
 			balances.set(t.account, (balances.get(t.account) ?? 0) + t.amount);
 		}
 

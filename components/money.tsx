@@ -1,5 +1,15 @@
 import { formatCurrency } from "@/lib/helper";
 
-export function Money({ value }: { value: number }) {
-	return <span data-money>{formatCurrency(value)}</span>;
+export function Money({
+	value,
+	className,
+}: {
+	value: number;
+	className?: string;
+}) {
+	return (
+		<span data-money className={className}>
+			{formatCurrency(value)}
+		</span>
+	);
 }

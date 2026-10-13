@@ -1,4 +1,4 @@
-import { eq, sql } from "drizzle-orm";
+import { and, eq, ne, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts, transactions } from "@/lib/db/schema";
 
@@ -8,6 +8,15 @@ export function signedAmount(
 	deposit?: number | null,
 ): number {
 	return (deposit ?? 0) - (payment ?? 0);
+}
+
+/** A transaction's effect on its account balance. Pending (unreviewed) imports don't count until accepted. */
+export function balanceEffect(tx: {
+	payment?: number | null;
+	deposit?: number | null;
+	status?: string | null;
+}): number {
+	return tx.status === "pending" ? 0 : signedAmount(tx.payment, tx.deposit);
 }
 
 /** Applies a cents delta to one account's cached balance. */
@@ -31,7 +40,12 @@ export function recomputeAccountBalance(accountId: string): number {
 			total: sql<number>`coalesce(sum(coalesce(${transactions.deposit},0) - coalesce(${transactions.payment},0)), 0)`,
 		})
 		.from(transactions)
-		.where(eq(transactions.account_id, accountId))
+		.where(
+			and(
+				eq(transactions.account_id, accountId),
+				ne(transactions.status, "pending"),
+			),
+		)
 		.get();
 	const total = Number(row?.total ?? 0);
 	db.update(accounts)

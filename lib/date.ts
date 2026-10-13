@@ -11,7 +11,7 @@ export const isDateKey = (value: string): boolean => DATE_KEY_RE.test(value);
  * timezone conversion (new Date("2026-09-01") parses as UTC and can render
  * as the previous day in a timezone ahead of UTC).
  */
-function parseDateKey(key: string): Date {
+export function parseDateKey(key: string): Date {
 	const [year, month, day] = key.split("-").map(Number);
 	return new Date(year, month - 1, day);
 }
@@ -113,4 +113,13 @@ export function monthsBetween(start: string, end: string): string[] {
 		}
 	}
 	return months;
+}
+
+export function formatShortDate(key: string | null): string {
+	if (!key || !isDateKey(key)) return "-";
+	const date = parseDateKey(key);
+	return format(
+		date,
+		date.getFullYear() === new Date().getFullYear() ? "d MMM" : "d MMM yyyy",
+	);
 }
