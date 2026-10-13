@@ -1,6 +1,6 @@
 "use client";
 
-import { PiggyBank, Plus } from "lucide-react";
+import { Plus, Target } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import GoalCard from "@/components/goals/goal-card";
@@ -8,6 +8,7 @@ import GoalDialog, {
 	type LinkableCategory,
 } from "@/components/goals/goal-dialog";
 import { Button } from "@/components/ui/button";
+import PageContainer from "@/components/page-container";
 import { Card, CardContent } from "@/components/ui/card";
 import type { GoalView } from "@/lib/goal";
 import { formatMoney } from "@/lib/money";
@@ -45,18 +46,15 @@ export default function GoalsClient({
 	);
 
 	return (
-		<div className="max-w-5xl w-full mx-auto p-6 space-y-6 overflow-auto">
+		<PageContainer className="max-w-5xl">
 			<div className="flex flex-wrap items-center justify-between gap-2">
-				<div>
-					<h1 className="text-2xl font-bold">Savings Goals</h1>
-					<p className="text-sm text-muted-foreground">
-						Each goal is a category on your{" "}
-						<Link href="/budget" className="underline underline-offset-4">
-							budget
-						</Link>
-						. Budget money into it every month to save toward the target.
-					</p>
-				</div>
+				<p className="text-sm text-muted-foreground">
+					Each goal is a category on your{" "}
+					<Link href="/budget" className="underline underline-offset-4">
+						budget
+					</Link>
+					. Budget money into it every month to save toward the target.
+				</p>
 				{newGoalButton}
 			</div>
 
@@ -92,7 +90,9 @@ export default function GoalsClient({
 			{active.length === 0 ? (
 				<Card>
 					<CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-						<PiggyBank className="h-10 w-10 text-muted-foreground" />
+						<div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
+							<Target className="size-6 text-primary" />
+						</div>
 						<div>
 							<p className="font-medium">No active goals</p>
 							<p className="text-sm text-muted-foreground">
@@ -130,6 +130,6 @@ export default function GoalsClient({
 					)}
 				</div>
 			)}
-		</div>
+		</PageContainer>
 	);
 }

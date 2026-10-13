@@ -138,6 +138,7 @@ export default function GoalDialog({
 										<FieldLabel>Target amount</FieldLabel>
 										<Input
 											{...field}
+											data-money
 											value={String(field.value ?? "")}
 											inputMode="decimal"
 											placeholder="250000"

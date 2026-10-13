@@ -5,7 +5,7 @@ import { getGoals } from "@/lib/goal";
 import GoalsClient from "./goals-client";
 
 export const metadata: Metadata = {
-	title: "Goals - Personal Finance",
+	title: "Goals",
 	description: "Savings goals backed by your budget",
 };
 
