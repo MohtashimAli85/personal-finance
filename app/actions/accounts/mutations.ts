@@ -10,6 +10,7 @@ import {
 	category_group,
 	transactions,
 } from "@/lib/db/schema";
+import { toDateKey } from "@/lib/date";
 import { toCents } from "@/lib/money";
 
 const revalidateAccounts = () => {
@@ -100,7 +101,7 @@ export async function createAccount(
 						category_id: categoryId,
 						payment: startingCents < 0 ? Math.abs(startingCents) : null,
 						deposit: startingCents > 0 ? startingCents : null,
-						date: new Date().toISOString().slice(0, 10),
+						date: toDateKey(new Date()),
 						notes: "Starting balance",
 						source: "manual",
 						status: "cleared",
@@ -167,7 +168,7 @@ export async function archiveAccount(formData: FormData) {
 			account.balance !== 0
 		) {
 			const transferId = crypto.randomUUID();
-			const today = new Date().toISOString().slice(0, 10);
+			const today = toDateKey(new Date());
 			const cents = account.balance;
 			db.insert(transactions)
 				.values({

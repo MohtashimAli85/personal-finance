@@ -2,10 +2,10 @@ import {
 	archiveAccount,
 	forceCloseAccount,
 } from "@/app/actions/accounts/mutations";
-import { formatCurrency } from "@/lib/helper";
+import ConfirmDialog from "../confirm-dialog";
+import { Money } from "../money";
 import { Button } from "../ui/button";
 import {
-	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
@@ -13,6 +13,7 @@ import {
 	DialogTitle,
 } from "../ui/dialog";
 import AccountCombobox from "./account-combobox";
+import CloseAccountSubmit from "./close-account-submit";
 
 const CloseAccount = ({ account }: { account: Account }) => {
 	const hasBalance = account.balance !== 0;
@@ -30,8 +31,10 @@ const CloseAccount = ({ account }: { account: Account }) => {
 							<br />
 							<br />
 							This account has a balance of{" "}
-							<strong>{formatCurrency(account.balance)}</strong>. Optionally
-							transfer it to another account before closing:
+							<strong>
+								<Money value={account.balance} />
+							</strong>
+							. Optionally transfer it to another account before closing:
 						</>
 					)}
 				</DialogDescription>
@@ -40,28 +43,24 @@ const CloseAccount = ({ account }: { account: Account }) => {
 				<input type="hidden" name="id" value={account.id} />
 				{hasBalance && <AccountCombobox modal />}
 				<DialogFooter>
-					<DialogClose asChild>
-						<Button type="submit">Close Account</Button>
-					</DialogClose>
+					<CloseAccountSubmit />
 				</DialogFooter>
 			</form>
 			<p className="text-xs text-muted-foreground">
 				You can also{" "}
-				<Button
-					variant={"link"}
-					form="force-close-form"
-					className="p-0 h-auto underline text-xs"
-				>
-					permanently delete
-				</Button>{" "}
-				this account, which destroys it and all its transactions immediately.
-				This cannot be undone.
+				<ConfirmDialog
+					title={`Permanently delete ${account.name}?`}
+					description="This destroys the account and all of its transactions. This cannot be undone."
+					confirmLabel="Delete forever"
+					onConfirm={() => forceCloseAccount(account.id)}
+					trigger={
+						<Button variant="link" className="h-auto p-0 text-xs underline">
+							permanently delete
+						</Button>
+					}
+				/>{" "}
+				this account instead.
 			</p>
-			<form
-				className="inline"
-				action={forceCloseAccount.bind(null, account.id)}
-				id="force-close-form"
-			/>
 		</DialogContent>
 	);
 };

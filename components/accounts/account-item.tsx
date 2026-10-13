@@ -1,10 +1,10 @@
 "use client";
 import { updateAccount } from "@/app/actions/accounts/mutations";
 import { useInlineEdit } from "@/hooks/use-inline-edit";
-import { formatCurrency } from "@/lib/helper";
 import NavItem from "../sidebar/nav-item";
 import { Dialog } from "../ui/dialog";
-import { SidebarMenuBadge, SidebarMenuItem } from "../ui/sidebar";
+import { Money } from "../money";
+import { SidebarMenuItem } from "../ui/sidebar";
 import AccountContextMenu from "./account-context-menu";
 import CloseAccount from "./close-account";
 
@@ -19,22 +19,25 @@ export const AccountItem = ({ account }: { account: Account }) => {
 			<AccountContextMenu onRename={startEditing}>
 				<SidebarMenuItem>
 					<NavItem href={`/transactions/${account.id}`}>
-						<div className="grow max-w-30" ref={containerRef}>
+						<div className="min-w-0 flex-1" ref={containerRef}>
 							<input
 								data-edit
 								key={account.name}
 								hidden
 								id={"name"}
 								defaultValue={account.name}
-								className="outline-none"
+								className="w-full outline-none"
 								onBlur={handleBlur}
 								onKeyDown={handleKeyDown}
 							/>
-							<span data-view>{account.name}</span>
+							<span data-view className="block truncate">
+								{account.name}
+							</span>
 						</div>
-						<SidebarMenuBadge>
-							{formatCurrency(account.balance)}
-						</SidebarMenuBadge>
+						<Money
+							value={account.balance}
+							className="shrink-0 text-xs tabular-nums text-muted-foreground"
+						/>
 					</NavItem>
 				</SidebarMenuItem>
 			</AccountContextMenu>

@@ -22,7 +22,14 @@ const AccountCombobox = ({
 }: ComboboxProps) => {
   const accounts = useStore((state) => state.accounts);
   const comboBtn = useRef<HTMLButtonElement>(null);
-  const [inputValue, setInputValue] = useState(label || "");
+  const selectedLabel =
+    label || accounts?.find((account) => account.id === value)?.name || "";
+  const [inputValue, setInputValue] = useState(selectedLabel);
+  const [syncedValue, setSyncedValue] = useState(value);
+  if (value !== syncedValue) {
+    setSyncedValue(value);
+    setInputValue(selectedLabel);
+  }
   const items = accounts?.map((account) => ({
     value: account.id,
     label: account.name,
@@ -34,7 +41,7 @@ const AccountCombobox = ({
       required
       id="account_id"
       name="account_id"
-      value={{ value, label }}
+      value={{ value, label: selectedLabel }}
       onValueChange={(item) => {
         if (!item) return;
         if (item.value !== value && item.value) {
@@ -52,7 +59,7 @@ const AccountCombobox = ({
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onBlur={() => {
-          if (!inputValue) setInputValue(label || "");
+          if (!inputValue) setInputValue(selectedLabel);
         }}
         onFocus={() => {
           if (openOnFocus) {
