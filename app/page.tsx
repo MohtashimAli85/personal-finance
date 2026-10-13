@@ -1,150 +1,133 @@
+import { format } from "date-fns";
+import { ArrowDownLeft, ArrowUpRight, Landmark, Wallet } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { connection } from "next/server";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import CashFlowChart from "@/components/dashboard/cash-flow-chart";
+import ChartCard from "@/components/dashboard/chart-card";
+import GoalsCard from "@/components/dashboard/goals-card";
+import NetWorthChart from "@/components/dashboard/net-worth-chart";
+import RecentTransactions from "@/components/dashboard/recent-transactions";
+import SpendingByGroupChart from "@/components/dashboard/spending-by-group-chart";
+import StatCard from "@/components/dashboard/stat-card";
+import { Money } from "@/components/money";
+import PageContainer from "@/components/page-container";
 import { getAccounts } from "@/lib/account";
-import { formateDate, getMonthKey, getMonthRange } from "@/lib/date";
+import { getBudgetView } from "@/lib/budget";
+import {
+	getCashFlow,
+	getNetWorthTrend,
+	getSpendingByGroup,
+} from "@/lib/dashboard";
+import { getMonthKey, getMonthRange } from "@/lib/date";
 import { getGoals } from "@/lib/goal";
-import { formatCurrency } from "@/lib/helper";
 import { getSummary } from "@/lib/summary";
 import { getTransactions } from "@/lib/transaction";
 
 export const metadata: Metadata = {
-  title: "Dashboard - Personal Finance",
-  description: "Personal finance overview",
+	title: "Dashboard · Personal Finance",
+	description: "Personal finance overview",
 };
 
+const sumBalances = (accounts: Account[]) =>
+	accounts.reduce((sum, a) => sum + a.balance, 0);
+
 export default async function DashboardPage() {
-  await connection();
-  const month = getMonthKey();
-  const { start, end } = getMonthRange(month);
-  const accounts = getAccounts();
-  const summary = getSummary(start, end);
-  const { data: recentTransactions } = getTransactions({ limit: "20" });
+	await connection();
+	const month = getMonthKey();
+	const monthName = format(new Date(), "MMMM");
+	const { start, end } = getMonthRange(month);
+	const accounts = getAccounts();
+	const summary = getSummary(start, end);
+	const budget = getBudgetView(month);
+	const { data: recentTransactions } = getTransactions({ limit: "10" });
+	const goals = getGoals()
+		.filter((goal) => !goal.achievedAt)
+		.slice(0, 4);
 
-  const goals = getGoals().filter((goal) => !goal.achievedAt).slice(0, 4);
+	const onBudget = sumBalances(
+		accounts.filter((a) => a.account_type === "on_budget"),
+	);
+	const offBudget = sumBalances(
+		accounts.filter((a) => a.account_type === "off_budget"),
+	);
+	const net = summary.income - summary.expense;
 
-  const netWorth = accounts.reduce((sum, account) => sum + account.balance, 0);
+	return (
+		<PageContainer className="gap-4">
+			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+				<StatCard
+					label="Net worth"
+					value={onBudget + offBudget}
+					icon={Landmark}
+					footer={
+						<>
+							On budget <Money value={onBudget} /> · Off budget{" "}
+							<Money value={offBudget} />
+						</>
+					}
+				/>
+				<StatCard
+					label="To budget"
+					value={budget.toBudget}
+					icon={Wallet}
+					href="/budget"
+					valueClassName={
+						budget.toBudget < 0 ? "text-destructive" : "text-emerald-500"
+					}
+					footer={
+						budget.toBudget < 0 ? (
+							"Overbudgeted, move money to cover it"
+						) : (
+							<>
+								Budgeted <Money value={budget.budgeted} /> in {monthName}
+							</>
+						)
+					}
+				/>
+				<StatCard
+					label={`Income · ${monthName}`}
+					value={summary.income}
+					icon={ArrowDownLeft}
+					footer={
+						<>
+							Net {net >= 0 && "+"}
+							<Money value={net} /> this month
+						</>
+					}
+				/>
+				<StatCard
+					label={`Spent · ${monthName}`}
+					value={summary.expense}
+					icon={ArrowUpRight}
+					footer={
+						summary.income > 0
+							? `${Math.round((summary.expense / summary.income) * 100)}% of income`
+							: "No income yet this month"
+					}
+				/>
+			</div>
 
-  return (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardDescription>Net Worth</CardDescription>
-            <CardTitle>{formatCurrency(netWorth)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>This Month Income</CardDescription>
-            <CardTitle>{formatCurrency(summary.income)}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardDescription>This Month Expense</CardDescription>
-            <CardTitle>{formatCurrency(summary.expense)}</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
+			<div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+				<ChartCard
+					title="Cash flow"
+					description="Income vs spent, last 6 months"
+				>
+					<CashFlowChart data={getCashFlow()} />
+				</ChartCard>
+				<ChartCard title="Net worth" description="All accounts, last 12 months">
+					<NetWorthChart data={getNetWorthTrend()} />
+				</ChartCard>
+				<ChartCard
+					title="Spending by group"
+					description={`Where your money went in ${monthName}`}
+				>
+					<SpendingByGroupChart data={getSpendingByGroup(budget)} />
+				</ChartCard>
+			</div>
 
-      {goals.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Savings Goals</CardTitle>
-            <CardDescription>
-              <Link href="/goals" className="underline">
-                View all
-              </Link>
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
-            {goals.map((goal) => (
-              <div key={goal.id} className="space-y-1.5">
-                <div className="flex justify-between gap-2 text-sm">
-                  <span className="truncate font-medium">{goal.name}</span>
-                  <span className="text-muted-foreground" data-money>
-                    {formatCurrency(goal.saved)} / {formatCurrency(goal.targetAmount)}
-                  </span>
-                </div>
-                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${goal.percent}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+			<RecentTransactions transactions={recentTransactions} />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Recent Transactions</CardTitle>
-          <CardDescription>
-            Latest entries from all accounts.{" "}
-            <Link href="/transactions" className="underline">
-              View all
-            </Link>
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date</TableHead>
-                <TableHead>Account</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Notes</TableHead>
-                <TableHead className="text-right">Payment</TableHead>
-                <TableHead className="text-right">Deposit</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentTransactions.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell>{formateDate(transaction.date)}</TableCell>
-                  <TableCell>{transaction.account_name}</TableCell>
-                  <TableCell>{transaction.category_name ?? "-"}</TableCell>
-                  <TableCell>{transaction.notes || "-"}</TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(transaction.payment || 0)}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {formatCurrency(transaction.deposit || 0)}
-                  </TableCell>
-                </TableRow>
-              ))}
-              {recentTransactions.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={6}
-                    className="text-muted-foreground py-8 text-center"
-                  >
-                    No transactions yet.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-    </div>
-  );
+			{goals.length > 0 && <GoalsCard goals={goals} />}
+		</PageContainer>
+	);
 }
