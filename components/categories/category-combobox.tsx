@@ -16,9 +16,18 @@ import {
 } from "@/components/ui/combobox";
 import { useStore } from "@/context/store-context";
 
-const CategoryCombobox = ({ value, label, onChange }: ComboboxProps) => {
+const CategoryCombobox = ({
+  value,
+  label: labelProp,
+  onChange,
+}: ComboboxProps) => {
   const comboBtn = useRef<HTMLButtonElement>(null);
   const groupedCategories = useStore((state) => state.groupedCategories);
+  const label =
+    labelProp ??
+    groupedCategories
+      ?.flatMap((group) => group.categories)
+      .find((category) => category.id === value)?.name;
   const [inputValue, setInputValue] = useState(label ?? "");
 
   return (

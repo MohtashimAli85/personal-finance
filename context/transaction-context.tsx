@@ -1,5 +1,5 @@
 "use client";
-import { createContext, use, useState } from "react";
+import { createContext, use, useRef, useState } from "react";
 import { createTransaction } from "@/app/actions/transaction/mutations";
 import { toDateKey } from "@/lib/date";
 
@@ -49,8 +49,13 @@ const TransactionProvider = ({
 				}
 			: undefined,
 	);
+	const latest = useRef(transaction);
+	const save = (next: Omit<Transaction, "id"> | undefined) => {
+		latest.current = next;
+		setTransaction(next);
+	};
 	const initializeTransaction = () => {
-		setTransaction({
+		save({
 			...initialTransaction,
 			date: initialDate ?? toDateKey(new Date()),
 			account_id: accountId || initialAccountId,
@@ -58,18 +63,19 @@ const TransactionProvider = ({
 		});
 	};
 	const cancelTransaction = () => {
-		setTransaction(undefined);
+		save(undefined);
 	};
 	const updateTransaction = (
 		updatedFields: Partial<Omit<Transaction, "id">>,
 	) => {
-		setTransaction((prev) => (prev ? { ...prev, ...updatedFields } : prev));
+		if (latest.current) save({ ...latest.current, ...updatedFields });
 	};
 	const addTransaction = async () => {
-		if (!transaction?.account_id) {
+		const tx = latest.current;
+		if (!tx?.account_id) {
 			return;
 		}
-		await createTransaction(transaction);
+		await createTransaction(tx);
 		initializeTransaction();
 	};
 	return (

@@ -1,7 +1,11 @@
 "use server";
 import { eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { applyBalanceDelta, signedAmount } from "@/lib/balance";
+import {
+	applyBalanceDelta,
+	balanceEffect,
+	signedAmount,
+} from "@/lib/balance";
 import { type ImportRow, planImport } from "@/lib/csv-import";
 import { toDateKey, tryParseDateKey } from "@/lib/date";
 import { db } from "@/lib/db";
@@ -46,6 +50,7 @@ export async function updateTransactionColumn(
 			account_id: transactions.account_id,
 			payment: transactions.payment,
 			deposit: transactions.deposit,
+			status: transactions.status,
 		})
 		.from(transactions)
 		.where(eq(transactions.id, id))
@@ -58,14 +63,8 @@ export async function updateTransactionColumn(
 				const nextAccountId = (value as string) || null;
 				if (nextAccountId === existing.account_id) return;
 				// Reverse the balance impact on the old account, apply it to the new one.
-				applyBalanceDelta(
-					existing.account_id,
-					-signedAmount(existing.payment, existing.deposit),
-				);
-				applyBalanceDelta(
-					nextAccountId,
-					signedAmount(existing.payment, existing.deposit),
-				);
+				applyBalanceDelta(existing.account_id, -balanceEffect(existing));
+				applyBalanceDelta(nextAccountId, balanceEffect(existing));
 				db.update(transactions)
 					.set({ account_id: nextAccountId })
 					.where(eq(transactions.id, id))
@@ -75,8 +74,8 @@ export async function updateTransactionColumn(
 			case "payment": {
 				const nextPayment = toCentsAmount(value) || null;
 				const delta =
-					signedAmount(nextPayment, null) -
-					signedAmount(existing.payment, existing.deposit);
+					balanceEffect({ ...existing, payment: nextPayment, deposit: null }) -
+					balanceEffect(existing);
 				applyBalanceDelta(existing.account_id, delta);
 				db.update(transactions)
 					.set({ payment: nextPayment, deposit: null })
@@ -87,8 +86,8 @@ export async function updateTransactionColumn(
 			case "deposit": {
 				const nextDeposit = toCentsAmount(value) || null;
 				const delta =
-					signedAmount(null, nextDeposit) -
-					signedAmount(existing.payment, existing.deposit);
+					balanceEffect({ ...existing, payment: null, deposit: nextDeposit }) -
+					balanceEffect(existing);
 				applyBalanceDelta(existing.account_id, delta);
 				db.update(transactions)
 					.set({ deposit: nextDeposit, payment: null })
@@ -155,6 +154,7 @@ export async function deleteTransaction(formData: FormData) {
 			payment: transactions.payment,
 			deposit: transactions.deposit,
 			account_id: transactions.account_id,
+			status: transactions.status,
 		})
 		.from(transactions)
 		.where(eq(transactions.id, id))
@@ -162,7 +162,7 @@ export async function deleteTransaction(formData: FormData) {
 	if (!tx) return;
 
 	db.transaction(() => {
-		applyBalanceDelta(tx.account_id, -signedAmount(tx.payment, tx.deposit));
+		applyBalanceDelta(tx.account_id, -balanceEffect(tx));
 		db.delete(transactions).where(eq(transactions.id, id)).run();
 	});
 	revalidateAll();
@@ -177,6 +177,7 @@ export async function bulkDeleteTransactions(ids: string[]) {
 			payment: transactions.payment,
 			deposit: transactions.deposit,
 			account_id: transactions.account_id,
+			status: transactions.status,
 		})
 		.from(transactions)
 		.where(inArray(transactions.id, ids))
@@ -185,7 +186,7 @@ export async function bulkDeleteTransactions(ids: string[]) {
 
 	db.transaction(() => {
 		for (const tx of rows) {
-			applyBalanceDelta(tx.account_id, -signedAmount(tx.payment, tx.deposit));
+			applyBalanceDelta(tx.account_id, -balanceEffect(tx));
 		}
 		db.delete(transactions).where(inArray(transactions.id, ids)).run();
 	});
@@ -347,7 +348,7 @@ export async function bulkImportTransactions(
 					category_id: categoryId,
 					notes: notes || null,
 					source: "csv",
-					status: "pending",
+					status: "cleared",
 				})
 				.run();
 			applyBalanceDelta(accountId, signedAmount(payment, deposit));

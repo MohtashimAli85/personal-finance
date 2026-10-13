@@ -22,10 +22,12 @@ import {
 } from "@/components/ui/table";
 import TransactionProvider from "@/context/transaction-context";
 import { TransactionSelectionProvider } from "@/context/transaction-selection-context";
+import { getDefaultAccountId } from "@/lib/account";
+import { toDateKey } from "@/lib/date";
 import { getTransactions } from "@/lib/transaction";
 
 export const metadata: Metadata = {
-  title: "Transactions - Personal Finance",
+  title: "Transactions",
   description: "View and manage all transactions",
 };
 
@@ -33,8 +35,12 @@ export default async function Page(props: SearchPageProps) {
   const searchParams = await props.searchParams;
   const { data: transactions, hasMore } = getTransactions(searchParams);
   const initialCategoryId = searchParams.draftCategoryId || "";
-  const initialAccountId = searchParams.draftAccountId || "";
-  const initialDate = searchParams.from || undefined;
+  const initialAccountId =
+    searchParams.draftAccountId || getDefaultAccountId() || "";
+  const today = toDateKey(new Date());
+  const { from, to } = searchParams;
+  const initialDate =
+    from && (from > today || (to && to <= today)) ? from : undefined;
   const autoInitialize = searchParams.new === "1";
   return (
     <TransactionProvider
@@ -69,7 +75,7 @@ export default async function Page(props: SearchPageProps) {
                 </tr>
               </TableHeader>
               <TableBody>
-                <AddTransactionRow />
+                <AddTransactionRow showAccountCell />
 
                 <TransactionList
                   transactions={transactions}

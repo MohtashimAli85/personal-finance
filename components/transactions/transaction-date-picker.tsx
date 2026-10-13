@@ -8,20 +8,18 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-import { formateDate } from "@/lib/date";
+import { formateDate, parseDateKey, toDateKey } from "@/lib/date";
 
 interface TransactionDatePickerProps {
 	date: string;
 	onSelect: (date: string) => void;
-	defaultOpen?: boolean;
 }
 export function TransactionDatePicker({
 	date,
 	onSelect,
-	defaultOpen,
 }: TransactionDatePickerProps) {
-	const [open, setOpen] = useState(defaultOpen);
-	const handleSelect = (date: Date) => onSelect(date.toISOString());
+	const [open, setOpen] = useState(false);
+	const handleSelect = (date: Date) => onSelect(toDateKey(date));
 	const onKeyDown = (
 		date: Date,
 		_: unknown,
@@ -42,7 +40,7 @@ export function TransactionDatePicker({
 			<PopoverContent className="w-auto p-0" align="start">
 				<Calendar
 					mode="single"
-					selected={new Date(date)}
+					selected={parseDateKey(toDateKey(date))}
 					onSelect={handleSelect}
 					onDayKeyDown={onKeyDown}
 					autoFocus

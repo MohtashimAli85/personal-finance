@@ -1,8 +1,10 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   AddTransactionButton,
   AddTransactionRow,
 } from "@/components/transactions/add-transaction";
+import { Money } from "@/components/money";
 import TransactionCheckbox from "@/components/transactions/transaction-checkbox";
 import TransactionList from "@/components/transactions/transaction-list";
 import TransactionToolbar from "@/components/transactions/transaction-toolbar";
@@ -23,8 +25,14 @@ import {
 import TransactionProvider from "@/context/transaction-context";
 import { TransactionSelectionProvider } from "@/context/transaction-selection-context";
 import { getAccountById } from "@/lib/account";
-import { formatCurrency } from "@/lib/helper";
 import { getTransactions } from "@/lib/transaction";
+
+export async function generateMetadata(
+  props: PageIdProps,
+): Promise<Metadata> {
+  const { accountId } = await props.params;
+  return { title: getAccountById(accountId)?.name ?? "Account" };
+}
 
 export default async function Page(props: PageIdProps) {
   const { accountId } = await props.params;
@@ -43,7 +51,9 @@ export default async function Page(props: PageIdProps) {
         <Card className="grow">
           <CardHeader>
             <CardTitle>{account.name}</CardTitle>
-            <CardDescription>{formatCurrency(account.balance)}</CardDescription>
+            <CardDescription>
+              <Money value={account.balance} />
+            </CardDescription>
             <CardAction>
               <AddTransactionButton />
             </CardAction>

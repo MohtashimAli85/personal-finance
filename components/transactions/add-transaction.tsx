@@ -1,11 +1,11 @@
 "use client";
 import { useTransactionContext } from "@/context/transaction-context";
 import AccountCombobox from "../accounts/account-combobox";
-import CategoryCombobox from "../categories/category-combobox";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { InputNumber } from "../ui/input-number";
 import { TableCell, TableRow } from "../ui/table";
+import TransactionCategory from "./transaction-category";
 import { TransactionDatePicker } from "./transaction-date-picker";
 export const AddTransactionButton = () => {
 	const { initializeTransaction } = useTransactionContext();
@@ -16,7 +16,11 @@ export const AddTransactionButton = () => {
 	);
 };
 
-export const AddTransactionRow = () => {
+export const AddTransactionRow = ({
+	showAccountCell,
+}: {
+	showAccountCell?: boolean;
+}) => {
 	const {
 		transaction: tx,
 		cancelTransaction,
@@ -41,18 +45,21 @@ export const AddTransactionRow = () => {
 					<TransactionDatePicker
 						date={tx.date}
 						onSelect={(date) => updateTransaction({ date })}
-						defaultOpen
 					/>
 				</TableCell>
-				<TableCell>
-					<AccountCombobox
-						value={tx.account_id ?? undefined}
-						onChange={(value) => updateTransaction({ account_id: value })}
-						variant={"table"}
-					/>
-				</TableCell>
+				{showAccountCell && (
+					<TableCell>
+						<AccountCombobox
+							value={tx.account_id ?? undefined}
+							onChange={(value) => updateTransaction({ account_id: value })}
+							variant={"table"}
+							openOnFocus
+						/>
+					</TableCell>
+				)}
 				<TableCell>
 					<Input
+						autoFocus
 						placeholder="Notes"
 						value={tx.notes ?? ""}
 						onChange={(e) => updateTransaction({ notes: e.target.value })}
@@ -60,7 +67,8 @@ export const AddTransactionRow = () => {
 					/>
 				</TableCell>
 				<TableCell>
-					<CategoryCombobox
+					<TransactionCategory
+						accountId={tx.account_id}
 						value={tx.category_id ?? undefined}
 						onChange={(value) => updateTransaction({ category_id: value })}
 					/>
@@ -87,7 +95,7 @@ export const AddTransactionRow = () => {
 				</TableCell>
 			</TableRow>
 			<tr className="py-3 border-b border-primary">
-				<td colSpan={7} className="text-right py-3">
+				<td colSpan={showAccountCell ? 7 : 6} className="text-right py-3">
 					<div className="flex gap-2 justify-end">
 						<Button onClick={cancelTransaction} variant={"outline"}>
 							Cancel

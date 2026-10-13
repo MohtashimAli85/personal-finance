@@ -5,9 +5,9 @@ import AccountSelector from "@/components/accounts/account-combobox";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useTransactionSelection } from "@/context/transaction-selection-context";
 import { fromCents } from "@/lib/money";
-import CategoryCombobox from "../categories/category-combobox";
 import { Input } from "../ui/input";
 import { InputNumber } from "../ui/input-number";
+import TransactionCategory from "./transaction-category";
 import TransactionCheckbox from "./transaction-checkbox";
 import { TransactionDatePicker } from "./transaction-date-picker";
 
@@ -68,7 +68,8 @@ const TransactionRowInner = ({
 				/>
 			</TableCell>
 			<TableCell>
-				<CategoryCombobox
+				<TransactionCategory
+					accountId={tx.account_id}
 					value={tx.category_id ?? undefined}
 					label={tx.category_name ?? undefined}
 					onChange={(value) =>
