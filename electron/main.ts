@@ -4,7 +4,14 @@ import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
 import path from "node:path";
-import { app, BrowserWindow, dialog, safeStorage, shell } from "electron";
+import {
+	app,
+	BrowserWindow,
+	dialog,
+	nativeTheme,
+	safeStorage,
+	shell,
+} from "electron";
 
 let mainWindow: BrowserWindow | null = null;
 let nextServer: ChildProcess | null = null;
@@ -29,6 +36,13 @@ function handleDeepLink(url: string): void {
 		refreshToken: refreshToken ?? null,
 		expiresIn: expiresIn ? Number(expiresIn) : null,
 	});
+}
+
+function syncDockIcon(): void {
+	const theme = nativeTheme.shouldUseDarkColors ? "dark" : "light";
+	app.dock?.setIcon(
+		path.join(app.getAppPath(), "resources", `dock-${theme}.png`),
+	);
 }
 
 function getFreePort(): Promise<number> {
@@ -184,8 +198,6 @@ function createWindow(): void {
 			contextIsolation: true,
 			preload: path.join(__dirname, "preload.js"),
 		},
-		titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
-		trafficLightPosition: { x: 16, y: 16 },
 		show: false,
 	});
 
@@ -244,6 +256,11 @@ if (!gotLock) {
 
 app.whenReady().then(async () => {
 	app.setAsDefaultProtocolClient(deepLinkScheme);
+
+	if (process.platform === "darwin") {
+		syncDockIcon();
+		nativeTheme.on("updated", syncDockIcon);
+	}
 
 	try {
 		serverPort = await getFreePort();

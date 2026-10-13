@@ -8,6 +8,7 @@ directories:
 
 files:
   - dist-electron/**/*
+  - resources/dock-*.png
   - package.json
   - "!node_modules/**"
 

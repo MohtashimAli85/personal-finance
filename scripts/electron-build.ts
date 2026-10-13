@@ -63,6 +63,19 @@ const publicDest = path.join(standalonePath, "public");
 const drizzleSrc = path.join(ROOT, "drizzle");
 const drizzleDest = path.join(standalonePath, "drizzle");
 
+for (const name of fs.readdirSync(standalonePath)) {
+	if (
+		name.startsWith(".env") ||
+		name.startsWith("db.sqlite") ||
+		name === "backups"
+	) {
+		fs.rmSync(path.join(standalonePath, name), {
+			recursive: true,
+			force: true,
+		});
+	}
+}
+
 console.log("\n📦 Copying static assets...");
 copyDir(staticSrc, staticDest);
 copyDir(publicSrc, publicDest);
@@ -105,10 +118,14 @@ const nativeSourceDir = path.join(
 	"node_modules",
 	nativeModuleName,
 );
-fs.cpSync(path.join(nativeSourceDir, "build"), path.join(nativeDestDir, "build"), {
-	recursive: true,
-	force: true,
-});
+fs.cpSync(
+	path.join(nativeSourceDir, "build"),
+	path.join(nativeDestDir, "build"),
+	{
+		recursive: true,
+		force: true,
+	},
+);
 console.log(`✅ Synced ${nativeModuleName} native module into standalone`);
 
 console.log("✅ Static assets copied");
