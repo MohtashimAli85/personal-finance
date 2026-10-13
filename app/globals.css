@@ -34,6 +34,8 @@
 	--color-chart-3: var(--chart-3);
 	--color-chart-2: var(--chart-2);
 	--color-chart-1: var(--chart-1);
+	--color-series-1: var(--series-1);
+	--color-series-2: var(--series-2);
 	--color-ring: var(--ring);
 	--color-input: var(--input);
 	--color-border: var(--border);
@@ -84,6 +86,8 @@
 	--chart-3: oklch(0.586 0.253 17.585);
 	--chart-4: oklch(0.514 0.222 16.935);
 	--chart-5: oklch(0.455 0.188 13.697);
+	--series-1: #2a78d6;
+	--series-2: #eb6834;
 	--sidebar: oklch(0.985 0 0);
 	--sidebar-foreground: oklch(0.141 0.005 285.823);
 	--sidebar-primary: oklch(0.586 0.253 17.585);
@@ -118,6 +122,8 @@
 	--chart-3: oklch(0.586 0.253 17.585);
 	--chart-4: oklch(0.514 0.222 16.935);
 	--chart-5: oklch(0.455 0.188 13.697);
+	--series-1: #3987e5;
+	--series-2: #d95926;
 	--sidebar: oklch(0.21 0.006 285.885);
 	--sidebar-foreground: oklch(0.985 0 0);
 	--sidebar-primary: oklch(0.645 0.246 16.439);
@@ -141,14 +147,38 @@
 
 [data-privacy="on"] [data-money] {
 	color: transparent;
-	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 12' preserveAspectRatio='none'%3E%3Cpath d='M1 8 Q4 3 8 7 T15 7 T22 7 T29 7 T36 7' fill='none' stroke='%239ca3af' stroke-opacity='0.55' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E");
+	background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 6' preserveAspectRatio='none'%3E%3Cpath d='M0 3 Q2 0 4 3 T8 3 T12 3 T16 3 T20 3 T24 3 T28 3 T32 3 T36 3 T40 3' fill='none' stroke='%239ca3af' stroke-opacity='0.6' stroke-width='1.5' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E");
 	background-repeat: repeat-x;
 	background-position: right center;
-	background-size: auto 0.55em;
+	background-size: 2.25em 0.3em;
 	border-radius: 2px;
 	user-select: none;
 }
 
+[data-privacy="on"] [data-money]:not(td, input) {
+	width: fit-content;
+}
+
+[data-privacy="on"] [data-slot="chart"] :is(.recharts-label, .recharts-label-list text, .recharts-tooltip-wrapper .font-mono),
+[data-privacy="on"] [data-slot="chart"]:not([data-category-axis]) :is(.recharts-yAxis text, .recharts-yAxis-tick-labels text) {
+	visibility: hidden;
+}
+
+[data-privacy="on"] :is(td, input)[data-money] {
+	background-repeat: no-repeat;
+	background-origin: content-box;
+}
+
 [data-privacy="on"] input[data-money] {
 	caret-color: var(--foreground);
+}
+
+[data-privacy="on"] input[data-money]:placeholder-shown {
+	background-image: none;
+}
+
+[data-privacy="on"] [data-money]:is(:hover, :focus) {
+	color: revert-layer;
+	background-image: none;
+	user-select: auto;
 }

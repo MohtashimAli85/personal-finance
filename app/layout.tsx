@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import { Figtree, Geist, Geist_Mono, Raleway } from "next/font/google";
-import { PrivacyToggle } from "@/components/privacy-toggle";
+import { cookies } from "next/headers";
+import AppHeader from "@/components/header/app-header";
 import AppSidebar from "@/components/sidebar/app-sidebar";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import StoreProvider from "@/context/store-context";
 import { getAccounts } from "@/lib/account";
 import { getGroupedCategories } from "@/lib/category";
@@ -29,7 +31,7 @@ const raleway = Raleway({
 });
 
 export const metadata: Metadata = {
-  title: "Personal Finance ",
+  title: { default: "Personal Finance", template: "%s · Personal Finance" },
   description: "Made by Mohtashim, github.com/mohtashimali85",
 };
 
@@ -40,8 +42,9 @@ export default async function RootLayout({
 }>) {
   const accounts = getAccounts();
   const groupedCategories = getGroupedCategories();
+  const sidebarOpen = (await cookies()).get("sidebar_state")?.value !== "false";
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${figtree.variable} ${raleway.variable} dark`}>
+    <html lang="en" suppressHydrationWarning className={`${geistSans.variable} ${geistMono.variable} ${figtree.variable} ${raleway.variable} dark`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -51,16 +54,17 @@ export default async function RootLayout({
       </head>
       <body className={`${geistMono.variable} antialiased`}>
         <StoreProvider initialData={{ accounts, groupedCategories }}>
-          <SidebarProvider>
-            <AppSidebar />
-            <main className="h-screen bg-background w-full flex flex-col p-4 gap-2 overflow-hidden">
-              <div className="flex items-center gap-1">
-                <SidebarTrigger />
-                <PrivacyToggle />
-              </div>
-              {children}
-            </main>
-          </SidebarProvider>
+          <TooltipProvider>
+            <SidebarProvider defaultOpen={sidebarOpen}>
+              <AppSidebar />
+              <SidebarInset className="h-screen overflow-hidden">
+                <AppHeader />
+                <div className="flex min-h-0 flex-1 flex-col gap-2 p-4">
+                  {children}
+                </div>
+              </SidebarInset>
+            </SidebarProvider>
+          </TooltipProvider>
         </StoreProvider>
       </body>
     </html>
