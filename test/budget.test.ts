@@ -33,6 +33,7 @@ beforeAll(async () => {
 
 beforeEach(() => {
 	const { db, schema } = ctx;
+	db.delete(schema.goals).run();
 	db.delete(schema.transactions).run();
 	db.delete(schema.monthly_budgets).run();
 	db.delete(schema.budget_months).run();
@@ -175,6 +176,22 @@ describe("Actual-style envelope budget", () => {
 		expect(apr.toBudget).toBe(45_000);
 	});
 
+	it("keeps rolling over in months that have no budget row", async () => {
+		const dining = seedCategory();
+		tx(incomeCategoryId, "2026-03-01", 50_000);
+		assign(dining, "2026-03", 5_000);
+		await actions.setCategoryCarryover(dining, "2026-03", true);
+		tx(dining, "2026-04-10", -8_000);
+
+		expect(categoryIn("2026-04", dining)?.carryover).toBe(true);
+		const may = budget.getBudgetView("2026-05");
+		expect(categoryIn("2026-05", dining)).toMatchObject({
+			balance: -3_000,
+			carryover: true,
+		});
+		expect(may.lastMonthOverspent).toBe(0);
+	});
+
 	it("holds money for next month", () => {
 		tx(incomeCategoryId, "2026-05-01", 100_000);
 		ctx.db
@@ -277,11 +294,87 @@ describe("budget actions", () => {
 		});
 	});
 
+	it("rejects a missing or income transfer target and changes nothing", async () => {
+		const old = seedCategory();
+		tx(old, "2026-01-10", -1_000);
+
+		await expect(
+			actions.deleteBudgetCategory(old, randomUUID()),
+		).rejects.toThrow(/not found/);
+		await expect(
+			actions.deleteBudgetCategory(old, incomeCategoryId),
+		).rejects.toThrow(/expense/);
+
+		expect(categoryIn("2026-01", old)).toMatchObject({ spent: -1_000 });
+	});
+
+	it("moves rollover flags to the target unless it has its own row", async () => {
+		const old = seedCategory();
+		const target = seedCategory();
+		assign(old, "2026-01", 1_000, true);
+		assign(old, "2026-02", 0, true);
+		assign(old, "2026-03", 2_000, true);
+		assign(target, "2026-03", 500, false);
+
+		await actions.deleteBudgetCategory(old, target);
+
+		expect(categoryIn("2026-01", target)).toMatchObject({
+			budgeted: 1_000,
+			carryover: true,
+		});
+		expect(categoryIn("2026-02", target)?.carryover).toBe(true);
+		expect(categoryIn("2026-03", target)).toMatchObject({
+			budgeted: 2_500,
+			carryover: false,
+		});
+	});
+
+	it("refuses to delete a category linked to a goal", async () => {
+		const saving = seedCategory();
+		const target = seedCategory();
+		const goalId = randomUUID();
+		ctx.db
+			.insert(ctx.schema.goals)
+			.values({
+				id: goalId,
+				name: "Emergency fund",
+				target_amount: 100_000,
+				category_id: saving,
+			})
+			.run();
+
+		await expect(actions.deleteBudgetCategory(saving)).rejects.toThrow(
+			/Emergency fund/,
+		);
+		await expect(actions.deleteBudgetCategory(saving, target)).rejects.toThrow(
+			/Emergency fund/,
+		);
+
+		expect(categoryIn("2026-01", saving)?.in_use).toBe(true);
+		expect(
+			ctx.db
+				.select()
+				.from(ctx.schema.goals)
+				.where(eq(ctx.schema.goals.id, goalId))
+				.get(),
+		).toBeDefined();
+	});
+
 	it("deletes an unused category without a transfer target", async () => {
 		const empty = seedCategory();
 		expect(categoryIn("2026-01", empty)?.in_use).toBe(false);
 		await actions.deleteBudgetCategory(empty);
 		expect(categoryIn("2026-01", empty)).toBeUndefined();
+	});
+
+	it("copies the previous month across a year boundary", async () => {
+		const dining = seedCategory();
+		assign(dining, "2025-12", 4_000);
+
+		expect(await actions.copyPreviousMonthBudget("2026-01")).toEqual({
+			copied: 1,
+		});
+		expect(categoryIn("2026-01", dining)?.budgeted).toBe(4_000);
 	});
 
 	it("caps a hold at what's left to budget and can reset it", async () => {

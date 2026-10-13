@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import {
 	accounts,
 	budget_months,
+	goals,
 	monthly_budgets,
 	transactions,
 } from "@/lib/db/schema";
@@ -78,8 +79,26 @@ export function usedCategoryIds(): Set<string> {
 				.from(monthly_budgets)
 				.where(ne(monthly_budgets.amount, 0)),
 		)
+		.union(db.select({ id: goals.category_id }).from(goals))
 		.all();
 	return new Set(rows.map((row) => row.id ?? ""));
+}
+
+export function getCategoryGoalName(categoryId: string): string | null {
+	return (
+		db
+			.select({ name: goals.name })
+			.from(goals)
+			.where(eq(goals.category_id, categoryId))
+			.get()?.name ?? null
+	);
+}
+
+export function isCategoryInUse(categoryId: string): boolean {
+	const row = db.get<{ used: number }>(
+		sql`select exists(select 1 from ${transactions} where ${transactions.category_id} = ${categoryId}) or exists(select 1 from ${monthly_budgets} where ${monthly_budgets.category_id} = ${categoryId} and ${monthly_budgets.amount} != 0) as used`,
+	);
+	return Boolean(row?.used);
 }
 
 function uncategorizedSpending(month: string): number {
@@ -161,7 +180,7 @@ export const getBudgetView = cache((month: string): BudgetView => {
 				: Math.max(previous, 0);
 			budgeted += cell?.amount ?? 0;
 			balance.set(c.id, (cell?.amount ?? 0) + spentIn(m, c.id) + carried);
-			carryover.set(c.id, cell?.carryover ?? false);
+			carryover.set(c.id, cell?.carryover ?? prevCarryover.get(c.id) ?? false);
 		}
 
 		const buffered = ledger.buffered.get(m) ?? 0;

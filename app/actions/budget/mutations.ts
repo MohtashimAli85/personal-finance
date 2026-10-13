@@ -5,10 +5,11 @@ import { revalidatePath } from "next/cache";
 import {
 	copyBudgetFromMonth,
 	getBudgetView,
-	usedCategoryIds,
+	getCategoryGoalName,
+	isCategoryInUse,
 } from "@/lib/budget";
 import { TO_BUDGET } from "@/lib/budget-targets";
-import { isMonthKey, monthsBetween } from "@/lib/date";
+import { isMonthKey, monthsBetween, prevMonthKey } from "@/lib/date";
 import { db } from "@/lib/db";
 import {
 	budget_months,
@@ -226,25 +227,63 @@ const requireExpenseGroup = (groupId: string) => {
 	return group;
 };
 
+const requireExpenseCategory = (categoryId: string) => {
+	const category = db
+		.select({ id: categories.id, is_income: category_group.is_income })
+		.from(categories)
+		.leftJoin(category_group, eq(categories.group_id, category_group.id))
+		.where(eq(categories.id, categoryId))
+		.get();
+	if (!category) throw new Error(`Category not found: ${categoryId}`);
+	if (category.is_income) {
+		throw new Error("Pick an expense category to transfer to");
+	}
+	return category;
+};
+
+const mergeCategoryInto = (fromId: string, toId: string) => {
+	db.update(transactions)
+		.set({ category_id: toId })
+		.where(eq(transactions.category_id, fromId))
+		.run();
+	const rows = db
+		.select({
+			month: monthly_budgets.month,
+			amount: monthly_budgets.amount,
+			carryover: monthly_budgets.carryover,
+		})
+		.from(monthly_budgets)
+		.where(eq(monthly_budgets.category_id, fromId))
+		.orderBy(asc(monthly_budgets.month))
+		.all();
+	for (const { month, amount, carryover } of rows) {
+		if (amount === 0 && !carryover) continue;
+		db.insert(monthly_budgets)
+			.values({
+				category_id: toId,
+				month,
+				amount,
+				carryover: carryover || inheritedCarryover(toId, month),
+			})
+			.onConflictDoUpdate({
+				target: [monthly_budgets.category_id, monthly_budgets.month],
+				set: { amount: sql`${monthly_budgets.amount} + ${amount}` },
+			})
+			.run();
+	}
+};
+
 export async function createBudgetGroup(name: string) {
 	const nextName = name.trim();
 	if (!nextName) {
 		throw new Error("Group name is required");
 	}
 	db.transaction(() => {
-		const maxSort = db
-			.select({
-				max_sort: sql<number>`coalesce(max(${category_group.sort_order}), 0)`,
-			})
-			.from(category_group)
-			.where(eq(category_group.is_income, false))
-			.get();
-
 		db.insert(category_group)
 			.values({
 				id: crypto.randomUUID(),
 				name: nextName,
-				sort_order: (maxSort?.max_sort || 0) + 1,
+				sort_order: Number.MAX_SAFE_INTEGER,
 				is_income: false,
 			})
 			.run();
@@ -348,57 +387,46 @@ export async function renameBudgetCategory(categoryId: string, name: string) {
 }
 
 /** Like Actual, a category with transactions or budgeted money hands both to
- * `transferToId` before it's deleted, so balances and To Budget don't change. */
+ * `transferToId` before it's deleted, so balances and To Budget don't change.
+ * Rollover flags move too, except in months where the target already has its
+ * own row. A category linked to a goal can't be deleted. */
 export async function deleteBudgetCategory(
 	categoryId: string,
 	transferToId: string | null = null,
 ) {
-	const category = db
-		.select({ id: categories.id })
-		.from(categories)
-		.where(eq(categories.id, categoryId))
-		.get();
-	if (!category) return;
-	if (transferToId === category.id) {
+	if (transferToId === categoryId) {
 		throw new Error("Pick a different category to transfer to");
 	}
-	if (!transferToId && usedCategoryIds().has(category.id)) {
-		throw new Error("Pick a category to transfer this category's money to");
-	}
 	db.transaction(() => {
-		if (transferToId) {
-			db.update(transactions)
-				.set({ category_id: transferToId })
-				.where(eq(transactions.category_id, category.id))
-				.run();
-			const budgets = db
-				.select({
-					month: monthly_budgets.month,
-					amount: monthly_budgets.amount,
-				})
-				.from(monthly_budgets)
-				.where(eq(monthly_budgets.category_id, category.id))
-				.all();
-			for (const { month, amount } of budgets) {
-				if (amount === 0) continue;
-				db.insert(monthly_budgets)
-					.values({
-						category_id: transferToId,
-						month,
-						amount,
-						carryover: inheritedCarryover(transferToId, month),
-					})
-					.onConflictDoUpdate({
-						target: [monthly_budgets.category_id, monthly_budgets.month],
-						set: { amount: sql`${monthly_budgets.amount} + ${amount}` },
-					})
-					.run();
+		const category = db
+			.select({ id: categories.id })
+			.from(categories)
+			.where(eq(categories.id, categoryId))
+			.get();
+		if (!category) return;
+		const goalName = getCategoryGoalName(category.id);
+		if (goalName) {
+			throw new Error(
+				`This category is linked to the goal "${goalName}". Delete the goal first.`,
+			);
+		}
+		if (!transferToId) {
+			if (isCategoryInUse(category.id)) {
+				throw new Error("Pick a category to transfer this category's money to");
 			}
+		} else {
+			requireExpenseCategory(transferToId);
+			mergeCategoryInto(category.id, transferToId);
 		}
 		db.delete(categories).where(eq(categories.id, category.id)).run();
 	});
 	revalidateBudget();
 	revalidatePath("/transactions");
+	revalidatePath("/goals");
+}
+
+export async function getCategoryGoal(categoryId: string) {
+	return getCategoryGoalName(categoryId);
 }
 
 /** Copies every category's assignment from the previous month into this one. */
@@ -406,10 +434,7 @@ export async function copyPreviousMonthBudget(month: string) {
 	if (!isMonthKey(month)) {
 		throw new Error(`Invalid month key: ${month}`);
 	}
-	const [year, m] = month.split("-").map(Number);
-	const prevDate = new Date(year, m - 2, 1);
-	const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
-	const copied = copyBudgetFromMonth(prevMonth, month);
+	const copied = copyBudgetFromMonth(prevMonthKey(month), month);
 	revalidateBudget();
 	return { copied };
 }

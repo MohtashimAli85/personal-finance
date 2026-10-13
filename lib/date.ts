@@ -1,4 +1,4 @@
-import { format } from "date-fns";
+import { format, subMonths } from "date-fns";
 
 const MONTH_KEY_RE = /^\d{4}-\d{2}$/;
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -76,6 +76,14 @@ export const getMonthKey = (date: Date = new Date()): string =>
 	format(date, "yyyy-MM");
 
 export const isMonthKey = (value: string): boolean => MONTH_KEY_RE.test(value);
+
+export const prevMonthKey = (month: string): string => {
+	if (!isMonthKey(month)) {
+		throw new Error(`Invalid month key: ${month}`);
+	}
+	const [year, monthNumber] = month.split("-").map(Number);
+	return getMonthKey(subMonths(new Date(year, monthNumber - 1, 1), 1));
+};
 
 /**
  * [start, end) bounds for a month as YYYY-MM-DD date keys, comparable
