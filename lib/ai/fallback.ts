@@ -2,6 +2,7 @@ import type {
 	LanguageModelV4,
 	LanguageModelV4CallOptions,
 } from "@ai-sdk/provider";
+import { InvalidToolApprovalSignatureError } from "ai";
 import type { AiProvider } from "@/lib/settings";
 import { describeAiError, isKeyRejected } from "./errors";
 import type { ResolvedModel } from "./models";
@@ -88,6 +89,9 @@ export function describeChatError(error: unknown): string {
 	}
 	if (error instanceof Error && error.name === "AbortError") {
 		return "The response was stopped.";
+	}
+	if (InvalidToolApprovalSignatureError.isInstance(error)) {
+		return "This approval has expired. Ask again.";
 	}
 	console.error("[ai] chat error:", error);
 	return "Something went wrong while answering. Try again.";
