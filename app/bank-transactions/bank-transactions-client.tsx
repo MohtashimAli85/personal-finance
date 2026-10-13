@@ -2,7 +2,6 @@
 
 import {
 	AlertCircle,
-	ArrowUpRight,
 	CheckCircle2,
 	Chrome,
 	Inbox,
@@ -27,7 +26,11 @@ import {
 	rescanBankTransactions,
 	syncBankTransactions,
 } from "@/app/actions/bank/sync";
+import BankHistoryCard from "@/components/bank-transactions/bank-history-card";
 import CategoryCombobox from "@/components/categories/category-combobox";
+import AmountCell from "@/components/list-table/amount-cell";
+import ListCell from "@/components/list-table/list-cell";
+import ListTable from "@/components/list-table/list-table";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -44,15 +47,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
-	Table,
 	TableBody,
-	TableCell,
 	TableHead,
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { Money } from "@/components/money";
+import PageContainer from "@/components/page-container";
 import type { BankTransactionRow } from "@/lib/bank-transaction";
-import { fromCents } from "@/lib/money";
+import { formatShortDate } from "@/lib/date";
 
 function SenderConfigCard({ configs }: { configs: BankSenderConfig[] }) {
 	const router = useRouter();
@@ -378,8 +381,9 @@ export default function BankTransactionsClient({
 		return unsubscribe;
 	}, [router]);
 
-	const totalSpent = fromCents(
-		transactions.reduce((sum, t) => sum + (t.payment ?? 0), 0),
+	const totalSpent = transactions.reduce(
+		(sum, t) => sum + (t.payment ?? 0),
+		0,
 	);
 	const pendingTransactions = transactions.filter(
 		(t) => t.status === "pending",
@@ -448,23 +452,19 @@ export default function BankTransactionsClient({
 
 	if (!configured) {
 		return (
-			<div className="max-w-4xl w-full mx-auto p-6 space-y-6 overflow-auto">
-				<h1 className="text-2xl font-bold">Bank Transactions</h1>
+			<PageContainer className="max-w-4xl">
 				{status?.needsReauth && <StatusBanner status={status} />}
 				<ConnectCard />
-			</div>
+			</PageContainer>
 		);
 	}
 
 	return (
-		<div className="max-w-4xl w-full mx-auto p-6 space-y-6 overflow-auto">
+		<PageContainer className="max-w-4xl">
 			<div className="flex justify-between items-center gap-2 flex-wrap">
-				<div>
-					<h1 className="text-2xl font-bold">Bank Transactions</h1>
-					<p className="text-sm text-muted-foreground">
-						{email ? `Connected as ${email}` : "Connected to Gmail"}
-					</p>
-				</div>
+				<p className="text-sm text-muted-foreground">
+					{email ? `Connected as ${email}` : "Connected to Gmail"}
+				</p>
 				<div className="flex gap-2">
 					<Button
 						onClick={handleRescan}
@@ -501,9 +501,10 @@ export default function BankTransactionsClient({
 						</CardTitle>
 					</CardHeader>
 					<CardContent>
-						<div className="text-2xl font-bold text-red-600">
-							PKR {totalSpent.toLocaleString()}
-						</div>
+						<Money
+							value={totalSpent}
+							className="text-2xl font-bold text-destructive tabular-nums"
+						/>
 					</CardContent>
 				</Card>
 
@@ -520,8 +521,8 @@ export default function BankTransactionsClient({
 			</div>
 
 			{pendingTransactions.length > 0 && (
-				<Card>
-					<CardHeader>
+				<Card className="gap-0 pb-0">
+					<CardHeader className="pb-4">
 						<CardTitle>Review imported transactions</CardTitle>
 						<p className="text-sm text-muted-foreground">
 							{pendingTransactions.length} transaction
@@ -530,169 +531,94 @@ export default function BankTransactionsClient({
 							it.
 						</p>
 					</CardHeader>
-					<CardContent>
-						<Table>
-							<TableHeader>
-								<TableRow>
-									<TableHead>Date</TableHead>
-									<TableHead>Description</TableHead>
-									<TableHead>Account</TableHead>
-									<TableHead className="text-right">Amount</TableHead>
-									<TableHead className="w-48">Category</TableHead>
-									<TableHead className="w-32">Action</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{pendingTransactions.map((t) => {
-									const isExpense = t.payment != null;
-									return (
-										<TableRow key={t.id}>
-											<TableCell className="whitespace-nowrap">
-												{formatDate(t.date)}
-											</TableCell>
-											<TableCell>{t.notes ?? "-"}</TableCell>
-											<TableCell className="text-muted-foreground whitespace-nowrap">
-												{t.account_name ?? "-"}
-											</TableCell>
-											<TableCell
-												className={`text-right font-medium whitespace-nowrap ${isExpense ? "text-red-600" : "text-emerald-600"}`}
-											>
-												PKR{" "}
-												{fromCents(
-													t.payment ?? t.deposit ?? 0,
-												).toLocaleString()}
-											</TableCell>
-											<TableCell>
-												<CategoryCombobox
-													value={
-														acceptCategory[t.id] ?? t.category_id ?? undefined
-													}
-													label={t.category_name ?? undefined}
-													onChange={(value) =>
-														setAcceptCategory((prev) => ({
-															...prev,
-															[t.id]: value,
-														}))
-													}
-												/>
-											</TableCell>
-											<TableCell>
-												<div className="flex gap-1">
-													<Button
-														size="sm"
-														disabled={acceptingId === t.id}
-														onClick={() => {
-															setAcceptingId(t.id);
-															startTransition(async () => {
-																await acceptBankTransaction(
-																	t.id,
-																	acceptCategory[t.id] ?? t.category_id ?? null,
-																);
-																setAcceptingId(null);
-																refresh();
-															});
-														}}
-													>
-														Accept
-													</Button>
-													<Button
-														size="sm"
-														variant="outline"
-														onClick={() => {
-															startTransition(async () => {
-																await rejectBankTransaction(t.id);
-																refresh();
-															});
-														}}
-													>
-														Reject
-													</Button>
-												</div>
-											</TableCell>
-										</TableRow>
-									);
-								})}
-							</TableBody>
-						</Table>
-					</CardContent>
-				</Card>
-			)}
-
-			<Card>
-				<CardHeader>
-					<CardTitle>History</CardTitle>
-				</CardHeader>
-				<CardContent>
-					<Table>
+					<ListTable>
 						<TableHeader>
 							<TableRow>
 								<TableHead>Date</TableHead>
 								<TableHead>Description</TableHead>
 								<TableHead>Account</TableHead>
-								<TableHead>Type</TableHead>
-								<TableHead>Status</TableHead>
 								<TableHead className="text-right">Amount</TableHead>
+								<TableHead className="w-48">Category</TableHead>
+								<TableHead className="w-32">Action</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{transactions.length === 0 ? (
-								<TableRow>
-									<TableCell
-										colSpan={6}
-										className="text-center py-10 text-muted-foreground"
-									>
-										{senderConfigs.some((c) => c.enabled)
-											? 'No transactions yet. Click "Sync bank emails" to import them.'
-											: "Add an active bank sender above, then sync to import transactions."}
-									</TableCell>
-								</TableRow>
-							) : (
-								transactions.map((t) => {
-									const isExpense = t.payment != null;
-									return (
-										<TableRow key={t.id}>
-											<TableCell className="font-medium whitespace-nowrap">
-												{formatDate(t.date)}
-											</TableCell>
-											<TableCell>{t.notes ?? "-"}</TableCell>
-											<TableCell className="text-muted-foreground whitespace-nowrap">
-												{t.account_name ?? "-"}
-											</TableCell>
-											<TableCell>
-												{isExpense ? (
-													<Badge variant="destructive">expense</Badge>
-												) : (
-													<Badge>income</Badge>
-												)}
-											</TableCell>
-											<TableCell>
-												{t.status === "pending" ? (
-													<Badge variant="outline">pending</Badge>
-												) : (
-													<span className="text-muted-foreground text-xs">
-														cleared
-													</span>
-												)}
-											</TableCell>
-											<TableCell className="text-right font-bold whitespace-nowrap">
-												<span className="inline-flex items-center gap-1">
-													{isExpense ? null : (
-														<ArrowUpRight className="h-3.5 w-3.5 text-emerald-600" />
-													)}
-													PKR{" "}
-													{fromCents(
-														t.payment ?? t.deposit ?? 0,
-													).toLocaleString()}
-												</span>
-											</TableCell>
-										</TableRow>
-									);
-								})
-							)}
+							{pendingTransactions.map((t) => {
+								return (
+									<TableRow key={t.id}>
+										<ListCell className="text-muted-foreground">
+											{formatShortDate(t.date)}
+										</ListCell>
+										<ListCell className="max-w-56 truncate font-medium">
+											{t.notes ?? "-"}
+										</ListCell>
+										<ListCell className="text-muted-foreground">
+											{t.account_name ?? "-"}
+										</ListCell>
+										<AmountCell payment={t.payment} deposit={t.deposit} />
+										<ListCell>
+											<CategoryCombobox
+												value={
+													acceptCategory[t.id] ?? t.category_id ?? undefined
+												}
+												label={t.category_name ?? undefined}
+												onChange={(value) =>
+													setAcceptCategory((prev) => ({
+														...prev,
+														[t.id]: value,
+													}))
+												}
+											/>
+										</ListCell>
+										<ListCell>
+											<div className="flex gap-1">
+												<Button
+													size="sm"
+													disabled={acceptingId === t.id}
+													onClick={() => {
+														setAcceptingId(t.id);
+														startTransition(async () => {
+															await acceptBankTransaction(
+																t.id,
+																acceptCategory[t.id] ?? t.category_id ?? null,
+															);
+															setAcceptingId(null);
+															refresh();
+														});
+													}}
+												>
+													Accept
+												</Button>
+												<Button
+													size="sm"
+													variant="outline"
+													onClick={() => {
+														startTransition(async () => {
+															await rejectBankTransaction(t.id);
+															refresh();
+														});
+													}}
+												>
+													Reject
+												</Button>
+											</div>
+										</ListCell>
+									</TableRow>
+								);
+							})}
 						</TableBody>
-					</Table>
-				</CardContent>
-			</Card>
-		</div>
+					</ListTable>
+				</Card>
+			)}
+
+			<BankHistoryCard
+				transactions={transactions}
+				emptyMessage={
+					senderConfigs.some((c) => c.enabled)
+						? 'No transactions yet. Click "Sync bank emails" to import them.'
+						: "Add an active bank sender above, then sync to import transactions."
+				}
+			/>
+		</PageContainer>
 	);
 }

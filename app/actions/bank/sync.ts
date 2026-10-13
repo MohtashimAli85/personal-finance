@@ -1,9 +1,13 @@
 "use server";
 
-import { and, eq, isNull, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
-import { applyBalanceDelta, signedAmount } from "@/lib/balance";
+import {
+	applyBalanceDelta,
+	balanceEffect,
+	signedAmount,
+} from "@/lib/balance";
 import { type BankEmail, parseBankEmail } from "@/lib/bank-email-parse";
 import { toDateKey } from "@/lib/date";
 import { db } from "@/lib/db";
@@ -330,25 +334,21 @@ async function importTransactions(
 		const payment = tx.type === "expense" ? cents : null;
 		const deposit = tx.type === "income" ? cents : null;
 
-		db.transaction(() => {
-			db.insert(transactions)
-				.values({
-					id: crypto.randomUUID(),
-					account_id: accountId,
-					payment,
-					deposit,
-					date: toDateKey(isoDate),
-					notes: tx.description,
-					source: "email",
-					external_hash: hash,
-					// Lands in the bank-transactions review queue rather than
-					// auto-committing into budget activity - see
-					// app/bank-transactions/bank-transactions-client.tsx.
-					status: "pending",
-				})
-				.run();
-			applyBalanceDelta(accountId, signedAmount(payment, deposit));
-		});
+		db.insert(transactions)
+			.values({
+				id: crypto.randomUUID(),
+				account_id: accountId,
+				payment,
+				deposit,
+				date: toDateKey(isoDate),
+				notes: tx.description,
+				source: "email",
+				external_hash: hash,
+				// Lands in the bank-transactions review queue; it affects neither
+				// the budget nor the account balance until accepted.
+				status: "pending",
+			})
+			.run();
 		inserted += 1;
 		processedIds.push(email.id);
 	}
@@ -455,13 +455,29 @@ export async function acceptBankTransaction(
 	id: string,
 	categoryId?: string | null,
 ) {
-	db.update(transactions)
-		.set({
-			status: "cleared",
-			...(categoryId !== undefined ? { category_id: categoryId || null } : {}),
+	const tx = db
+		.select({
+			payment: transactions.payment,
+			deposit: transactions.deposit,
+			account_id: transactions.account_id,
+			status: transactions.status,
 		})
+		.from(transactions)
 		.where(eq(transactions.id, id))
-		.run();
+		.get();
+	if (!tx) return;
+	db.transaction(() => {
+		db.update(transactions)
+			.set({
+				status: "cleared",
+				...(categoryId !== undefined ? { category_id: categoryId || null } : {}),
+			})
+			.where(eq(transactions.id, id))
+			.run();
+		if (tx.status === "pending") {
+			applyBalanceDelta(tx.account_id, signedAmount(tx.payment, tx.deposit));
+		}
+	});
 	revalidatePath("/bank-transactions");
 	revalidatePath("/budget");
 	revalidatePath("/transactions");
@@ -473,15 +489,29 @@ export async function bulkAcceptBankTransactions(
 	categoryId?: string | null,
 ) {
 	if (!ids.length) return;
+	const rows = db
+		.select({
+			id: transactions.id,
+			payment: transactions.payment,
+			deposit: transactions.deposit,
+			account_id: transactions.account_id,
+			status: transactions.status,
+		})
+		.from(transactions)
+		.where(inArray(transactions.id, ids))
+		.all();
 	db.transaction(() => {
-		for (const id of ids) {
+		for (const tx of rows) {
 			db.update(transactions)
 				.set({
 					status: "cleared",
 					...(categoryId ? { category_id: categoryId } : {}),
 				})
-				.where(eq(transactions.id, id))
+				.where(eq(transactions.id, tx.id))
 				.run();
+			if (tx.status === "pending") {
+				applyBalanceDelta(tx.account_id, signedAmount(tx.payment, tx.deposit));
+			}
 		}
 	});
 	revalidatePath("/bank-transactions");
@@ -490,21 +520,21 @@ export async function bulkAcceptBankTransactions(
 	revalidatePath("/");
 }
 
-/** Rejects a pending imported transaction: removes it from the ledger and
- * reverses its balance effect, same as deleting any other transaction. */
+/** Rejects a pending imported transaction: removes it from the ledger. */
 export async function rejectBankTransaction(id: string) {
 	const tx = db
 		.select({
 			payment: transactions.payment,
 			deposit: transactions.deposit,
 			account_id: transactions.account_id,
+			status: transactions.status,
 		})
 		.from(transactions)
 		.where(eq(transactions.id, id))
 		.get();
 	if (!tx) return;
 	db.transaction(() => {
-		applyBalanceDelta(tx.account_id, -signedAmount(tx.payment, tx.deposit));
+		applyBalanceDelta(tx.account_id, -balanceEffect(tx));
 		db.delete(transactions).where(eq(transactions.id, id)).run();
 	});
 	revalidatePath("/bank-transactions");

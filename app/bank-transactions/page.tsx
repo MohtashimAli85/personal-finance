@@ -6,7 +6,7 @@ import { getMailStatus } from "@/lib/mail/credentials";
 import BankTransactionsClient from "./bank-transactions-client";
 
 export const metadata: Metadata = {
-	title: "Bank Transactions - Personal Finance",
+	title: "Bank Transactions",
 	description: "Import transactions from your bank email alerts",
 };
 
