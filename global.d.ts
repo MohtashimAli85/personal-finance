@@ -136,7 +136,7 @@ declare global {
 	interface ElectronAPI {
 		platform: string;
 		isElectron: boolean;
-		onOAuthCallback: (callback: (payload: OAuthPayload) => void) => void;
+		onOAuthCallback: (callback: (payload: OAuthPayload) => void) => () => void;
 	}
 
 	interface Window {

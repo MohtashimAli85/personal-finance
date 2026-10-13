@@ -1,7 +1,7 @@
 // Preload script - runs in a privileged context before the renderer page loads
 // Use this to safely expose specific Node.js/Electron APIs to the renderer
 
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, type IpcRendererEvent, ipcRenderer } from "electron";
 
 contextBridge.exposeInMainWorld("electronAPI", {
 	platform: process.platform,
@@ -13,6 +13,13 @@ contextBridge.exposeInMainWorld("electronAPI", {
 			expiresIn: number | null;
 		}) => void,
 	) => {
-		ipcRenderer.on("oauth-callback", (_event, payload) => callback(payload));
+		const listener = (
+			_event: IpcRendererEvent,
+			payload: Parameters<typeof callback>[0],
+		) => callback(payload);
+		ipcRenderer.on("oauth-callback", listener);
+		return () => {
+			ipcRenderer.removeListener("oauth-callback", listener);
+		};
 	},
 });

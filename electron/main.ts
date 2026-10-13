@@ -15,7 +15,8 @@ import {
 
 let mainWindow: BrowserWindow | null = null;
 let nextServer: ChildProcess | null = null;
-let serverPort = 6300;
+const PREFERRED_PORT = 3123;
+let serverPort = PREFERRED_PORT;
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -45,16 +46,41 @@ function syncDockIcon(): void {
 	);
 }
 
-function getFreePort(): Promise<number> {
+function listenOnce(port: number): Promise<number> {
 	return new Promise((resolve, reject) => {
 		const server = net.createServer();
 		server.unref();
 		server.on("error", reject);
-		server.listen(0, "127.0.0.1", () => {
+		server.listen(port, "127.0.0.1", () => {
 			const address = server.address() as net.AddressInfo;
 			server.close(() => resolve(address.port));
 		});
 	});
+}
+
+function getAppPort(): Promise<number> {
+	return listenOnce(PREFERRED_PORT).catch(() => listenOnce(0));
+}
+
+function appOrigin(): string {
+	return `http://127.0.0.1:${serverPort}`;
+}
+
+function isAppUrl(url: string): boolean {
+	try {
+		return new URL(url).origin === appOrigin();
+	} catch {
+		return false;
+	}
+}
+
+function openExternalIfWeb(url: string): void {
+	try {
+		const { protocol } = new URL(url);
+		if (protocol === "http:" || protocol === "https:") {
+			shell.openExternal(url);
+		}
+	} catch {}
 }
 
 function getNextServerPath(): string {
@@ -167,7 +193,7 @@ function startNextServer(): Promise<void> {
 		const startedAt = Date.now();
 		const poll = () => {
 			if (settled) return;
-			const req = http.get(`http://127.0.0.1:${serverPort}`, (res) => {
+			const req = http.get(appOrigin(), (res) => {
 				res.resume();
 				finish();
 			});
@@ -205,7 +231,7 @@ function createWindow(): void {
 		mainWindow?.show();
 	});
 
-	const url = `http://127.0.0.1:${serverPort}`;
+	const url = appOrigin();
 	let loadAttempts = 0;
 	mainWindow.loadURL(url);
 	mainWindow.webContents.on("did-fail-load", (_event, errorCode) => {
@@ -219,10 +245,14 @@ function createWindow(): void {
 		}, 500);
 	});
 
-	mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-		if (url.startsWith("http")) {
-			shell.openExternal(url);
-		}
+	mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
+		if (isAppUrl(targetUrl)) return;
+		event.preventDefault();
+		openExternalIfWeb(targetUrl);
+	});
+
+	mainWindow.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
+		if (!isAppUrl(targetUrl)) openExternalIfWeb(targetUrl);
 		return { action: "deny" };
 	});
 
@@ -263,7 +293,7 @@ app.whenReady().then(async () => {
 	}
 
 	try {
-		serverPort = await getFreePort();
+		serverPort = await getAppPort();
 		console.log(`Starting Next.js server on port ${serverPort}`);
 		await startNextServer();
 		createWindow();
