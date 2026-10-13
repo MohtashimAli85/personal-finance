@@ -1,11 +1,7 @@
 "use server";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import {
-	applyBalanceDelta,
-	balanceEffect,
-	signedAmount,
-} from "@/lib/balance";
+import { applyBalanceDelta, balanceEffect, signedAmount } from "@/lib/balance";
 import { type ImportRow, planImport } from "@/lib/csv-import";
 import { toDateKey, tryParseDateKey } from "@/lib/date";
 import { db } from "@/lib/db";
@@ -30,95 +26,111 @@ function revalidateAll() {
 	revalidatePath("/budget");
 }
 
-const EDITABLE_COLUMNS = [
-	"account_id",
-	"category_id",
-	"payment",
-	"deposit",
-	"date",
-	"notes",
-] as const;
-type EditableColumn = (typeof EDITABLE_COLUMNS)[number];
+type EditableColumn =
+	| "account_id"
+	| "category_id"
+	| "payment"
+	| "deposit"
+	| "date"
+	| "notes";
+
+type TransactionPatch = Partial<
+	Pick<
+		typeof transactions.$inferInsert,
+		"account_id" | "category_id" | "payment" | "deposit" | "date" | "notes"
+	>
+>;
+
+function buildPatch(column: EditableColumn, value: unknown): TransactionPatch {
+	switch (column) {
+		case "account_id":
+			return { account_id: (value as string) || null };
+		case "payment":
+			return { payment: toCentsAmount(value) || null, deposit: null };
+		case "deposit":
+			return { deposit: toCentsAmount(value) || null, payment: null };
+		case "date": {
+			const date = tryParseDateKey(value as string);
+			return date ? { date } : {};
+		}
+		case "notes":
+			return { notes: (value as string) || null };
+		case "category_id":
+			return { category_id: (value as string) || null };
+	}
+}
+
+function mirrorPatch(patch: TransactionPatch): TransactionPatch {
+	const mirrored: TransactionPatch = {};
+	if ("payment" in patch) {
+		mirrored.payment = patch.deposit;
+		mirrored.deposit = patch.payment;
+	}
+	if (patch.date) mirrored.date = patch.date;
+	return mirrored;
+}
+
+type BalanceRow = {
+	id: string;
+	account_id: string | null;
+	payment: number | null;
+	deposit: number | null;
+	status: string | null;
+};
+
+function applyPatch(row: BalanceRow, patch: TransactionPatch) {
+	if (Object.keys(patch).length === 0) return;
+	const next = { ...row, ...patch };
+	applyBalanceDelta(row.account_id, -balanceEffect(row));
+	applyBalanceDelta(next.account_id, balanceEffect(next));
+	db.update(transactions).set(patch).where(eq(transactions.id, row.id)).run();
+}
+
+const balanceColumns = {
+	id: transactions.id,
+	account_id: transactions.account_id,
+	payment: transactions.payment,
+	deposit: transactions.deposit,
+	status: transactions.status,
+};
 
 export async function updateTransactionColumn(
 	id: string,
 	column: EditableColumn,
 	value: unknown,
 ) {
-	const existing = db
-		.select({
-			account_id: transactions.account_id,
-			payment: transactions.payment,
-			deposit: transactions.deposit,
-			status: transactions.status,
-		})
-		.from(transactions)
-		.where(eq(transactions.id, id))
-		.get();
-	if (!existing) return;
-
 	db.transaction(() => {
-		switch (column) {
-			case "account_id": {
-				const nextAccountId = (value as string) || null;
-				if (nextAccountId === existing.account_id) return;
-				// Reverse the balance impact on the old account, apply it to the new one.
-				applyBalanceDelta(existing.account_id, -balanceEffect(existing));
-				applyBalanceDelta(nextAccountId, balanceEffect(existing));
-				db.update(transactions)
-					.set({ account_id: nextAccountId })
-					.where(eq(transactions.id, id))
-					.run();
-				break;
-			}
-			case "payment": {
-				const nextPayment = toCentsAmount(value) || null;
-				const delta =
-					balanceEffect({ ...existing, payment: nextPayment, deposit: null }) -
-					balanceEffect(existing);
-				applyBalanceDelta(existing.account_id, delta);
-				db.update(transactions)
-					.set({ payment: nextPayment, deposit: null })
-					.where(eq(transactions.id, id))
-					.run();
-				break;
-			}
-			case "deposit": {
-				const nextDeposit = toCentsAmount(value) || null;
-				const delta =
-					balanceEffect({ ...existing, payment: null, deposit: nextDeposit }) -
-					balanceEffect(existing);
-				applyBalanceDelta(existing.account_id, delta);
-				db.update(transactions)
-					.set({ deposit: nextDeposit, payment: null })
-					.where(eq(transactions.id, id))
-					.run();
-				break;
-			}
-			case "date": {
-				const dateKey = tryParseDateKey(value as string);
-				if (!dateKey) return;
-				db.update(transactions)
-					.set({ date: dateKey })
-					.where(eq(transactions.id, id))
-					.run();
-				break;
-			}
-			case "notes": {
-				db.update(transactions)
-					.set({ notes: (value as string) || null })
-					.where(eq(transactions.id, id))
-					.run();
-				break;
-			}
-			case "category_id": {
-				db.update(transactions)
-					.set({ category_id: (value as string) || null })
-					.where(eq(transactions.id, id))
-					.run();
-				break;
-			}
+		const existing = db
+			.select({ ...balanceColumns, transfer_id: transactions.transfer_id })
+			.from(transactions)
+			.where(eq(transactions.id, id))
+			.get();
+		if (!existing) return;
+
+		const patch = buildPatch(column, value);
+		const partner = existing.transfer_id
+			? db
+					.select(balanceColumns)
+					.from(transactions)
+					.where(
+						and(
+							eq(transactions.transfer_id, existing.transfer_id),
+							ne(transactions.id, id),
+						),
+					)
+					.get()
+			: undefined;
+
+		if (
+			partner &&
+			patch.account_id !== undefined &&
+			patch.account_id === partner.account_id
+		) {
+			throw new Error("Cannot transfer an account to itself");
 		}
+
+		applyPatch(existing, patch);
+		if (partner) applyPatch(partner, mirrorPatch(patch));
 	});
 	revalidateAll();
 }
@@ -128,6 +140,8 @@ export async function createTransaction(tx: Omit<Transaction, "id">) {
 	const categoryId = tx.category_id || null;
 	const payment = tx.payment ? toCentsAmount(tx.payment) : null;
 	const deposit = tx.deposit ? toCentsAmount(tx.deposit) : null;
+	const date = tryParseDateKey(tx.date);
+	if (!date) throw new Error("Invalid transaction date");
 
 	db.transaction(() => {
 		db.insert(transactions)
@@ -135,7 +149,7 @@ export async function createTransaction(tx: Omit<Transaction, "id">) {
 				id: crypto.randomUUID(),
 				payment,
 				deposit,
-				date: toDateKey(tx.date),
+				date,
 				account_id: accountId,
 				category_id: categoryId,
 				notes: tx.notes || null,
@@ -146,58 +160,52 @@ export async function createTransaction(tx: Omit<Transaction, "id">) {
 	revalidateAll();
 }
 
-export async function deleteTransaction(formData: FormData) {
-	const id = String(formData.get("id"));
-
-	const tx = db
-		.select({
-			payment: transactions.payment,
-			deposit: transactions.deposit,
-			account_id: transactions.account_id,
-			status: transactions.status,
-		})
-		.from(transactions)
-		.where(eq(transactions.id, id))
-		.get();
-	if (!tx) return;
-
+function deleteWithTransferPartners(ids: string[]) {
 	db.transaction(() => {
-		applyBalanceDelta(tx.account_id, -balanceEffect(tx));
-		db.delete(transactions).where(eq(transactions.id, id)).run();
+		const selected = db
+			.select({ ...balanceColumns, transfer_id: transactions.transfer_id })
+			.from(transactions)
+			.where(inArray(transactions.id, ids))
+			.all();
+		const transferIds = selected.flatMap((tx) =>
+			tx.transfer_id ? [tx.transfer_id] : [],
+		);
+		const partners = transferIds.length
+			? db
+					.select(balanceColumns)
+					.from(transactions)
+					.where(inArray(transactions.transfer_id, transferIds))
+					.all()
+			: [];
+
+		const rows = new Map<string, BalanceRow>();
+		for (const tx of [...selected, ...partners]) rows.set(tx.id, tx);
+		if (rows.size === 0) return;
+
+		for (const tx of rows.values()) {
+			applyBalanceDelta(tx.account_id, -balanceEffect(tx));
+		}
+		db.delete(transactions)
+			.where(inArray(transactions.id, [...rows.keys()]))
+			.run();
 	});
 	revalidateAll();
 }
 
+export async function deleteTransaction(formData: FormData) {
+	deleteWithTransferPartners([String(formData.get("id"))]);
+}
+
 export async function bulkDeleteTransactions(ids: string[]) {
 	if (!ids || ids.length === 0) return;
-
-	const rows = db
-		.select({
-			id: transactions.id,
-			payment: transactions.payment,
-			deposit: transactions.deposit,
-			account_id: transactions.account_id,
-			status: transactions.status,
-		})
-		.from(transactions)
-		.where(inArray(transactions.id, ids))
-		.all();
-	if (rows.length === 0) return;
-
-	db.transaction(() => {
-		for (const tx of rows) {
-			applyBalanceDelta(tx.account_id, -balanceEffect(tx));
-		}
-		db.delete(transactions).where(inArray(transactions.id, ids)).run();
-	});
-	revalidateAll();
+	deleteWithTransferPartners(ids);
 }
 
 /**
  * Creates a linked pair of transactions moving money between two of the
  * user's own accounts. Transfer legs carry no category and are excluded from
- * income/expense summaries and (for on-budget <-> on-budget moves) budget
- * activity, so moving your own money is never counted as income or spending.
+ * income/expense summaries and budget activity, so moving your own money is
+ * never counted as income or spending.
  */
 export async function createTransfer(input: {
 	fromAccountId: string;

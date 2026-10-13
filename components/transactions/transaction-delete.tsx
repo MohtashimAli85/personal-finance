@@ -1,5 +1,5 @@
 import { Trash2 } from "lucide-react";
-import React, { useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { bulkDeleteTransactions } from "@/app/actions/transaction/mutations";
 import {
 	AlertDialog,

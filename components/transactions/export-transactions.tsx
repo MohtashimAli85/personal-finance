@@ -4,6 +4,7 @@ import { Download } from "lucide-react";
 import { useState } from "react";
 import { exportAllTransactions } from "@/app/actions/transaction/mutations";
 import { Button } from "@/components/ui/button";
+import { toDateKey } from "@/lib/date";
 
 export default function ExportTransactions({
   accountId,
@@ -22,7 +23,7 @@ export default function ExportTransactions({
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `transactions-${toDateKey(new Date())}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     } finally {

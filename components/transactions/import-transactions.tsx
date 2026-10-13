@@ -1,14 +1,7 @@
 "use client";
 
-import { Download, Upload } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import {
-	bulkImportTransactions,
-	type ImportRow,
-	previewImport,
-} from "@/app/actions/transaction/mutations";
+import { Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Dialog,
 	DialogContent,
@@ -26,310 +19,33 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import { useStore } from "@/context/store-context";
-import {
-	autoMapColumns,
-	DATE_FORMATS,
-	detectDelimiter,
-	type MappableField,
-	parseCSV,
-	parseDate,
-} from "@/lib/csv";
-
-const FIELD_OPTIONS: { value: MappableField; label: string }[] = [
-	{ value: "skip", label: "Skip" },
-	{ value: "date", label: "Date" },
-	{ value: "notes", label: "Notes" },
-	{ value: "category", label: "Category" },
-	{ value: "category_group", label: "Category Group" },
-	{ value: "amount", label: "Amount" },
-	{ value: "payment", label: "Payment" },
-	{ value: "deposit", label: "Deposit" },
-];
-
-const DELIMITER_OPTIONS = [
-	{ value: ",", label: "Comma (,)" },
-	{ value: ";", label: "Semicolon (;)" },
-	{ value: "\t", label: "Tab" },
-	{ value: "|", label: "Pipe (|)" },
-];
-
-const count = new Intl.NumberFormat("en-US");
-
-function importButtonLabel(isPending: boolean, newCount: number | undefined) {
-	if (isPending) return "Importing...";
-	if (newCount === undefined) return "Checking for duplicates...";
-	if (newCount === 0) return "Nothing new to import";
-	return `Import ${count.format(newCount)} new transaction${newCount !== 1 ? "s" : ""}`;
-}
-
-function ImportFooter({
-	isPending,
-	skippedInvalidDate,
-	preview,
-	onImport,
-}: {
-	isPending: boolean;
-	skippedInvalidDate: number;
-	preview: { newCount: number; duplicates: number } | null;
-	onImport: () => void;
-}) {
-	return (
-		<div className="flex flex-1 items-center justify-end gap-3">
-			{skippedInvalidDate > 0 && (
-				<p className="text-xs text-destructive">
-					{count.format(skippedInvalidDate)} row
-					{skippedInvalidDate !== 1 ? "s have" : " has"} an unreadable date
-				</p>
-			)}
-			{preview && preview.duplicates > 0 && (
-				<p className="text-xs text-muted-foreground">
-					{count.format(preview.duplicates)} already in this account will be
-					skipped
-				</p>
-			)}
-			<Button
-				onClick={onImport}
-				disabled={isPending || !preview || preview.newCount === 0}
-			>
-				<Download className="size-3.5" />
-				{importButtonLabel(isPending, preview?.newCount)}
-			</Button>
-		</div>
-	);
-}
-
-// Rows whose date can't be parsed are dropped rather than silently dated
-// "today"; the count is reported so the source file can be fixed.
-function buildImportRows(
-	dataRows: string[][],
-	columnMap: MappableField[],
-	dateFormat: string,
-	flipAmount: boolean,
-): { rows: ImportRow[]; skippedInvalidDate: number } {
-	let skippedInvalidDate = 0;
-	const rows: ImportRow[] = [];
-
-	for (const row of dataRows) {
-		let date: string | null = null;
-		const record: Partial<ImportRow> = {};
-
-		for (let i = 0; i < columnMap.length; i++) {
-			const field = columnMap[i];
-			const value = row[i]?.trim() || "";
-			if (!value || field === "skip") continue;
-
-			switch (field) {
-				case "date":
-					date = parseDate(value, dateFormat);
-					break;
-				case "notes":
-					record.notes = value;
-					break;
-				case "category":
-					record.category_name = value;
-					break;
-				case "category_group":
-					record.category_group_name = value;
-					break;
-				case "amount": {
-					let num = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
-					if (Number.isNaN(num)) break;
-					if (flipAmount) num = -num;
-					if (num < 0) {
-						record.payment = Math.abs(num);
-					} else {
-						record.deposit = num;
-					}
-					break;
-				}
-				case "payment": {
-					const p = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
-					if (!Number.isNaN(p) && p !== 0) record.payment = Math.abs(p);
-					break;
-				}
-				case "deposit": {
-					const d = Number.parseFloat(value.replace(/[^0-9.-]/g, ""));
-					if (!Number.isNaN(d) && d !== 0) record.deposit = Math.abs(d);
-					break;
-				}
-			}
-		}
-
-		if (!date) {
-			skippedInvalidDate += 1;
-			continue;
-		}
-		rows.push({ ...record, date });
-	}
-
-	return { rows, skippedInvalidDate };
-}
+import ImportFooter from "./import-footer";
+import ImportOptions from "./import-options";
+import ImportPreviewTable from "./import-preview-table";
+import { useImportTransactions } from "./use-import-transactions";
 
 export default function ImportTransactions({
 	accountId,
 }: {
 	accountId?: string;
 }) {
-	const accounts = useStore((s) => s.accounts);
-	const fileRef = useRef<HTMLInputElement>(null);
-
-	const [open, setOpen] = useState(false);
-	const [isPending, startTransition] = useTransition();
-
-	// CSV state
-	const [rawRows, setRawRows] = useState<string[][]>([]);
-	const [headers, setHeaders] = useState<string[]>([]);
-	const [columnMap, setColumnMap] = useState<MappableField[]>([]);
-
-	// Options
-	const [delimiter, setDelimiter] = useState(",");
-	const [dateFormat, setDateFormat] = useState("YYYY-MM-DD");
-	const [hasHeader, setHasHeader] = useState(true);
-	const [flipAmount, setFlipAmount] = useState(false);
-	const [selectedAccountId, setSelectedAccountId] = useState(accountId ?? "");
-	const [importResult, setImportResult] = useState<{
-		imported: number;
-		skippedInvalidDate: number;
-		duplicates: number;
-	} | null>(null);
-
-	const handleFileRead = (text: string) => {
-		const detectedDelimiter = detectDelimiter(text.split("\n")[0] || "");
-		setDelimiter(detectedDelimiter);
-		const parsed = parseCSV(text, detectedDelimiter);
-		if (parsed.length === 0) return;
-
-		const headerRow = parsed[0];
-		const dataRows = parsed.slice(1);
-		setHeaders(headerRow);
-		setRawRows(dataRows);
-		setColumnMap(autoMapColumns(headerRow));
-	};
-
-	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		const file = e.target.files?.[0];
-		if (!file) return;
-		const reader = new FileReader();
-		reader.onload = () => {
-			if (typeof reader.result === "string") {
-				handleFileRead(reader.result);
-			}
-		};
-		reader.readAsText(file);
-	};
-
-	// Reparse when delimiter changes
-	const handleDelimiterChange = (d: string) => {
-		setDelimiter(d);
-		if (fileRef.current?.files?.[0]) {
-			const reader = new FileReader();
-			reader.onload = () => {
-				if (typeof reader.result === "string") {
-					const parsed = parseCSV(reader.result, d);
-					if (parsed.length === 0) return;
-					setHeaders(parsed[0]);
-					setRawRows(parsed.slice(1));
-					setColumnMap(autoMapColumns(parsed[0]));
-				}
-			};
-			reader.readAsText(fileRef.current.files[0]);
-		}
-	};
-
-	const updateColumnMap = (index: number, value: MappableField) => {
-		const next = [...columnMap];
-		next[index] = value;
-		setColumnMap(next);
-	};
-
-	const dataRows = useMemo(
-		() =>
-			hasHeader ? rawRows : rawRows.length > 0 ? [headers, ...rawRows] : [],
-		[hasHeader, rawRows, headers],
-	);
-	const previewRows = dataRows.slice(0, 10);
-	const totalRows = dataRows.length;
-
-	const { rows: importRows, skippedInvalidDate } = useMemo(
-		() => buildImportRows(dataRows, columnMap, dateFormat, flipAmount),
-		[dataRows, columnMap, dateFormat, flipAmount],
-	);
-
-	const [preview, setPreview] = useState<{
-		rows: ImportRow[];
-		accountId: string;
-		newCount: number;
-		duplicates: number;
-	} | null>(null);
-
-	useEffect(() => {
-		if (!selectedAccountId || importRows.length === 0) return;
-		let cancelled = false;
-		previewImport(selectedAccountId, importRows).then((result) => {
-			if (!cancelled) {
-				setPreview({
-					rows: importRows,
-					accountId: selectedAccountId,
-					...result,
-				});
-			}
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, [selectedAccountId, importRows]);
-
-	const currentPreview =
-		importRows.length === 0
-			? { newCount: 0, duplicates: 0 }
-			: preview?.rows === importRows && preview.accountId === selectedAccountId
-				? preview
-				: null;
-
-	const handleImport = () => {
-		if (!selectedAccountId || totalRows === 0) return;
-		startTransition(async () => {
-			const result = await bulkImportTransactions(
-				selectedAccountId,
-				importRows,
-			);
-			setOpen(false);
-			resetState();
-			setImportResult({
-				imported: result.inserted,
-				skippedInvalidDate,
-				duplicates: result.duplicates,
-			});
-		});
-	};
-
-	const resetState = () => {
-		setRawRows([]);
-		setHeaders([]);
-		setColumnMap([]);
-		setFlipAmount(false);
-		if (fileRef.current) fileRef.current.value = "";
-	};
+	const {
+		accounts,
+		open,
+		isPending,
+		selectedAccountId,
+		setSelectedAccountId,
+		importResult,
+		csv,
+		rows,
+		preview,
+		handleOpenChange,
+		handleImport,
+	} = useImportTransactions(accountId);
 
 	return (
 		<div className="flex items-center gap-2">
-			<Dialog
-				open={open}
-				onOpenChange={(v) => {
-					setOpen(v);
-					if (!v) resetState();
-					if (v) setImportResult(null);
-				}}
-			>
+			<Dialog open={open} onOpenChange={handleOpenChange}>
 				<DialogTrigger asChild>
 					<Button variant="outline" size="sm">
 						<Upload className="size-3.5" />
@@ -344,15 +60,14 @@ export default function ImportTransactions({
 						</DialogDescription>
 					</DialogHeader>
 
-					{/* File + Account row */}
 					<div className="flex items-end gap-4">
 						<div className="flex-1 space-y-1.5">
 							<Label>CSV File</Label>
 							<input
-								ref={fileRef}
+								key={csv.inputKey}
 								type="file"
 								accept=".csv,.txt"
-								onChange={handleFileChange}
+								onChange={csv.handleFileChange}
 								className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm file:text-foreground file:border-0 file:bg-transparent file:font-medium"
 							/>
 						</div>
@@ -376,121 +91,33 @@ export default function ImportTransactions({
 						</div>
 					</div>
 
-					{/* Preview table with column mapping */}
-					{rawRows.length > 0 && (
+					{csv.rawRows.length > 0 && (
 						<>
-							<div className="flex flex-col min-w-0 max-h-72 rounded-lg border">
-								<Table>
-									<TableHeader>
-										<TableRow>
-											{headers.map((h, i) => (
-												<TableHead key={h + i} className="min-w-32 py-2">
-													<div className="space-y-1.5">
-														<span className="text-xs text-muted-foreground">
-															{h}
-														</span>
-														<Select
-															value={columnMap[i] || "skip"}
-															onValueChange={(v: string) =>
-																updateColumnMap(i, v as MappableField)
-															}
-														>
-															<SelectTrigger size="sm" className="w-full">
-																<SelectValue />
-															</SelectTrigger>
-															<SelectContent>
-																{FIELD_OPTIONS.map((opt) => (
-																	<SelectItem key={opt.value} value={opt.value}>
-																		{opt.label}
-																	</SelectItem>
-																))}
-															</SelectContent>
-														</Select>
-													</div>
-												</TableHead>
-											))}
-										</TableRow>
-									</TableHeader>
-									<TableBody>
-										{previewRows.map((row, ri) => (
-											<TableRow key={ri}>
-												{row.map((cell, ci) => (
-													<TableCell
-														key={ci}
-														className="px-2 py-1.5 text-xs truncate max-w-48"
-													>
-														{cell}
-													</TableCell>
-												))}
-											</TableRow>
-										))}
-									</TableBody>
-								</Table>
-							</div>
-
-							{/* Options */}
-							<div className="grid grid-cols-2 gap-x-8 gap-y-3 text-sm">
-								<div className="space-y-3">
-									<div className="flex items-center gap-3">
-										<Label className="w-24 shrink-0">Date format</Label>
-										<Select value={dateFormat} onValueChange={setDateFormat}>
-											<SelectTrigger size="sm">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												{DATE_FORMATS.map((f) => (
-													<SelectItem key={f} value={f}>
-														{f}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-									</div>
-									<div className="flex items-center gap-3">
-										<Label className="w-24 shrink-0">Delimiter</Label>
-										<Select
-											value={delimiter}
-											onValueChange={handleDelimiterChange}
-										>
-											<SelectTrigger size="sm">
-												<SelectValue />
-											</SelectTrigger>
-											<SelectContent>
-												{DELIMITER_OPTIONS.map((d) => (
-													<SelectItem key={d.value} value={d.value}>
-														{d.label}
-													</SelectItem>
-												))}
-											</SelectContent>
-										</Select>
-									</div>
-								</div>
-								<div className="space-y-3">
-									<Label className="flex items-center gap-2">
-										<Checkbox
-											checked={hasHeader}
-											onCheckedChange={(v) => setHasHeader(v === true)}
-										/>
-										File has header row
-									</Label>
-									<Label className="flex items-center gap-2">
-										<Checkbox
-											checked={flipAmount}
-											onCheckedChange={(v) => setFlipAmount(v === true)}
-										/>
-										Flip amount sign
-									</Label>
-								</div>
-							</div>
+							<ImportPreviewTable
+								columns={csv.columns}
+								rows={rows.previewRows}
+								columnMap={csv.columnMap}
+								onColumnChange={csv.updateColumnMap}
+							/>
+							<ImportOptions
+								dateFormat={rows.dateFormat}
+								onDateFormatChange={rows.setDateFormat}
+								delimiter={csv.delimiter}
+								onDelimiterChange={csv.handleDelimiterChange}
+								hasHeader={rows.hasHeader}
+								onHasHeaderChange={rows.setHasHeader}
+								flipAmount={rows.flipAmount}
+								onFlipAmountChange={rows.setFlipAmount}
+							/>
 						</>
 					)}
 
 					<DialogFooter>
-						{totalRows > 0 && selectedAccountId && (
+						{rows.dataRows.length > 0 && selectedAccountId && (
 							<ImportFooter
 								isPending={isPending}
-								skippedInvalidDate={skippedInvalidDate}
-								preview={currentPreview}
+								skippedInvalidDate={rows.skippedInvalidDate}
+								preview={preview}
 								onImport={handleImport}
 							/>
 						)}
