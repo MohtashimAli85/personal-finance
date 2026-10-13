@@ -1,9 +1,22 @@
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { getProfileEmail } from "@/lib/gmail";
+import {
+	clearOAuthCookies,
+	clientFromState,
+	STATE_COOKIE,
+	statesMatch,
+	VERIFIER_COOKIE,
+} from "../../oauth-state";
 
 const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
+	const response = await handleCallback(request);
+	clearOAuthCookies(response);
+	return response;
+}
+
+async function handleCallback(request: NextRequest) {
 	const { searchParams } = new URL(request.url);
 	const code = searchParams.get("code");
 	const state = searchParams.get("state");
@@ -11,6 +24,17 @@ export async function GET(request: Request) {
 	if (!code) {
 		return NextResponse.json(
 			{ error: "Missing authorization code." },
+			{ status: 400 },
+		);
+	}
+
+	const verifier = request.cookies.get(VERIFIER_COOKIE)?.value;
+	if (
+		!verifier ||
+		!statesMatch(request.cookies.get(STATE_COOKIE)?.value, state)
+	) {
+		return NextResponse.json(
+			{ error: "Invalid OAuth state." },
 			{ status: 400 },
 		);
 	}
@@ -34,6 +58,7 @@ export async function GET(request: Request) {
 		client_id: clientId,
 		client_secret: clientSecret,
 		redirect_uri: redirectUri,
+		code_verifier: verifier,
 		grant_type: "authorization_code",
 	});
 
@@ -56,7 +81,7 @@ export async function GET(request: Request) {
 	const expiresIn = Number(tokenData.expires_in) || 3600;
 	const email = await getProfileEmail(accessToken);
 
-	if (state === "desktop") {
+	if (clientFromState(state) === "desktop") {
 		const redirect = `${deepLinkScheme}://oauth-callback?access_token=${encodeURIComponent(accessToken)}&refresh_token=${encodeURIComponent(refreshToken ?? "")}&expires_in=${expiresIn}`;
 		return NextResponse.redirect(redirect);
 	}

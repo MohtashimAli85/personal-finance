@@ -1,7 +1,20 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { getProfileEmail } from "@/lib/gmail";
 
+function isSameOrigin(request: NextRequest, appUrl: string) {
+	const origin = request.headers.get("origin");
+	return (
+		origin !== null &&
+		(origin === request.nextUrl.origin || origin === new URL(appUrl).origin)
+	);
+}
+
 export async function POST(request: NextRequest) {
+	const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+	if (!isSameOrigin(request, appUrl)) {
+		return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+	}
+
 	const body = (await request.json().catch(() => null)) as {
 		accessToken?: string;
 		refreshToken?: string;
@@ -16,7 +29,6 @@ export async function POST(request: NextRequest) {
 		);
 	}
 
-	const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 	const secure = appUrl.startsWith("https");
 	const expiresIn = Number(body.expiresIn) || 3600;
 	const email = await getProfileEmail(accessToken);
