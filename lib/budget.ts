@@ -1,4 +1,4 @@
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, ne, sql } from "drizzle-orm";
 import { cache } from "react";
 import { getGroupedCategories } from "@/lib/category";
 import { getMonthRange, isMonthKey, monthsBetween } from "@/lib/date";
@@ -65,6 +65,21 @@ function loadLedger(): Ledger {
 		),
 		buffered: new Map(bufferedRows.map((row) => [row.month, row.buffered])),
 	};
+}
+
+export function usedCategoryIds(): Set<string> {
+	const rows = db
+		.select({ id: transactions.category_id })
+		.from(transactions)
+		.where(isNotNull(transactions.category_id))
+		.union(
+			db
+				.select({ id: monthly_budgets.category_id })
+				.from(monthly_budgets)
+				.where(ne(monthly_budgets.amount, 0)),
+		)
+		.all();
+	return new Set(rows.map((row) => row.id ?? ""));
 }
 
 function uncategorizedSpending(month: string): number {
@@ -155,6 +170,7 @@ export const getBudgetView = cache((month: string): BudgetView => {
 		const toBudget = availableFunds + lastMonthOverspent - budgeted - buffered;
 
 		if (m === month) {
+			const used = usedCategoryIds();
 			const groups: BudgetGroup[] = expenseGroups.map((group) => ({
 				id: group.id,
 				name: group.name,
@@ -171,6 +187,7 @@ export const getBudgetView = cache((month: string): BudgetView => {
 					spent: spentIn(m, c.id),
 					balance: balance.get(c.id) ?? 0,
 					carryover: carryover.get(c.id) ?? false,
+					in_use: used.has(c.id),
 				})),
 			}));
 			view = {

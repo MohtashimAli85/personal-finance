@@ -251,6 +251,39 @@ describe("budget actions", () => {
 		expect(categoryIn("2026-12", dining)?.carryover).toBe(true);
 	});
 
+	it("moves transactions and budgets to another category on delete", async () => {
+		const old = seedCategory();
+		const target = seedCategory();
+		tx(incomeCategoryId, "2026-01-01", 100_000);
+		assign(old, "2026-01", 50_000);
+		assign(target, "2026-01", 10_000);
+		assign(old, "2026-02", 5_000);
+		tx(old, "2026-01-10", -30_000);
+		const before = budget.getBudgetView("2026-02").toBudget;
+
+		await expect(actions.deleteBudgetCategory(old)).rejects.toThrow();
+		await actions.deleteBudgetCategory(old, target);
+
+		const feb = budget.getBudgetView("2026-02");
+		expect(feb.toBudget).toBe(before);
+		expect(categoryIn("2026-02", old)).toBeUndefined();
+		expect(categoryIn("2026-01", target)).toMatchObject({
+			budgeted: 60_000,
+			spent: -30_000,
+		});
+		expect(categoryIn("2026-02", target)).toMatchObject({
+			budgeted: 5_000,
+			balance: 35_000,
+		});
+	});
+
+	it("deletes an unused category without a transfer target", async () => {
+		const empty = seedCategory();
+		expect(categoryIn("2026-01", empty)?.in_use).toBe(false);
+		await actions.deleteBudgetCategory(empty);
+		expect(categoryIn("2026-01", empty)).toBeUndefined();
+	});
+
 	it("caps a hold at what's left to budget and can reset it", async () => {
 		tx(incomeCategoryId, "2026-10-01", 40_000);
 

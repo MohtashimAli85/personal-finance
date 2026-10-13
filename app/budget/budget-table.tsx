@@ -5,6 +5,7 @@ import AddGroupRow from "@/components/budget/add-group-row";
 import BudgetCategoryRow from "@/components/budget/budget-category-row";
 import BudgetGroupRow from "@/components/budget/budget-group-row";
 import BudgetTableMenu from "@/components/budget/budget-table-menu";
+import { NUMBER_CELL } from "@/components/budget/budget-cells";
 import IncomeRows from "@/components/budget/income-rows";
 import {
   Table,
@@ -36,19 +37,21 @@ export default function BudgetTable() {
   >(null);
 
   return (
-    <Table scrollbarOutside>
+    <Table scrollbarOutside className="table-fixed">
       <TableHeader>
         <TableRow>
-          <TableHead className="w-[30%]">
+          <TableHead className="h-12 pl-3">
             <div className="flex items-center justify-between">
               Category
               <BudgetTableMenu />
             </div>
           </TableHead>
           {COLUMNS.map((column) => (
-            <TableHead key={column.key} className="w-[23.333%] text-right">
-              <div>{column.label}</div>
-              <div className="font-semibold" data-money>
+            <TableHead key={column.key} className={`${NUMBER_CELL} h-12`}>
+              <div className="text-xs font-normal text-muted-foreground">
+                {column.label}
+              </div>
+              <div className="ml-auto font-semibold" data-money>
                 {formatCurrency(totals[column.key])}
               </div>
             </TableHead>

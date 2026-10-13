@@ -10,6 +10,7 @@ import { useBudgetContext } from "@/context/budget-context";
 import { useInlineEdit } from "@/hooks/use-inline-edit";
 import { formatCurrency } from "@/lib/helper";
 import { cn } from "@/lib/tailwindcss/utils";
+import { NUMBER_CELL } from "./budget-cells";
 import BudgetGroupMenu from "./budget-group-menu";
 import { groupTotals } from "./group-totals";
 
@@ -52,7 +53,7 @@ const BudgetGroupRow = ({
 			onDrop={() => onDragEnter(group.id)}
 			onDragEnd={onDragEnd}
 		>
-			<TableCell>
+			<TableCell className="h-8 pl-1">
 				<div className="flex items-center gap-1">
 					<Button
 						type="button"
@@ -62,9 +63,6 @@ const BudgetGroupRow = ({
 					>
 						{isCollapsed ? <ChevronRight /> : <ChevronDown />}
 					</Button>
-					{canMutateGroup && (
-						<GripVertical className="text-muted-foreground size-3.5" />
-					)}
 					<div ref={containerRef}>
 						<input
 							data-edit
@@ -81,6 +79,9 @@ const BudgetGroupRow = ({
 					</div>
 					<div className="ml-auto flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
 						{canMutateGroup && (
+							<GripVertical className="size-3.5 cursor-grab text-muted-foreground" />
+						)}
+						{canMutateGroup && (
 							<BudgetGroupMenu
 								onAddCategory={onAddCategory}
 								onRename={startEditing}
@@ -94,13 +95,13 @@ const BudgetGroupRow = ({
 					</div>
 				</div>
 			</TableCell>
-			<TableCell className="text-right font-semibold">
+			<TableCell className={cn(NUMBER_CELL, "font-semibold")} data-money>
 				{formatCurrency(totals.budgeted)}
 			</TableCell>
-			<TableCell className="text-right font-semibold">
+			<TableCell className={cn(NUMBER_CELL, "font-semibold")} data-money>
 				{formatCurrency(totals.spent)}
 			</TableCell>
-			<TableCell className="text-right font-semibold">
+			<TableCell className={cn(NUMBER_CELL, "font-semibold")} data-money>
 				{formatCurrency(totals.balance)}
 			</TableCell>
 		</TableRow>

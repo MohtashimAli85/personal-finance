@@ -5,6 +5,7 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { useBudgetContext } from "@/context/budget-context";
 import { formatCurrency } from "@/lib/helper";
 import { cn } from "@/lib/tailwindcss/utils";
+import { amountTone, CATEGORY_INDENT, NUMBER_CELL } from "./budget-cells";
 import { categoryTransactionsHref } from "./category-href";
 
 export default function IncomeRows() {
@@ -22,12 +23,14 @@ export default function IncomeRows() {
 	return (
 		<>
 			<TableRow className="bg-muted/40">
-				<TableCell className="font-semibold">{incomeGroup.name}</TableCell>
+				<TableCell className="h-8 pl-[29px] font-semibold">
+					{incomeGroup.name}
+				</TableCell>
 				<TableCell />
-				<TableCell className="text-right text-muted-foreground">
+				<TableCell className={cn(NUMBER_CELL, "text-muted-foreground")}>
 					Received
 				</TableCell>
-				<TableCell className="text-right font-semibold" data-money>
+				<TableCell className={cn(NUMBER_CELL, "font-semibold")} data-money>
 					{formatCurrency(received)}
 				</TableCell>
 			</TableRow>
@@ -36,7 +39,7 @@ export default function IncomeRows() {
 					key={category.id}
 					className={cn(category.hidden && "opacity-50")}
 				>
-					<TableCell>
+					<TableCell className={cn("h-8", CATEGORY_INDENT)}>
 						<Link
 							href={categoryTransactionsHref(category.id, month)}
 							className="hover:underline"
@@ -46,7 +49,10 @@ export default function IncomeRows() {
 					</TableCell>
 					<TableCell />
 					<TableCell />
-					<TableCell className="text-right" data-money>
+					<TableCell
+						className={cn(NUMBER_CELL, amountTone(category.received))}
+						data-money
+					>
 						{formatCurrency(category.received)}
 					</TableCell>
 				</TableRow>

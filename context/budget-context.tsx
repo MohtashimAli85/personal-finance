@@ -19,6 +19,7 @@ type BudgetTotals = Pick<BudgetView, "budgeted" | "spent" | "balance">;
 interface BudgetContextType extends ReturnType<typeof useShowHidden> {
   month: string;
   totals: BudgetTotals;
+  toBudget: number;
   incomeGroup: BudgetView["incomeGroup"];
   orderedGroups: BudgetGroup[];
   collapsedGroups: Record<string, boolean>;
@@ -37,12 +38,14 @@ const BudgetProvider = ({
   month,
   groups,
   totals,
+  toBudget,
   incomeGroup,
 }: {
   children: React.ReactNode;
   month: string;
   groups: BudgetGroup[];
   totals: BudgetTotals;
+  toBudget: number;
   incomeGroup: BudgetView["incomeGroup"];
 }) => {
   const hidden = useShowHidden();
@@ -118,6 +121,7 @@ const BudgetProvider = ({
         ...hidden,
         month,
         totals,
+        toBudget,
         incomeGroup,
         orderedGroups,
         collapsedGroups,

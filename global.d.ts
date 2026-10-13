@@ -74,6 +74,7 @@ declare global {
 		spent: number;
 		balance: number;
 		carryover: boolean;
+		in_use: boolean;
 	}
 
 	interface BudgetGroup {

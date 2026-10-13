@@ -2,7 +2,12 @@
 
 import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { copyBudgetFromMonth, getBudgetView } from "@/lib/budget";
+import {
+	copyBudgetFromMonth,
+	getBudgetView,
+	usedCategoryIds,
+} from "@/lib/budget";
+import { TO_BUDGET } from "@/lib/budget-targets";
 import { isMonthKey, monthsBetween } from "@/lib/date";
 import { db } from "@/lib/db";
 import {
@@ -10,6 +15,7 @@ import {
 	categories,
 	category_group,
 	monthly_budgets,
+	transactions,
 } from "@/lib/db/schema";
 import { toCents } from "@/lib/money";
 
@@ -133,6 +139,42 @@ export async function setCategoryCarryover(
 				.onConflictDoUpdate({
 					target: [monthly_budgets.category_id, monthly_budgets.month],
 					set: { carryover },
+				})
+				.run();
+		}
+	});
+	revalidateBudget();
+}
+
+/** Moves `amount` (decimal) of this month's budget out of one category, into
+ * another one or back to To Budget. */
+export async function transferBetweenCategories(
+	fromId: string,
+	toId: string,
+	month: string,
+	amount: number,
+) {
+	if (!isMonthKey(month)) {
+		throw new Error(`Invalid month key: ${month}`);
+	}
+	const cents = Number.isFinite(amount) ? toCents(amount) : 0;
+	if (cents <= 0 || fromId === toId) {
+		throw new Error("Pick two different categories and an amount above 0");
+	}
+	const moves: (readonly [string, number])[] = [[fromId, -cents]];
+	if (toId !== TO_BUDGET) moves.push([toId, cents]);
+	db.transaction(() => {
+		for (const [categoryId, delta] of moves) {
+			db.insert(monthly_budgets)
+				.values({
+					category_id: categoryId,
+					month,
+					amount: delta,
+					carryover: inheritedCarryover(categoryId, month),
+				})
+				.onConflictDoUpdate({
+					target: [monthly_budgets.category_id, monthly_budgets.month],
+					set: { amount: sql`${monthly_budgets.amount} + ${delta}` },
 				})
 				.run();
 		}
@@ -305,15 +347,58 @@ export async function renameBudgetCategory(categoryId: string, name: string) {
 	revalidateBudget();
 }
 
-export async function deleteBudgetCategory(categoryId: string) {
+/** Like Actual, a category with transactions or budgeted money hands both to
+ * `transferToId` before it's deleted, so balances and To Budget don't change. */
+export async function deleteBudgetCategory(
+	categoryId: string,
+	transferToId: string | null = null,
+) {
 	const category = db
 		.select({ id: categories.id })
 		.from(categories)
 		.where(eq(categories.id, categoryId))
 		.get();
 	if (!category) return;
-	db.delete(categories).where(eq(categories.id, category.id)).run();
+	if (transferToId === category.id) {
+		throw new Error("Pick a different category to transfer to");
+	}
+	if (!transferToId && usedCategoryIds().has(category.id)) {
+		throw new Error("Pick a category to transfer this category's money to");
+	}
+	db.transaction(() => {
+		if (transferToId) {
+			db.update(transactions)
+				.set({ category_id: transferToId })
+				.where(eq(transactions.category_id, category.id))
+				.run();
+			const budgets = db
+				.select({
+					month: monthly_budgets.month,
+					amount: monthly_budgets.amount,
+				})
+				.from(monthly_budgets)
+				.where(eq(monthly_budgets.category_id, category.id))
+				.all();
+			for (const { month, amount } of budgets) {
+				if (amount === 0) continue;
+				db.insert(monthly_budgets)
+					.values({
+						category_id: transferToId,
+						month,
+						amount,
+						carryover: inheritedCarryover(transferToId, month),
+					})
+					.onConflictDoUpdate({
+						target: [monthly_budgets.category_id, monthly_budgets.month],
+						set: { amount: sql`${monthly_budgets.amount} + ${amount}` },
+					})
+					.run();
+			}
+		}
+		db.delete(categories).where(eq(categories.id, category.id)).run();
+	});
 	revalidateBudget();
+	revalidatePath("/transactions");
 }
 
 /** Copies every category's assignment from the previous month into this one. */
