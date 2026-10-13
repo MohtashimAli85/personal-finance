@@ -4,8 +4,9 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const FORBIDDEN_NAMES = [".env", ".env.local", ".env.production"];
-const FORBIDDEN_PREFIXES = ["db.sqlite"];
+const FORBIDDEN_NAMES = [".env", ".env.local", ".env.production", "secret.key"];
+const FORBIDDEN_PREFIXES = ["db.sqlite", ".env."];
+const FORBIDDEN_SUFFIXES = [".sqlite", ".sqlite.bak"];
 
 function scan(dir, hits) {
 	if (!fs.existsSync(dir)) return;
@@ -18,7 +19,8 @@ function scan(dir, hits) {
 		}
 		if (
 			FORBIDDEN_NAMES.includes(entry.name) ||
-			FORBIDDEN_PREFIXES.some((p) => entry.name.startsWith(p))
+			FORBIDDEN_PREFIXES.some((p) => entry.name.startsWith(p)) ||
+			FORBIDDEN_SUFFIXES.some((s) => entry.name.endsWith(s))
 		) {
 			hits.push(full);
 		}

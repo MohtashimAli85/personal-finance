@@ -14,6 +14,7 @@ release
 .codegraph
 .env.local
 tsconfig.tsbuildinfo
+.DS_Store
 
 # local db backups (see lib/db/backup.ts)
 *.sqlite.bak

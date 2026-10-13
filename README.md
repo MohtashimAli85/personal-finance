@@ -51,7 +51,7 @@ development).
   that category. Every transaction counts, cleared or pending.
 - **Schema and migrations** live in `lib/db/schema.ts` and `drizzle/`. Migrations
   run automatically on boot (`lib/db/bootstrap.ts`); see that file for the exact
-  order (migrate, seed default categories, normalize state).
+  order (migrate, normalize state).
 
 ## Bank Transactions (Gmail import)
 
