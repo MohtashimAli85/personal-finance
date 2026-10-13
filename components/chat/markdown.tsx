@@ -35,15 +35,19 @@ type PlainProps = ComponentProps<"div"> & { node?: unknown };
 const plainComponents = Object.fromEntries(
 	PLAIN_TAGS.map((tag) => [
 		tag,
-		({ node: _node, ...props }: PlainProps) => createElement(tag, props),
+		(props: PlainProps) => createElement(tag, { ...props, node: undefined }),
 	]),
 ) as Components;
 
 const components: Components = {
 	...plainComponents,
-	a: ({ node: _node, ...props }: ComponentProps<"a"> & { node?: unknown }) => (
-		<a {...props} target="_blank" rel="noreferrer" />
-	),
+	a: (props: ComponentProps<"a"> & { node?: unknown }) =>
+		createElement("a", {
+			...props,
+			node: undefined,
+			target: "_blank",
+			rel: "noreferrer",
+		}),
 };
 
 export default function Markdown({

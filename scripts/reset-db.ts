@@ -8,7 +8,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 if (process.env.NODE_ENV === "production") {
-	console.error("db:reset is a development-only command, refusing to run in production.");
+	console.error(
+		"db:reset is a development-only command, refusing to run in production.",
+	);
 	process.exit(1);
 }
 
@@ -20,9 +22,10 @@ for (const file of [dbPath, `${dbPath}-wal`, `${dbPath}-shm`]) {
 
 // Imported only after deletion: lib/db/client opens the sqlite file on import,
 // so importing it earlier would recreate the file before we clear it.
-const { runMigrations, ensureIncomeGroupTrigger } =
-	require("../lib/db/bootstrap") as typeof import("../lib/db/bootstrap");
-runMigrations();
-ensureIncomeGroupTrigger();
-
-console.log(`Database reset at ${dbPath}`);
+import("../lib/db/bootstrap").then(
+	({ runMigrations, ensureIncomeGroupTrigger }) => {
+		runMigrations();
+		ensureIncomeGroupTrigger();
+		console.log(`Database reset at ${dbPath}`);
+	},
+);

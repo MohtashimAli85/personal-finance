@@ -54,7 +54,7 @@ describe("balance recompute", () => {
 
 		const raw = ctx.sqlite
 			.prepare("select balance from accounts where id = ?")
-			.get(accountId) as any;
+			.get(accountId) as { balance: number };
 		expect(raw.balance).toBe(-3300);
 
 		expect(applyBalanceDelta).toBeTypeOf("function");

@@ -170,7 +170,6 @@ export function useVirtualizer(options: VirtualizerOptions): Virtualizer {
 			scrollElement.removeEventListener("scroll", onScroll);
 			ro.disconnect();
 		};
-		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [getScrollElement]);
 	// ^ onScroll is a useEffectEvent — intentionally omitted from deps.
 

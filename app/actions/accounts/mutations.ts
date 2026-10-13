@@ -221,6 +221,3 @@ export async function forceCloseAccount(id: string) {
 	db.transaction(() => db.delete(accounts).where(eq(accounts.id, id)).run());
 	revalidateAccounts();
 }
-
-// Back-compat alias for existing call sites/imports.
-export const closeAccount = archiveAccount;

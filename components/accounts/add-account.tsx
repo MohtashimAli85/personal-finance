@@ -102,13 +102,14 @@ const AddAccount = () => {
               name="offBudget"
               control={form.control}
               render={({ field }) => (
-                <label className="flex items-center gap-2 text-sm">
+                <Field orientation="horizontal">
                   <Checkbox
+                    id="off-budget"
                     checked={field.value}
                     onCheckedChange={field.onChange}
                   />
-                  Off budget
-                </label>
+                  <FieldLabel htmlFor="off-budget">Off budget</FieldLabel>
+                </Field>
               )}
             />
             <DialogFooter>

@@ -8,11 +8,3 @@ import { formatMoney } from "@/lib/money";
 export function formatCurrency(cents: number) {
 	return formatMoney(cents);
 }
-
-export const safeParseFloat = (value: string | null): number => {
-	if (!value) {
-		return 0;
-	}
-	const parsed = parseFloat(value);
-	return Number.isNaN(parsed) ? 0 : parsed;
-};

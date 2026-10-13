@@ -49,15 +49,15 @@ export function parseCSV(text: string, delimiter = ","): string[][] {
  * Serialize rows into a CSV string.
  */
 export function serializeCSV(headers: string[], rows: string[][]): string {
-	const escape = (value: string) => {
+	const escapeCell = (value: string) => {
 		if (value.includes(",") || value.includes('"') || value.includes("\n")) {
 			return `"${value.replace(/"/g, '""')}"`;
 		}
 		return value;
 	};
-	const lines = [headers.map(escape).join(",")];
+	const lines = [headers.map(escapeCell).join(",")];
 	for (const row of rows) {
-		lines.push(row.map(escape).join(","));
+		lines.push(row.map(escapeCell).join(","));
 	}
 	return lines.join("\n");
 }
