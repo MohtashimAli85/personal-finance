@@ -15,6 +15,9 @@ import {
 	testAiConnection,
 } from "@/app/actions/settings/mutations";
 import ActualImportCard from "@/components/settings/actual-import-card";
+import BackupCard from "@/components/settings/backup-card";
+import ConfirmDialog from "@/components/confirm-dialog";
+import PageContainer from "@/components/page-container";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -153,14 +156,17 @@ function ProviderCard({
 						Test connection
 					</Button>
 					{(source === "stored" || source === "unreadable") && (
-						<Button
-							variant="ghost"
-							size="sm"
-							disabled={isPending}
-							onClick={() => run(() => clearApiKey(provider.id))}
-						>
-							Remove key
-						</Button>
+						<ConfirmDialog
+							title={`Remove your ${provider.name} key?`}
+							description="The AI coach won't be able to use this provider until you add a key again."
+							confirmLabel="Remove key"
+							onConfirm={() => run(() => clearApiKey(provider.id))}
+							trigger={
+								<Button variant="ghost" size="sm" disabled={isPending}>
+									Remove key
+								</Button>
+							}
+						/>
 					)}
 					<a
 						href={provider.keyUrl}
@@ -298,15 +304,10 @@ export default function SettingsClient({
 	profile: Profile;
 }) {
 	return (
-		<div className="max-w-2xl w-full mx-auto p-6 space-y-6 overflow-auto">
-			<div>
-				<h1 className="text-2xl font-bold">Settings</h1>
-				<p className="text-sm text-muted-foreground">
-					Your profile and API keys for the AI coach.
-				</p>
-			</div>
-
+		<PageContainer className="max-w-2xl">
 			<ProfileCard profile={profile} />
+
+			<BackupCard />
 
 			<ActualImportCard />
 
@@ -356,6 +357,6 @@ export default function SettingsClient({
 					/>
 				))}
 			</div>
-		</div>
+		</PageContainer>
 	);
 }

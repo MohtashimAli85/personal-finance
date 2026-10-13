@@ -4,7 +4,7 @@ import { getAiKeyStatus, getProfile } from "@/lib/settings";
 import SettingsClient from "./settings-client";
 
 export const metadata: Metadata = {
-	title: "Settings - Personal Finance",
+	title: "Settings",
 	description: "Your profile for the AI coach, and AI provider keys",
 };
 

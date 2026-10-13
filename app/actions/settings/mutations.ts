@@ -15,6 +15,7 @@ import { modelLabel } from "@/lib/ai/labels";
 import { availableModels, MODEL_CHAIN } from "@/lib/ai/models";
 import { backupDatabase, backupDirFor } from "@/lib/db/backup";
 import { dbPath, sqlite } from "@/lib/db/client";
+import { RestoreError, restoreDatabase } from "@/lib/db/restore";
 import { profileSchema } from "@/lib/profile-schema";
 import { hasSecretKey } from "@/lib/secrets";
 import {
@@ -155,4 +156,23 @@ export async function importActualBudget(
 	}
 	revalidatePath("/", "layout");
 	redirect("/budget");
+}
+
+export async function importBackup(formData: FormData): Promise<ActionState> {
+	const file = formData.get("file");
+	if (!(file instanceof File) || file.size === 0) {
+		return { success: false, message: "Choose a file to import." };
+	}
+	try {
+		const bytes = Buffer.from(await file.arrayBuffer());
+		backupDatabase(sqlite, backupDirFor(dbPath), "restore");
+		restoreDatabase(sqlite, bytes);
+	} catch (error) {
+		if (error instanceof RestoreError) {
+			return { success: false, message: error.message };
+		}
+		throw error;
+	}
+	revalidatePath("/", "layout");
+	redirect("/");
 }

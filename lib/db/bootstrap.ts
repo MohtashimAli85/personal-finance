@@ -14,10 +14,11 @@ import {
 
 const uid = () => crypto.randomUUID();
 
+export const migrationsFolder = () =>
+	process.env.APP_MIGRATIONS_PATH ?? path.join(process.cwd(), "drizzle");
+
 export const runMigrations = () => {
-	const migrationsFolder =
-		process.env.APP_MIGRATIONS_PATH ?? path.join(process.cwd(), "drizzle");
-	migrate(db, { migrationsFolder });
+	migrate(db, { migrationsFolder: migrationsFolder() });
 };
 
 export const ensureIncomeGroupTrigger = () => {
@@ -224,6 +225,16 @@ let ready = false;
  * first call does anything. Call this explicitly from a single entry point
  * (lib/db/index.ts) rather than relying on module-import side effects.
  */
+export const recomputeBalances = () => {
+	db.run(sql`
+		UPDATE accounts SET balance = (
+			SELECT coalesce(sum(coalesce(deposit, 0) - coalesce(payment, 0)), 0)
+			FROM transactions
+			WHERE transactions.account_id = accounts.id AND status != 'pending'
+		)
+	`);
+};
+
 export const ensureDatabaseReady = () => {
 	if (ready) return;
 	try {
@@ -231,6 +242,7 @@ export const ensureDatabaseReady = () => {
 		backfillEmailTransactionHashes();
 		normalizeCategoryGroupState();
 		ensureIncomeGroupTrigger();
+		recomputeBalances();
 		ready = true;
 	} catch (error) {
 		console.error("Database bootstrap failed:", error);
