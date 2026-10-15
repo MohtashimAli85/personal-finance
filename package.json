@@ -26,8 +26,10 @@
 		"check": "biome check ."
 	},
 	"dependencies": {
+		"@ai-sdk/anthropic": "^4.0.79",
 		"@ai-sdk/google": "^4.0.87",
 		"@ai-sdk/groq": "^4.0.54",
+		"@ai-sdk/openai": "^4.0.92",
 		"@ai-sdk/provider": "4.0.21",
 		"@ai-sdk/react": "^4.0.130",
 		"@base-ui/react": "^1.8.0",

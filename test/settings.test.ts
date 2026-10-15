@@ -33,6 +33,8 @@ describe("AI key settings", () => {
 		expect(settings.getAiKeyStatus().providers).toEqual({
 			groq: "stored",
 			gemini: "none",
+			anthropic: "none",
+			openai: "none",
 		});
 	});
 

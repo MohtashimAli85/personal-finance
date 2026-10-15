@@ -96,7 +96,7 @@ category's budget, but only after you click **Confirm** on the proposed change.
     keychain (Electron `safeStorage`);
   - a self-hosted/web deployment must set `APP_SECRET_KEY`
     (`openssl rand -hex 32`); without it, keys can't be saved from Settings.
-  - `GROQ_API_KEY` / `GEMINI_API_KEY` env vars work too and take precedence.
+  - `GROQ_API_KEY` / `GEMINI_API_KEY` / `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` env vars work too and take precedence.
 - **About you**: Settings has a profile (name, a free-text "about me", and how
   you want to be coached) that is added to the coach's instructions so advice
   fits your situation. Stored locally in `app_settings`.

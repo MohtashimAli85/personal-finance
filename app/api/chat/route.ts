@@ -14,7 +14,11 @@ import {
 	type CoachUIMessage,
 	coachMetadataSchema,
 } from "@/lib/ai/message-types";
-import { availableModels, type ResolvedModel } from "@/lib/ai/models";
+import {
+	availableModels,
+	MODEL_CHAIN,
+	type ResolvedModel,
+} from "@/lib/ai/models";
 import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import { generateChatTitle } from "@/lib/ai/title";
 import { financeTools } from "@/lib/ai/tools";
@@ -35,6 +39,7 @@ export async function POST(request: Request) {
 	const body = (await request.json().catch(() => null)) as {
 		id?: unknown;
 		messages?: unknown;
+		model?: unknown;
 	} | null;
 	const chatId = typeof body?.id === "string" ? body.id : "";
 	if (!CHAT_ID_RE.test(chatId)) return badRequest("Invalid chat id.");
@@ -42,10 +47,12 @@ export async function POST(request: Request) {
 		return badRequest("No messages to send.");
 	}
 
-	const models = availableModels();
+	const preferredModel =
+		typeof body?.model === "string" ? body.model : undefined;
+	const models = availableModels(MODEL_CHAIN, preferredModel);
 	if (models.length === 0) {
 		return badRequest(
-			"Add a Groq or Gemini API key in Settings to use the AI coach.",
+			"Add an AI provider API key in Settings to use the AI coach.",
 			412,
 		);
 	}

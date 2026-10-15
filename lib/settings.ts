@@ -4,7 +4,7 @@ import { app_settings } from "@/lib/db/schema";
 import type { Profile } from "@/lib/profile-schema";
 import { decryptSecret, encryptSecret, hasSecretKey } from "@/lib/secrets";
 
-export const AI_PROVIDERS = ["groq", "gemini"] as const;
+export const AI_PROVIDERS = ["groq", "gemini", "anthropic", "openai"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 export type ApiKeySource = "env" | "stored" | "unreadable" | "none";
@@ -12,6 +12,8 @@ export type ApiKeySource = "env" | "stored" | "unreadable" | "none";
 const ENV_KEYS: Record<AiProvider, string> = {
 	groq: "GROQ_API_KEY",
 	gemini: "GEMINI_API_KEY",
+	anthropic: "ANTHROPIC_API_KEY",
+	openai: "OPENAI_API_KEY",
 };
 
 const settingKey = (provider: AiProvider) => `${provider}_api_key`;
@@ -44,6 +46,9 @@ function resolveApiKey(provider: AiProvider): {
 
 export const getApiKey = (provider: AiProvider) => resolveApiKey(provider).key;
 
+export const configuredProviders = (): AiProvider[] =>
+	AI_PROVIDERS.filter((provider) => getApiKey(provider));
+
 export interface AiKeyStatus {
 	canStore: boolean;
 	providers: Record<AiProvider, ApiKeySource>;
@@ -52,10 +57,12 @@ export interface AiKeyStatus {
 export function getAiKeyStatus(): AiKeyStatus {
 	return {
 		canStore: hasSecretKey(),
-		providers: {
-			groq: resolveApiKey("groq").source,
-			gemini: resolveApiKey("gemini").source,
-		},
+		providers: Object.fromEntries(
+			AI_PROVIDERS.map((provider) => [
+				provider,
+				resolveApiKey(provider).source,
+			]),
+		) as Record<AiProvider, ApiKeySource>,
 	};
 }
 

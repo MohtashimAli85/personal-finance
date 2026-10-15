@@ -17,6 +17,8 @@ describe("modelLabel", () => {
 		expect(modelLabel("openai/gpt-oss-20b")).toBe("GPT-OSS 20B (Groq)");
 		expect(modelLabel("gemini-3.5-flash")).toBe("Gemini 3.5 Flash");
 		expect(modelLabel("gemini-3.5-flash-lite")).toBe("Gemini 3.5 Flash Lite");
+		expect(modelLabel("claude-haiku-5-5")).toBe("Claude Haiku 5.5");
+		expect(modelLabel("gpt-5.4-nano")).toBe("GPT-5.4 Nano (OpenAI)");
 		expect(modelLabel("something-else")).toBe("something-else");
 	});
 });
