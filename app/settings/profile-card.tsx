@@ -33,7 +33,7 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
 							value={values.name}
 							onChange={update("name")}
 							maxLength={PROFILE_LIMITS.name}
-							placeholder="Mohtashim"
+							placeholder="Your name or nickname"
 						/>
 					</Field>
 					<Field>
@@ -43,9 +43,7 @@ export default function ProfileCard({ profile }: { profile: Profile }) {
 							onChange={update("about")}
 							maxLength={PROFILE_LIMITS.about}
 							rows={6}
-							placeholder={
-								"e.g. I'm a software engineer in Lahore, paid on the 1st. I live with my parents and help with household bills. Saving for a car next year and want a 6-month emergency fund. Eating out is my weak spot."
-							}
+							placeholder="Your work and payday, who you support, your goals, and the habits you want help with"
 						/>
 						<FieldDescription>
 							Work and payday, who you support, big plans, habits you want help

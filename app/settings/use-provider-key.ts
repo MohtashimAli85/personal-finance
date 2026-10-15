@@ -1,14 +1,11 @@
-import { useState } from "react";
 import {
 	clearApiKey,
-	saveApiKey,
 	testAiConnection,
 } from "@/app/actions/settings/mutations";
 import { useActionFeedback } from "@/hooks/use-action-feedback";
 import type { AiProvider } from "@/lib/settings";
 
 export function useProviderKey(provider: AiProvider) {
-	const [apiKey, setApiKey] = useState("");
 	const { feedback, isPending, clear, run } = useActionFeedback(
 		(errors) => errors?.apiKey?.message,
 	);
@@ -21,13 +18,8 @@ export function useProviderKey(provider: AiProvider) {
 		run(action, onSuccess);
 	};
 
-	const save = () =>
-		runCleared(
-			() => saveApiKey({ success: false }, { provider, apiKey }),
-			() => setApiKey(""),
-		);
 	const test = () => runCleared(() => testAiConnection(provider));
 	const remove = () => runCleared(() => clearApiKey(provider));
 
-	return { apiKey, setApiKey, feedback, isPending, save, test, remove };
+	return { feedback, isPending, test, remove };
 }

@@ -1,12 +1,13 @@
 "use client";
 
 import { AlertCircle, KeyRound, ShieldCheck } from "lucide-react";
+import PageContainer from "@/components/page-container";
 import ActualImportCard from "@/components/settings/actual-import-card";
 import BackupCard from "@/components/settings/backup-card";
-import PageContainer from "@/components/page-container";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Profile } from "@/lib/profile-schema";
 import type { AiKeyStatus } from "@/lib/settings";
+import AddKeyCard from "./add-key-card";
 import ProfileCard from "./profile-card";
 import ProviderCard from "./provider-card";
 import { PROVIDERS } from "./providers";
@@ -56,19 +57,21 @@ export default function SettingsClient({
 							with <code className="font-mono">openssl rand -hex 32</code>) and
 							restart. Alternatively set{" "}
 							<code className="font-mono">GROQ_API_KEY</code> /{" "}
-							<code className="font-mono">GEMINI_API_KEY</code> directly.
+							<code className="font-mono">GEMINI_API_KEY</code> /{" "}
+							<code className="font-mono">ANTHROPIC_API_KEY</code> /{" "}
+							<code className="font-mono">OPENAI_API_KEY</code> directly.
 						</p>
 					</CardContent>
 				</Card>
 			)}
 
 			<div className="space-y-4">
+				<AddKeyCard canStore={status.canStore} />
 				{PROVIDERS.map((provider) => (
 					<ProviderCard
 						key={provider.id}
 						provider={provider}
 						source={status.providers[provider.id]}
-						canStore={status.canStore}
 					/>
 				))}
 			</div>

@@ -3,7 +3,6 @@ import ConfirmDialog from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import type { ApiKeySource } from "@/lib/settings";
 import FeedbackText from "./feedback-text";
 import { type ProviderInfo, SOURCE_BADGE } from "./providers";
@@ -12,14 +11,11 @@ import { useProviderKey } from "./use-provider-key";
 export default function ProviderCard({
 	provider,
 	source,
-	canStore,
 }: {
 	provider: ProviderInfo;
 	source: ApiKeySource;
-	canStore: boolean;
 }) {
-	const { apiKey, setApiKey, feedback, isPending, save, test, remove } =
-		useProviderKey(provider.id);
+	const { feedback, isPending, test, remove } = useProviderKey(provider.id);
 	const badge = SOURCE_BADGE[source];
 	const hasUsableKey = source === "env" || source === "stored";
 
@@ -37,35 +33,11 @@ export default function ProviderCard({
 				</div>
 			</CardHeader>
 			<CardContent className="space-y-3">
-				{source === "env" ? (
+				{source === "env" && (
 					<p className="text-sm text-muted-foreground">
 						This key comes from an environment variable and can only be changed
 						there.
 					</p>
-				) : (
-					<form
-						className="flex gap-2"
-						onSubmit={(event) => {
-							event.preventDefault();
-							save();
-						}}
-					>
-						<Input
-							type="password"
-							autoComplete="off"
-							placeholder={
-								source === "stored"
-									? "Enter a new key to replace"
-									: provider.placeholder
-							}
-							value={apiKey}
-							onChange={(event) => setApiKey(event.target.value)}
-							disabled={!canStore || isPending}
-						/>
-						<Button type="submit" disabled={!canStore || isPending || !apiKey}>
-							Save
-						</Button>
-					</form>
 				)}
 
 				<div className="flex flex-wrap items-center gap-2">
