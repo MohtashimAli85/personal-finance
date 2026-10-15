@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import ChatView from "@/components/chat/chat-view";
-import { availableModels } from "@/lib/ai/models";
+import { availableModelEntries } from "@/lib/ai/models";
 import { getChat, loadChatMessages } from "@/lib/chat";
 import { getProfile } from "@/lib/settings";
 
@@ -17,7 +17,7 @@ export default async function ChatPage({
 			id={id}
 			initialMessages={loadChatMessages(id)}
 			isNew={false}
-			hasKey={availableModels().length > 0}
+			models={availableModelEntries()}
 			hasProfile={Object.values(getProfile()).some(Boolean)}
 		/>
 	);

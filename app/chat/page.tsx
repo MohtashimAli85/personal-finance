@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { connection } from "next/server";
 import ChatView from "@/components/chat/chat-view";
-import { availableModels } from "@/lib/ai/models";
+import { availableModelEntries } from "@/lib/ai/models";
 import { getProfile } from "@/lib/settings";
 
 export default async function NewChatPage() {
@@ -13,7 +13,7 @@ export default async function NewChatPage() {
 			id={id}
 			initialMessages={[]}
 			isNew
-			hasKey={availableModels().length > 0}
+			models={availableModelEntries()}
 			hasProfile={Object.values(getProfile()).some(Boolean)}
 		/>
 	);

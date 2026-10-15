@@ -159,8 +159,16 @@
 	width: fit-content;
 }
 
-[data-privacy="on"] [data-slot="chart"] :is(.recharts-label, .recharts-label-list text, .recharts-tooltip-wrapper .font-mono),
-[data-privacy="on"] [data-slot="chart"]:not([data-category-axis]) :is(.recharts-yAxis text, .recharts-yAxis-tick-labels text) {
+[data-privacy="on"]
+	[data-slot="chart"]
+	:is(
+		.recharts-label,
+		.recharts-label-list text,
+		.recharts-tooltip-wrapper .font-mono
+	),
+[data-privacy="on"]
+	[data-slot="chart"]:not([data-category-axis])
+	:is(.recharts-yAxis text, .recharts-yAxis-tick-labels text) {
 	visibility: hidden;
 }
 
@@ -181,4 +189,35 @@
 	color: revert-layer;
 	background-image: none;
 	user-select: auto;
+}
+
+.shimmer {
+	background: linear-gradient(
+		90deg,
+		var(--muted-foreground) 40%,
+		var(--foreground) 50%,
+		var(--muted-foreground) 60%
+	);
+	background-size: 200% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+	from {
+		background-position: 200% 0;
+	}
+	to {
+		background-position: -200% 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.shimmer {
+		animation: none;
+		background: none;
+		color: var(--muted-foreground);
+	}
 }

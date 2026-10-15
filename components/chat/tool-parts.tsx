@@ -1,16 +1,16 @@
 "use client";
 
 import { getToolName, type ToolUIPart } from "ai";
-import {
-	Check,
-	ChevronRight,
-	Loader2,
-	Search,
-	ShieldQuestion,
-	X,
-} from "lucide-react";
+import { Check, ChevronRight, Search, ShieldQuestion, X } from "lucide-react";
 import { formatMonthLabel } from "@/components/goals/month-label";
 import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Spinner } from "@/components/ui/spinner";
 import type { CoachTools } from "@/lib/ai/message-types";
 
 type CoachToolPart = ToolUIPart<CoachTools>;
@@ -24,24 +24,59 @@ const rupees = (value: unknown) =>
 const monthText = (value: unknown) =>
 	typeof value === "string" ? formatMonthLabel(value) : "-";
 
-function readToolLabel(name: string, input: Input): string {
+function readToolLabel(
+	name: string,
+	input: Input,
+): { active: string; done: string } {
 	switch (name) {
 		case "getBudgetMonth":
-			return `Checked your ${monthText(input.month)} budget`;
-		case "getSpending":
-			return `Looked at ${input.groupBy === "category" ? "spending by category" : "monthly totals"}, ${monthText(input.fromMonth)} to ${monthText(input.toMonth)}`;
-		case "getCategoryTrend":
-			return `Checked ${String(input.category ?? "a category")} over ${String(input.months ?? 6)} months`;
-		case "searchTransactions":
+			return {
+				active: `Checking your ${monthText(input.month)} budget…`,
+				done: `Checked your ${monthText(input.month)} budget`,
+			};
+		case "getSpending": {
+			const what =
+				input.groupBy === "category"
+					? "spending by category"
+					: "monthly totals";
+			const range = `${monthText(input.fromMonth)} to ${monthText(input.toMonth)}`;
+			return {
+				active: `Looking at ${what}, ${range}…`,
+				done: `Looked at ${what}, ${range}`,
+			};
+		}
+		case "getCategoryTrend": {
+			const category = String(input.category ?? "a category");
+			const months = String(input.months ?? 6);
+			return {
+				active: `Checking ${category} over ${months} months…`,
+				done: `Checked ${category} over ${months} months`,
+			};
+		}
+		case "searchTransactions": {
+			const category = input.category ? `${String(input.category)} ` : "";
 			return input.query
-				? `Searched transactions for "${String(input.query)}"`
-				: `Searched ${input.category ? `${String(input.category)} ` : ""}transactions`;
+				? {
+						active: `Searching transactions for "${String(input.query)}"…`,
+						done: `Searched transactions for "${String(input.query)}"`,
+					}
+				: {
+						active: `Searching ${category}transactions…`,
+						done: `Searched ${category}transactions`,
+					};
+		}
 		case "getGoals":
-			return "Checked your savings goals";
+			return {
+				active: "Checking your savings goals…",
+				done: "Checked your savings goals",
+			};
 		case "simulateSavings":
-			return "Ran the savings numbers";
+			return {
+				active: "Running the savings numbers…",
+				done: "Ran the savings numbers",
+			};
 		default:
-			return name;
+			return { active: name, done: name };
 	}
 }
 
@@ -50,29 +85,34 @@ export function ToolActivity({ part }: { part: CoachToolPart }) {
 	const input = (part.input ?? {}) as Input;
 	const done = part.state === "output-available";
 	const failed = part.state === "output-error";
+	const label = readToolLabel(name, input);
+
+	if (!done && !failed) {
+		return <p className="shimmer text-sm">{label.active}</p>;
+	}
 
 	return (
-		<details className="group not-typeset text-sm text-muted-foreground">
-			<summary className="flex cursor-pointer list-none items-center gap-1.5 hover:text-foreground">
-				{done ? (
-					<Search className="h-3.5 w-3.5" />
-				) : failed ? (
+		<Collapsible className="group not-typeset text-sm text-muted-foreground">
+			<CollapsibleTrigger className="flex items-center gap-1.5 hover:text-foreground">
+				{failed ? (
 					<X className="h-3.5 w-3.5 text-destructive" />
 				) : (
-					<Loader2 className="h-3.5 w-3.5 animate-spin" />
+					<Search className="h-3.5 w-3.5" />
 				)}
-				<span>{readToolLabel(name, input)}</span>
-				{(done || failed) && (
-					<ChevronRight className="h-3.5 w-3.5 transition-transform group-open:rotate-90" />
+				<span>{label.done}</span>
+				<ChevronRight className="h-3.5 w-3.5 transition-transform group-data-[state=open]:rotate-90" />
+			</CollapsibleTrigger>
+			<CollapsibleContent>
+				{failed && <p className="mt-1 text-destructive">{part.errorText}</p>}
+				{done && (
+					<ScrollArea className="mt-2 h-64 rounded-md bg-muted">
+						<pre className="p-3 text-xs">
+							{JSON.stringify(part.output, null, 2)}
+						</pre>
+					</ScrollArea>
 				)}
-			</summary>
-			{failed && <p className="mt-1 text-destructive">{part.errorText}</p>}
-			{done && (
-				<pre className="mt-2 max-h-64 overflow-auto rounded-md bg-muted p-3 text-xs">
-					{JSON.stringify(part.output, null, 2)}
-				</pre>
-			)}
-		</details>
+			</CollapsibleContent>
+		</Collapsible>
 	);
 }
 
@@ -150,7 +190,7 @@ function ApprovalStatus({
 		case "input-available":
 			return (
 				<span className="flex items-center gap-1.5 text-muted-foreground">
-					<Loader2 className="h-3.5 w-3.5 animate-spin" /> Preparing…
+					<Spinner className="size-3.5" /> Preparing…
 				</span>
 			);
 		case "approval-requested":
@@ -171,7 +211,7 @@ function ApprovalStatus({
 		case "approval-responded":
 			return part.approval.approved ? (
 				<span className="flex items-center gap-1.5 text-muted-foreground">
-					<Loader2 className="h-3.5 w-3.5 animate-spin" /> Applying…
+					<Spinner className="size-3.5" /> Applying…
 				</span>
 			) : (
 				<span className="text-muted-foreground">Cancelled.</span>

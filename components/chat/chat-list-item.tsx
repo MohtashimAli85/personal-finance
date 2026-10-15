@@ -11,6 +11,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { ChatSummary } from "@/lib/chat";
 import { cn } from "@/lib/tailwindcss/utils";
 import { useChatListItem } from "./use-chat-list-item";
@@ -58,14 +59,19 @@ export default function ChatListItem({
 		<div
 			className={cn(
 				"group flex items-center rounded-md text-sm hover:bg-muted",
-				active && "bg-muted font-medium",
+				active &&
+					"bg-accent font-medium text-accent-foreground hover:bg-accent",
 			)}
 		>
 			<Link
 				href={`/chat/${chat.id}`}
 				className="min-w-0 flex-1 truncate px-2 py-1.5"
 			>
-				{chat.title || "New chat"}
+				{chat.title === null ? (
+					<Skeleton className="h-4 w-3/4" />
+				) : (
+					chat.title || "New chat"
+				)}
 			</Link>
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
