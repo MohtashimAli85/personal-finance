@@ -1,15 +1,15 @@
 "use client";
 
-import { Loader2, RefreshCw, SearchCheck } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import type {
 	BankSenderConfig,
 	UnparsedEmail,
 } from "@/app/actions/bank/sender-config";
 import BankHistoryCard from "@/components/bank-transactions/bank-history-card";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Money } from "@/components/money";
 import PageContainer from "@/components/page-container";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BankTransactionRow } from "@/lib/bank-transaction";
 import ConnectCard from "./connect-card";
 import PendingReviewCard from "./pending-review-card";
@@ -32,7 +32,8 @@ export default function BankTransactionsClient({
 	senderConfigs: BankSenderConfig[];
 	unparsed: UnparsedEmail[];
 }) {
-	const { status, isPending, startTransition, sync, rescan } = useBankSync();
+	const { status, isPending, isRefining, startTransition, sync } =
+		useBankSync();
 	const totalSpent = useTotalSpent(transactions);
 
 	if (!configured) {
@@ -50,17 +51,13 @@ export default function BankTransactionsClient({
 				<p className="text-sm text-muted-foreground">
 					{email ? `Connected as ${email}` : "Connected to Gmail"}
 				</p>
-				<div className="flex gap-2">
-					<Button
-						onClick={rescan}
-						disabled={isPending}
-						size="sm"
-						variant="outline"
-						title="Re-read every bank email from scratch, ignoring the sync cursor. Recovers anything a normal sync missed."
-					>
-						<SearchCheck className="mr-2 h-4 w-4" />
-						Deep rescan
-					</Button>
+				<div className="flex items-center gap-2">
+					{isRefining && (
+						<p className="flex items-center gap-2 text-sm text-muted-foreground">
+							<Loader2 className="h-4 w-4 animate-spin" />
+							Improving names with AI…
+						</p>
+					)}
 					<Button onClick={sync} disabled={isPending} size="sm">
 						{isPending ? (
 							<Loader2 className="mr-2 h-4 w-4 animate-spin" />

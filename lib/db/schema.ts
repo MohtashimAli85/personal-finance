@@ -122,6 +122,7 @@ export const gmail_messages = sqliteTable(
 		internal_date: text("internal_date"),
 		snippet: text("snippet"),
 		body_text: text("body_text"),
+		ai_parse: text("ai_parse"),
 		received_at: text("received_at").default(sql`(datetime('now'))`),
 		processed: integer("processed", { mode: "boolean" })
 			.notNull()

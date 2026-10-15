@@ -1,16 +1,15 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
-import {
-	rescanBankTransactions,
-	syncBankTransactions,
-} from "@/app/actions/bank/sync";
+import { syncBankTransactions } from "@/app/actions/bank/sync";
 import type { SyncStatus } from "./status-banner";
+import { useAiRefine } from "./use-ai-refine";
 import { useElectronOAuth } from "./use-electron-oauth";
 
 export function useBankSync() {
 	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [status, setStatus] = useState<SyncStatus | null>(null);
+	const { isRefining, refine } = useAiRefine();
 
 	useElectronOAuth(
 		useCallback((text: string) => setStatus({ tone: "error", text }), []),
@@ -38,30 +37,10 @@ export function useBankSync() {
 						: "You're all caught up — no new transactions",
 			});
 			router.refresh();
+			// Not awaited: names improve in the background without holding the button.
+			void refine();
 		});
 	};
 
-	const rescan = () => {
-		startTransition(async () => {
-			setStatus(null);
-			const result = await rescanBankTransactions();
-			if (!result.success) return fail(result);
-			const parts = [`Re-read ${result.scanned} bank emails`];
-			if (result.inserted > 0) {
-				parts.push(
-					`recovered ${result.inserted} missing transaction${result.inserted === 1 ? "" : "s"}`,
-				);
-			}
-			if (result.repaired > 0) {
-				parts.push(`fixed ${result.repaired} description(s)`);
-			}
-			if (result.inserted === 0 && result.repaired === 0) {
-				parts.push("nothing was missing");
-			}
-			setStatus({ tone: "success", text: `${parts.join(" — ")}.` });
-			router.refresh();
-		});
-	};
-
-	return { status, isPending, startTransition, sync, rescan };
+	return { status, isPending, isRefining, startTransition, sync };
 }

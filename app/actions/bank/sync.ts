@@ -3,21 +3,24 @@
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { applyBalanceDelta, balanceEffect, signedAmount } from "@/lib/balance";
+import { parseBankEmail } from "@/lib/bank-email-parse";
 import {
-	applyBalanceDelta,
-	balanceEffect,
-	signedAmount,
-} from "@/lib/balance";
-import { type BankEmail, parseBankEmail } from "@/lib/bank-email-parse";
-import { toDateKey } from "@/lib/date";
+	hashEmailId,
+	resolveAccountId,
+	toBankEmail,
+	transactionFields,
+} from "@/lib/bank-import";
+import { cachedAiTransaction } from "@/lib/bank-parsers/ai";
 import { db } from "@/lib/db";
-import { accounts, gmail_messages, transactions } from "@/lib/db/schema";
+import { gmail_messages, transactions } from "@/lib/db/schema";
 import {
 	deltaSync,
 	type EmailBatch,
 	fetchEmailsFromSender,
 	fetchMessagesByIds,
 	isGoogleAuthError,
+	isHistoryExpiredError,
 	type ProcessedEmail,
 	refreshAccessToken,
 } from "@/lib/gmail";
@@ -30,12 +33,11 @@ import { getMailStatus, type MailStatus } from "@/lib/mail/credentials";
 import {
 	getAllEmails,
 	getSavedHistoryId,
-	getUnprocessedEmails,
+	hasEmailFrom,
 	markEmailsProcessed,
 	saveHistoryId,
 	upsertEmails,
 } from "@/lib/mail/gmail-store";
-import { toCents } from "@/lib/money";
 import { RefreshTokenRevokedError } from "@/lib/refresh";
 
 export type { MailStatus } from "@/lib/mail/credentials";
@@ -144,33 +146,6 @@ async function forceRefreshAccessToken(): Promise<string> {
 	return refreshAndPersist(refreshToken);
 }
 
-// Hashes the Gmail message id (rather than the parsed date/amount/description)
-// so distinct transactions of the same amount on the same day - e.g. two
-// separate PKR 20,000 ATM withdrawals in one sitting - aren't mistaken for
-// duplicates and silently dropped. Each bank email is one real transaction.
-async function hashKey(emailId: string) {
-	const data = new TextEncoder().encode(emailId);
-	const digest = await crypto.subtle.digest("SHA-256", data);
-	return Array.from(new Uint8Array(digest))
-		.map((b) => b.toString(16).padStart(2, "0"))
-		.join("");
-}
-
-// Fallback only - normally every enabled sender config already carries a
-// resolved account_id (see lib/mail/bank-sender-config.ts).
-function ensureAccount(name: string): string {
-	const existing = db
-		.select({ id: accounts.id })
-		.from(accounts)
-		.where(eq(accounts.name, name))
-		.get();
-	if (existing) return existing.id;
-
-	const id = crypto.randomUUID();
-	db.insert(accounts).values({ id, name, balance: 0 }).run();
-	return id;
-}
-
 // ============================================================================
 // Phase 1 + 4: decide initial fetch vs delta sync, then persist emails locally
 // ============================================================================
@@ -195,9 +170,18 @@ async function fetchBatch(
 	savedHistoryId: string | null,
 	senderEmails: string[],
 ): Promise<EmailBatch> {
-	return savedHistoryId
-		? deltaSync(accessToken, savedHistoryId, senderEmails)
-		: fetchFromAllSenders(accessToken, senderEmails);
+	// The cursor only covers mail that arrived after it was saved, so a sender
+	// added since then needs a full read to pick up its older mail.
+	const hasUnseenSender = senderEmails.some((sender) => !hasEmailFrom(sender));
+	if (!savedHistoryId || hasUnseenSender) {
+		return fetchFromAllSenders(accessToken, senderEmails);
+	}
+	try {
+		return await deltaSync(accessToken, savedHistoryId, senderEmails);
+	} catch (error) {
+		if (!isHistoryExpiredError(error)) throw error;
+		return fetchFromAllSenders(accessToken, senderEmails);
+	}
 }
 
 async function syncEmailsToDb(configs: BankSenderConfig[]): Promise<number> {
@@ -259,28 +243,12 @@ async function syncEmailsToDb(configs: BankSenderConfig[]): Promise<number> {
 interface ImportResult {
 	inserted: number;
 	fetched: number;
-	repaired: number;
-}
-
-// Gives the parser the sender and a usable received date, so an alert whose
-// body omits a date can still be dated from the message itself.
-function toBankEmail(email: typeof gmail_messages.$inferSelect): BankEmail {
-	const epoch = Number(email.internal_date);
-	return {
-		from: email.from,
-		subject: email.subject,
-		body: email.body_text ?? "",
-		receivedAt:
-			email.date ??
-			(Number.isFinite(epoch) && epoch > 0
-				? new Date(epoch).toISOString()
-				: null),
-	};
 }
 
 // Walks stored emails and materialises any bank transaction not yet recorded.
 // Safe to run over already-processed emails: the per-message hash makes it
-// idempotent, so it doubles as the reconciliation pass for the rescan path.
+// idempotent. A cached AI reading wins over the regex one, so a re-import never
+// reverts a refined name.
 async function importTransactions(
 	emails: (typeof gmail_messages.$inferSelect)[],
 	configs: BankSenderConfig[],
@@ -300,48 +268,38 @@ async function importTransactions(
 
 	let inserted = 0;
 	let fetched = 0;
-	let repaired = 0;
 	const processedIds: string[] = [];
 
 	for (const email of emails) {
 		const config = matchSenderConfig(email.from, configs);
 		if (!config) continue;
 
-		const tx = parseBankEmail(toBankEmail(email)).transaction;
+		const tx =
+			cachedAiTransaction(email.ai_parse) ??
+			parseBankEmail(toBankEmail(email)).transaction;
 		if (!tx) continue;
 		fetched += 1;
 
-		const isoDate = tx.date;
-		const hash = await hashKey(email.id);
+		const hash = await hashEmailId(email.id);
 		if (known.has(hash)) {
 			processedIds.push(email.id);
-			// An improved parser can produce a better description for an email
-			// already imported - update it in place rather than duplicating it.
+			// An improved parser or AI pass can produce a better description for an
+			// email already imported - update it in place rather than duplicating it.
 			if (repairDescriptions && known.get(hash) !== tx.description) {
 				db.update(transactions)
 					.set({ notes: tx.description })
 					.where(eq(transactions.external_hash, hash))
 					.run();
-				repaired += 1;
 			}
 			continue;
 		}
 		known.set(hash, tx.description);
 
-		const accountId = config.accountId || ensureAccount(config.accountName);
-
-		const cents = toCents(tx.amount);
-		const payment = tx.type === "expense" ? cents : null;
-		const deposit = tx.type === "income" ? cents : null;
-
 		db.insert(transactions)
 			.values({
 				id: crypto.randomUUID(),
-				account_id: accountId,
-				payment,
-				deposit,
-				date: toDateKey(isoDate),
-				notes: tx.description,
+				account_id: resolveAccountId(config),
+				...transactionFields(tx),
 				source: "email",
 				external_hash: hash,
 				// Lands in the bank-transactions review queue; it affects neither
@@ -354,7 +312,7 @@ async function importTransactions(
 	}
 
 	markEmailsProcessed(processedIds);
-	return { inserted, fetched, repaired };
+	return { inserted, fetched };
 }
 
 export async function syncBankTransactions(): Promise<
@@ -370,9 +328,12 @@ export async function syncBankTransactions(): Promise<
 		}
 
 		await syncEmailsToDb(configs);
+		// Re-derives over every stored email, not just the unprocessed ones, so a
+		// mis-parsed description from an earlier run is repaired too.
 		const { inserted, fetched } = await importTransactions(
-			getUnprocessedEmails(),
+			getAllEmails(),
 			configs,
+			{ repairDescriptions: true },
 		);
 
 		revalidatePath("/bank-transactions");
@@ -384,62 +345,6 @@ export async function syncBankTransactions(): Promise<
 			success: false,
 			error:
 				error instanceof Error ? error.message : "Failed to fetch bank emails",
-			needsReauth: error instanceof RefreshTokenRevokedError,
-		};
-	}
-}
-
-// ============================================================================
-// Recovery: ignore the delta cursor and re-list every message per sender.
-// Delta sync is cursor-based, so anything it skipped (an expired historyId,
-// a fetch that failed mid-window, mail that arrived before a sender was
-// configured) is invisible to it forever. This re-reads from the search index
-// instead and reconciles - idempotent, thanks to per-message hashing.
-// ============================================================================
-export async function rescanBankTransactions(): Promise<
-	| { success: true; inserted: number; scanned: number; repaired: number }
-	| { success: false; error: string; needsReauth?: boolean }
-> {
-	try {
-		const configs = getEnabledBankSenderConfigs();
-		if (configs.length === 0) {
-			throw new Error(
-				"No bank sender configured yet. Add one below to start importing.",
-			);
-		}
-
-		const senderEmails = configs.map((c) => c.senderEmail);
-		let accessToken = await getAccessToken();
-
-		let batch: EmailBatch;
-		try {
-			batch = await fetchFromAllSenders(accessToken, senderEmails);
-		} catch (error) {
-			if (!isGoogleAuthError(error)) throw error;
-			accessToken = await forceRefreshAccessToken();
-			batch = await fetchFromAllSenders(accessToken, senderEmails);
-		}
-
-		upsertEmails(batch.emails);
-		if (batch.historyId && !batch.incomplete) saveHistoryId(batch.historyId);
-
-		// Re-derive over every stored email, not just the unprocessed ones, so
-		// anything previously mis-parsed or wrongly skipped is picked up too.
-		const { inserted, fetched, repaired } = await importTransactions(
-			getAllEmails(),
-			configs,
-			{ repairDescriptions: true },
-		);
-
-		revalidatePath("/bank-transactions");
-		return { success: true, inserted, scanned: fetched, repaired };
-	} catch (error) {
-		console.error("Bank rescan error:", error);
-		revalidatePath("/bank-transactions");
-		return {
-			success: false,
-			error:
-				error instanceof Error ? error.message : "Failed to rescan bank emails",
 			needsReauth: error instanceof RefreshTokenRevokedError,
 		};
 	}
@@ -470,7 +375,9 @@ export async function acceptBankTransaction(
 		db.update(transactions)
 			.set({
 				status: "cleared",
-				...(categoryId !== undefined ? { category_id: categoryId || null } : {}),
+				...(categoryId !== undefined
+					? { category_id: categoryId || null }
+					: {}),
 			})
 			.where(eq(transactions.id, id))
 			.run();

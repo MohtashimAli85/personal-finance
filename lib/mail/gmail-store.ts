@@ -1,4 +1,5 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, like } from "drizzle-orm";
+import type { ParsedBankTransaction } from "@/lib/bank-parsers/types";
 import { db } from "@/lib/db";
 import { gmail_messages, gmail_sync_state } from "@/lib/db/schema";
 import type { ProcessedEmail } from "@/lib/gmail";
@@ -58,16 +59,8 @@ export function upsertEmails(emails: ProcessedEmail[]): void {
 	}
 }
 
-export function getUnprocessedEmails(): (typeof gmail_messages.$inferSelect)[] {
-	return db
-		.select()
-		.from(gmail_messages)
-		.where(eq(gmail_messages.processed, false))
-		.all();
-}
-
-// Every stored message, processed or not - used by the rescan path, which
-// re-derives transactions from scratch instead of trusting the processed flag.
+// Every stored message, processed or not - the import re-derives transactions
+// from scratch instead of trusting the processed flag.
 export function getAllEmails(): (typeof gmail_messages.$inferSelect)[] {
 	return db.select().from(gmail_messages).all();
 }
@@ -80,4 +73,35 @@ export function markEmailsProcessed(ids: string[]): void {
 			.where(and(eq(gmail_messages.id, id)))
 			.run();
 	}
+}
+
+export function hasEmailFrom(sender: string): boolean {
+	return Boolean(
+		db
+			.select({ id: gmail_messages.id })
+			.from(gmail_messages)
+			.where(like(gmail_messages.from, `%${sender}%`))
+			.limit(1)
+			.get(),
+	);
+}
+
+// Every stored message the AI pass has not answered yet. A failed model call
+// leaves the column null, so it is retried on the next sync.
+export function getEmailsMissingAiParse(): (typeof gmail_messages.$inferSelect)[] {
+	return db
+		.select()
+		.from(gmail_messages)
+		.where(isNull(gmail_messages.ai_parse))
+		.all();
+}
+
+export function saveAiParse(
+	id: string,
+	transaction: ParsedBankTransaction | null,
+): void {
+	db.update(gmail_messages)
+		.set({ ai_parse: JSON.stringify({ transaction }) })
+		.where(eq(gmail_messages.id, id))
+		.run();
 }

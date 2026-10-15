@@ -353,7 +353,13 @@ export function isGoogleAuthError(error: unknown): boolean {
 	return code === 401 || status === 401 || status === "UNAUTHENTICATED";
 }
 
-export { refreshAccessToken } from "./refresh";
+// history.list answers 404 once the stored historyId is too old to replay.
+export function isHistoryExpiredError(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+	return (error as { code?: unknown }).code === 404;
+}
+
 export type { RefreshedToken } from "./refresh";
+export { refreshAccessToken } from "./refresh";
 
 export type { Auth, gmail_v1 };

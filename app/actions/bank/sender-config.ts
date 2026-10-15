@@ -23,7 +23,7 @@ export interface UnparsedEmail {
 
 /**
  * Bank emails that read like a transaction (they name an amount and a debit or
- * credit) but that no template could parse. These are genuine parser gaps -
+ * credit) but that neither a template nor the AI pass could parse. These are genuine parser gaps -
  * ordinary alerts such as login notices are excluded, so an empty list means
  * nothing is being silently dropped.
  */
@@ -34,6 +34,8 @@ export async function listUnparsedBankEmailsAction(): Promise<UnparsedEmail[]> {
 	const unparsed: UnparsedEmail[] = [];
 	for (const email of getAllEmails()) {
 		if (!matchSenderConfig(email.from, configs)) continue;
+		// The AI pass has already read it, so it isn't stuck anymore.
+		if (email.ai_parse) continue;
 
 		const outcome = parseBankEmail({
 			from: email.from,
