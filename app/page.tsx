@@ -1,7 +1,8 @@
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { ArrowDownLeft, ArrowUpRight, Landmark, Wallet } from "lucide-react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import VerifyBalanceDialog from "@/components/balance-check/verify-balance-dialog";
 import CashFlowChart from "@/components/dashboard/cash-flow-chart";
 import ChartCard from "@/components/dashboard/chart-card";
 import GoalsCard from "@/components/dashboard/goals-card";
@@ -12,6 +13,7 @@ import StatCard from "@/components/dashboard/stat-card";
 import { Money } from "@/components/money";
 import PageContainer from "@/components/page-container";
 import { getAccounts } from "@/lib/account";
+import { getBalanceVerifiedAt, getPendingTotal } from "@/lib/balance-check";
 import { getBudgetView } from "@/lib/budget";
 import {
 	getCashFlow,
@@ -51,6 +53,7 @@ export default async function DashboardPage() {
 		accounts.filter((a) => a.account_type === "off_budget"),
 	);
 	const net = summary.income - summary.expense;
+	const verifiedAt = getBalanceVerifiedAt();
 
 	return (
 		<PageContainer className="gap-4">
@@ -60,10 +63,22 @@ export default async function DashboardPage() {
 					value={onBudget + offBudget}
 					icon={Landmark}
 					footer={
-						<>
-							On budget <Money value={onBudget} /> · Off budget{" "}
-							<Money value={offBudget} />
-						</>
+						<div className="space-y-1">
+							<div>
+								On budget <Money value={onBudget} /> · Off budget{" "}
+								<Money value={offBudget} />
+							</div>
+							<div className="flex items-center gap-1">
+								{verifiedAt
+									? `Verified ${formatDistanceToNow(new Date(verifiedAt), { addSuffix: true })}`
+									: "Never verified"}{" "}
+								·
+								<VerifyBalanceDialog
+									appTotal={onBudget + offBudget}
+									pendingTotal={getPendingTotal()}
+								/>
+							</div>
+						</div>
 					}
 				/>
 				<StatCard
