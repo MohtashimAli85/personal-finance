@@ -1,6 +1,7 @@
 "use client";
 
 import CategoryCombobox from "../categories/category-combobox";
+import type { ComboboxProps } from "../ui/combobox";
 import { useIsOffBudget } from "./use-is-off-budget";
 
 export default function TransactionCategory({
@@ -8,10 +9,9 @@ export default function TransactionCategory({
 	value,
 	label,
 	onChange,
-}: {
+	variant,
+}: Pick<ComboboxProps, "value" | "label" | "variant"> & {
 	accountId?: string | null;
-	value?: string;
-	label?: string;
 	onChange: (value: string) => void;
 }) {
 	const offBudget = useIsOffBudget(accountId);
@@ -24,5 +24,12 @@ export default function TransactionCategory({
 		);
 	}
 
-	return <CategoryCombobox value={value} label={label} onChange={onChange} />;
+	return (
+		<CategoryCombobox
+			value={value}
+			label={label}
+			onChange={onChange}
+			variant={variant}
+		/>
+	);
 }

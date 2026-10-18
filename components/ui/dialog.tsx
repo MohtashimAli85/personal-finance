@@ -3,7 +3,9 @@
 import { XIcon } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import type * as React from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { PortalContainerContext } from "@/context/portal-container-context";
 import { cn } from "@/lib/tailwindcss/utils";
 
 function Dialog({
@@ -54,6 +56,9 @@ function DialogContent({
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
 	showCloseButton?: boolean;
 }) {
+	const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+		null,
+	);
 	return (
 		<DialogPortal>
 			<DialogOverlay />
@@ -65,7 +70,10 @@ function DialogContent({
 				)}
 				{...props}
 			>
-				{children}
+				<PortalContainerContext value={portalContainer}>
+					{children}
+				</PortalContainerContext>
+				<div ref={setPortalContainer} className="contents" />
 				{showCloseButton && (
 					<DialogPrimitive.Close data-slot="dialog-close" asChild>
 						<Button

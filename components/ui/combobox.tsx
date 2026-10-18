@@ -12,6 +12,7 @@ import {
   InputGroupInput,
   type inputGroupVariants,
 } from "@/components/ui/input-group";
+import { usePortalContainer } from "@/context/portal-container-context";
 import { cn } from "@/lib/tailwindcss/utils";
 export interface ComboboxProps {
   value?: string;
@@ -108,8 +109,9 @@ function ComboboxContent({
     ComboboxPrimitive.Positioner.Props,
     "side" | "align" | "sideOffset" | "alignOffset" | "anchor"
   >) {
+  const container = usePortalContainer();
   return (
-    <ComboboxPrimitive.Portal>
+    <ComboboxPrimitive.Portal container={container ?? undefined}>
       <ComboboxPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

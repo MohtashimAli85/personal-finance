@@ -20,6 +20,7 @@ const CategoryCombobox = ({
   value,
   label: labelProp,
   onChange,
+  variant = "table",
 }: ComboboxProps) => {
   const comboBtn = useRef<HTMLButtonElement>(null);
   const groupedCategories = useStore((state) => state.groupedCategories);
@@ -46,7 +47,7 @@ const CategoryCombobox = ({
     >
       <ComboboxTrigger hidden ref={comboBtn} />
       <ComboboxInput
-        variant={"table"}
+        variant={variant}
         showTrigger={false}
         placeholder="Select a Category"
         value={inputValue}
