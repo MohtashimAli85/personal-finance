@@ -143,6 +143,24 @@
 		@apply bg-background text-foreground;
 		@apply bg-background text-foreground;
 	}
+	* {
+		scrollbar-width: thin;
+		scrollbar-color: var(--muted-foreground) transparent;
+	}
+	*::-webkit-scrollbar {
+		width: 8px;
+		height: 8px;
+	}
+	*::-webkit-scrollbar-track {
+		background: transparent;
+	}
+	*::-webkit-scrollbar-thumb {
+		background-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+		border-radius: 9999px;
+	}
+	*::-webkit-scrollbar-thumb:hover {
+		background-color: var(--muted-foreground);
+	}
 }
 
 [data-privacy="on"] [data-money] {
