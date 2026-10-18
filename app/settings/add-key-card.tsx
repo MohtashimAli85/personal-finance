@@ -1,3 +1,4 @@
+import FeedbackText from "@/components/feedback-text";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import type { AiProvider } from "@/lib/settings";
-import FeedbackText from "./feedback-text";
 import { PROVIDERS } from "./providers";
 import { useAddKey } from "./use-add-key";
 

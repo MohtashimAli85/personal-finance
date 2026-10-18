@@ -3,7 +3,6 @@ import { AlertCircle, CheckCircle2 } from "lucide-react";
 export interface SyncStatus {
 	tone: "success" | "error";
 	text: string;
-	needsReauth?: boolean;
 }
 
 export default function StatusBanner({ status }: { status: SyncStatus }) {

@@ -1,11 +1,11 @@
 import { Loader2, UserRound } from "lucide-react";
+import FeedbackText from "@/components/feedback-text";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { PROFILE_LIMITS, type Profile } from "@/lib/profile-schema";
-import FeedbackText from "./feedback-text";
 import { useProfileForm } from "./use-profile-form";
 
 export default function ProfileCard({ profile }: { profile: Profile }) {

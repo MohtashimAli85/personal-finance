@@ -13,24 +13,10 @@ import { FIXTURES } from "@/lib/bank-parsers/fixtures";
 import { createTestDb } from "./db-test-utils";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
-vi.mock("next/headers", () => ({
-	cookies: async () => ({
-		get: () => undefined,
-		set: () => {},
-		delete: () => {},
-	}),
+vi.mock("@/lib/mail/imap", () => ({ fetchNewEmails: async () => [] }));
+vi.mock("@/lib/mail/credentials", () => ({
+	getMailCredentials: () => ({ email: "me@gmail.com", appPassword: "x" }),
 }));
-vi.mock("@/lib/gmail", async (importOriginal) => {
-	const original = await importOriginal<typeof import("@/lib/gmail")>();
-	return {
-		...original,
-		fetchEmailsFromSender: async () => ({
-			emails: [],
-			historyId: "1",
-			incomplete: false,
-		}),
-	};
-});
 
 let mockModels: ResolvedModel[] = [];
 vi.mock("@/lib/ai/models", async (importOriginal) => {
@@ -90,10 +76,8 @@ beforeAll(async () => {
 afterAll(() => ctx.cleanup());
 
 beforeEach(() => {
-	process.env.GMAIL_ACCESS_TOKEN = "test-token";
 	ctx.db.delete(ctx.schema.transactions).run();
 	ctx.db.delete(ctx.schema.gmail_messages).run();
-	ctx.db.delete(ctx.schema.gmail_sync_state).run();
 	ctx.db.delete(ctx.schema.bank_sender_configs).run();
 	ctx.db.delete(ctx.schema.accounts).run();
 

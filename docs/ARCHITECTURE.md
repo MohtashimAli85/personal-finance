@@ -14,7 +14,7 @@ There is **no API-route layer for reads** and no `lib/services.ts`/`fetchData`
 indirection - a page or component that needs data imports the `lib/*.ts`
 function and calls it directly. The `app/api/**` routes that do exist are for
 things that must be HTTP endpoints for a reason outside this pattern - the
-Google OAuth redirect handlers.
+streaming chat endpoint and file exports.
 
 ## Writes: server actions
 

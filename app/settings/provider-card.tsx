@@ -1,10 +1,10 @@
 import { Loader2 } from "lucide-react";
 import ConfirmDialog from "@/components/confirm-dialog";
+import FeedbackText from "@/components/feedback-text";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ApiKeySource } from "@/lib/settings";
-import FeedbackText from "./feedback-text";
 import { type ProviderInfo, SOURCE_BADGE } from "./providers";
 import { useProviderKey } from "./use-provider-key";
 

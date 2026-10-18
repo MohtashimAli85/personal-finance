@@ -1,9 +1,8 @@
 import { useRouter } from "next/navigation";
-import { useCallback, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { syncBankTransactions } from "@/app/actions/bank/sync";
 import type { SyncStatus } from "./status-banner";
 import { useAiRefine } from "./use-ai-refine";
-import { useElectronOAuth } from "./use-electron-oauth";
 
 export function useBankSync() {
 	const router = useRouter();
@@ -11,24 +10,13 @@ export function useBankSync() {
 	const [status, setStatus] = useState<SyncStatus | null>(null);
 	const { isRefining, refine } = useAiRefine();
 
-	useElectronOAuth(
-		useCallback((text: string) => setStatus({ tone: "error", text }), []),
-	);
-
-	const fail = (result: { error: string; needsReauth?: boolean }) => {
-		setStatus({
-			tone: "error",
-			text: result.error,
-			needsReauth: result.needsReauth,
-		});
-		if (result.needsReauth) router.refresh();
-	};
-
 	const sync = () => {
 		startTransition(async () => {
 			setStatus(null);
 			const result = await syncBankTransactions();
-			if (!result.success) return fail(result);
+			if (!result.success) {
+				return setStatus({ tone: "error", text: result.error });
+			}
 			setStatus({
 				tone: "success",
 				text:

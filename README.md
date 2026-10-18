@@ -56,9 +56,11 @@ development).
 ## Bank Transactions (Gmail import)
 
 The **Bank Transactions** page imports transactions from bank alert emails via
-Gmail OAuth (read-only `gmail.readonly` scope). Configure `GOOGLE_CLIENT_ID` and
-`GOOGLE_CLIENT_SECRET` (see `.env.example`) to enable it; without them the page
-still works for manually entered and CSV-imported transactions.
+Gmail IMAP. Connect it on that page with your Gmail address and an
+[app password](https://myaccount.google.com/apppasswords) (needs 2-Step
+Verification). The app password is stored encrypted with `APP_SECRET_KEY`;
+without a connection the app still works for manually entered and CSV-imported
+transactions.
 
 Imported transactions land in a **review queue** on that page as `pending` -
 they don't count toward budget activity until you assign a category and accept

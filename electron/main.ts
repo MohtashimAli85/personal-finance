@@ -23,25 +23,6 @@ let serverPort = PREFERRED_PORT;
 
 const isDev = process.env.NODE_ENV === "development";
 
-const deepLinkScheme = process.env.ELECTRON_DEEP_LINK_SCHEME || "myfinanceapp";
-
-function handleDeepLink(url: string): void {
-	console.log("[DeepLink]", url);
-	const parsed = new URL(url);
-	if (parsed.pathname !== "/oauth-callback") return;
-
-	const accessToken = parsed.searchParams.get("access_token");
-	const refreshToken = parsed.searchParams.get("refresh_token");
-	const expiresIn = parsed.searchParams.get("expires_in");
-	if (!accessToken) return;
-
-	mainWindow?.webContents.send("oauth-callback", {
-		accessToken,
-		refreshToken: refreshToken ?? null,
-		expiresIn: expiresIn ? Number(expiresIn) : null,
-	});
-}
-
 function syncDockIcon(): void {
 	const theme = nativeTheme.shouldUseDarkColors ? "dark" : "light";
 	app.dock?.setIcon(
@@ -59,6 +40,10 @@ function listenOnce(port: number): Promise<number> {
 			server.close(() => resolve(address.port));
 		});
 	});
+}
+
+function getAppPort(): Promise<number> {
+	return listenOnce(PREFERRED_PORT).catch(() => listenOnce(0));
 }
 
 function appOrigin(): string {
@@ -114,8 +99,8 @@ function loadAppSecretKey(): string | undefined {
 	return key;
 }
 
-// Packaged builds leave out .env files, so settings such as the Google OAuth
-// client are read from app.env in the user-data folder (KEY=VALUE lines).
+// Packaged builds leave out .env files, so settings such as AI provider keys
+// are read from app.env in the user-data folder (KEY=VALUE lines).
 function loadAppEnvFile(env: Record<string, string | undefined>): void {
 	const file = path.join(app.getPath("userData"), "app.env");
 	if (!fs.existsSync(file)) return;
@@ -141,7 +126,6 @@ function startNextServer(): Promise<void> {
 				return;
 			}
 			loadAppEnvFile(env);
-			env.NEXT_PUBLIC_APP_URL = appOrigin();
 			env.HOSTNAME = "127.0.0.1";
 			env.NODE_ENV = "production";
 			env.APP_DB_PATH = path.join(app.getPath("userData"), "db.sqlite");
@@ -267,12 +251,6 @@ function createWindow(): void {
 	});
 
 	mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
-		// Google sign-in runs in the system browser; it returns via the deep link.
-		if (targetUrl.startsWith(`${appOrigin()}/api/auth/google/login`)) {
-			event.preventDefault();
-			shell.openExternal(targetUrl);
-			return;
-		}
 		if (isAppUrl(targetUrl)) return;
 		event.preventDefault();
 		openExternalIfWeb(targetUrl);
@@ -296,32 +274,21 @@ const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
 	app.quit();
 } else {
-	app.on("second-instance", (_event, argv) => {
-		const url = argv.find((arg) => arg.startsWith(`${deepLinkScheme}://`));
-		if (url) handleDeepLink(url);
-
+	app.on("second-instance", () => {
 		if (!mainWindow) return;
 		if (mainWindow.isMinimized()) mainWindow.restore();
 		mainWindow.focus();
 	});
-
-	app.on("open-url", (event, url) => {
-		event.preventDefault();
-		handleDeepLink(url);
-	});
 }
 
 app.whenReady().then(async () => {
-	app.setAsDefaultProtocolClient(deepLinkScheme);
-
 	if (process.platform === "darwin") {
 		syncDockIcon();
 		nativeTheme.on("updated", syncDockIcon);
 	}
 
 	try {
-		// Fixed port: the Google OAuth redirect URI must match exactly.
-		serverPort = await listenOnce(PREFERRED_PORT);
+		serverPort = await getAppPort();
 		console.log(`Starting Next.js server on port ${serverPort}`);
 		await startNextServer();
 		createWindow();

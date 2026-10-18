@@ -1,8 +1,7 @@
 "use server";
 
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
 import { applyBalanceDelta, balanceEffect, signedAmount } from "@/lib/balance";
 import { parseBankEmail } from "@/lib/bank-email-parse";
 import {
@@ -13,232 +12,36 @@ import {
 } from "@/lib/bank-import";
 import { cachedAiTransaction } from "@/lib/bank-parsers/ai";
 import { db } from "@/lib/db";
-import { gmail_messages, transactions } from "@/lib/db/schema";
-import {
-	deltaSync,
-	type EmailBatch,
-	fetchEmailsFromSender,
-	fetchMessagesByIds,
-	isGoogleAuthError,
-	isHistoryExpiredError,
-	type ProcessedEmail,
-	refreshAccessToken,
-} from "@/lib/gmail";
+import { type gmail_messages, transactions } from "@/lib/db/schema";
 import {
 	type BankSenderConfig,
 	getEnabledBankSenderConfigs,
 	matchSenderConfig,
 } from "@/lib/mail/bank-sender-config";
-import { getMailStatus, type MailStatus } from "@/lib/mail/credentials";
+import { getMailCredentials } from "@/lib/mail/credentials";
 import {
 	getAllEmails,
-	getSavedHistoryId,
-	hasEmailFrom,
+	getStoredEmailIds,
 	markEmailsProcessed,
-	saveHistoryId,
 	upsertEmails,
 } from "@/lib/mail/gmail-store";
-import { RefreshTokenRevokedError } from "@/lib/refresh";
+import { fetchNewEmails } from "@/lib/mail/imap";
 
-export type { MailStatus } from "@/lib/mail/credentials";
-
-// The bank-transactions UI still imports these two action names for its
-// (now unused) app-password form fields; kept as no-op shims rather than
-// touching every call site. Gmail OAuth (below) is the only live import path.
-export async function saveMailCredentialsAction(
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	_email: string,
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	_password: string,
-): Promise<MailStatus> {
-	return getMailStatus();
-}
-
-export async function clearMailCredentialsAction() {
-	revalidatePath("/bank-transactions");
-}
-
-const TOKEN_EXPIRY_BUFFER_MS = 60_000;
-
-function isTokenExpired(expiryCookie: string | undefined): boolean {
-	if (!expiryCookie) return false;
-	const expiresAt = Number(expiryCookie);
-	if (!Number.isFinite(expiresAt)) return false;
-	return Date.now() >= expiresAt - TOKEN_EXPIRY_BUFFER_MS;
-}
-
-async function persistAccessToken(
-	accessToken: string,
-	expiresIn: number,
-): Promise<void> {
-	const store = await cookies();
-	const secure = (process.env.NEXT_PUBLIC_APP_URL ?? "").startsWith("https");
-	store.set("google_access_token", accessToken, {
-		httpOnly: true,
-		secure,
-		sameSite: "lax",
-		path: "/",
-	});
-	store.set("google_token_expiry", String(Date.now() + expiresIn * 1000), {
-		httpOnly: true,
-		secure,
-		sameSite: "lax",
-		path: "/",
-	});
-}
-
-async function clearAuthCookies(): Promise<void> {
-	const store = await cookies();
-	store.delete("google_access_token");
-	store.delete("google_refresh_token");
-	store.delete("google_token_expiry");
-	store.delete("google_email");
-}
-
-async function refreshAndPersist(refreshToken: string): Promise<string> {
-	try {
-		const { accessToken, expiresIn } = await refreshAccessToken(refreshToken);
-		await persistAccessToken(accessToken, expiresIn);
-		return accessToken;
-	} catch (error) {
-		// A revoked/expired refresh token can never recover on its own - drop the
-		// dead session so the UI falls back to the "connect Gmail" flow instead
-		// of showing a connected account whose every sync fails.
-		if (error instanceof RefreshTokenRevokedError) await clearAuthCookies();
-		throw error;
+async function syncEmailsToDb(configs: BankSenderConfig[]): Promise<void> {
+	const credentials = getMailCredentials();
+	if (!credentials) {
+		throw new Error("Connect your Gmail with an app password first.");
 	}
-}
-
-// Returns a valid Gmail access token (from OAuth cookie, else env),
-// proactively refreshing it if it is expired or about to expire.
-async function getAccessToken(): Promise<string> {
-	const store = await cookies();
-	const token = store.get("google_access_token")?.value;
-	const expiry = store.get("google_token_expiry")?.value;
-	const refreshToken = store.get("google_refresh_token")?.value;
-
-	if (token && !isTokenExpired(expiry)) return token;
-	if (refreshToken) return refreshAndPersist(refreshToken);
-	if (token) return token;
-
-	const envToken = process.env.GMAIL_ACCESS_TOKEN;
-	if (envToken) return envToken;
-
-	const envRefresh = process.env.GMAIL_REFRESH_TOKEN;
-	if (envRefresh) return refreshAndPersist(envRefresh);
-
-	throw new Error(
-		"Gmail OAuth is not configured. Sign in via /api/auth/google/login.",
+	const emails = await fetchNewEmails(
+		credentials,
+		configs.map((c) => c.senderEmail),
+		getStoredEmailIds(),
 	);
-}
-
-// Fallback for when the proactive expiry check misses (clock drift, a token
-// revoked early, or an unknown expiry) and Gmail rejects the token outright.
-async function forceRefreshAccessToken(): Promise<string> {
-	const store = await cookies();
-	const refreshToken =
-		store.get("google_refresh_token")?.value || process.env.GMAIL_REFRESH_TOKEN;
-	if (!refreshToken) {
-		throw new Error(
-			"Gmail access token expired and no refresh token is available. Sign in again via /api/auth/google/login.",
-		);
-	}
-	return refreshAndPersist(refreshToken);
+	upsertEmails(emails);
 }
 
 // ============================================================================
-// Phase 1 + 4: decide initial fetch vs delta sync, then persist emails locally
-// ============================================================================
-async function fetchFromAllSenders(
-	accessToken: string,
-	senderEmails: string[],
-): Promise<EmailBatch> {
-	const emails: ProcessedEmail[] = [];
-	let historyId = "";
-	let incomplete = false;
-	for (const senderEmail of senderEmails) {
-		const result = await fetchEmailsFromSender(accessToken, senderEmail);
-		emails.push(...result.emails);
-		if (result.historyId) historyId = result.historyId;
-		if (result.incomplete) incomplete = true;
-	}
-	return { emails, historyId, incomplete };
-}
-
-async function fetchBatch(
-	accessToken: string,
-	savedHistoryId: string | null,
-	senderEmails: string[],
-): Promise<EmailBatch> {
-	// The cursor only covers mail that arrived after it was saved, so a sender
-	// added since then needs a full read to pick up its older mail.
-	const hasUnseenSender = senderEmails.some((sender) => !hasEmailFrom(sender));
-	if (!savedHistoryId || hasUnseenSender) {
-		return fetchFromAllSenders(accessToken, senderEmails);
-	}
-	try {
-		return await deltaSync(accessToken, savedHistoryId, senderEmails);
-	} catch (error) {
-		if (!isHistoryExpiredError(error)) throw error;
-		return fetchFromAllSenders(accessToken, senderEmails);
-	}
-}
-
-async function syncEmailsToDb(configs: BankSenderConfig[]): Promise<number> {
-	const senderEmails = configs.map((c) => c.senderEmail);
-	let accessToken = await getAccessToken();
-	const savedHistoryId = getSavedHistoryId();
-
-	let batch: EmailBatch;
-	try {
-		batch = await fetchBatch(accessToken, savedHistoryId, senderEmails);
-	} catch (error) {
-		if (!isGoogleAuthError(error)) throw error;
-		accessToken = await forceRefreshAccessToken();
-		batch = await fetchBatch(accessToken, savedHistoryId, senderEmails);
-	}
-
-	upsertEmails(batch.emails);
-	// Only move the cursor when the whole window was read. Advancing past
-	// messages that failed to fetch would drop them permanently, since delta
-	// sync never looks behind the stored historyId again.
-	if (batch.historyId && !batch.incomplete) saveHistoryId(batch.historyId);
-
-	// Self-heal: any stored email that still has no body text (e.g. fetched
-	// before body extraction was wired up) gets re-fetched with full format.
-	const missingBodies = db
-		.select({ id: gmail_messages.id })
-		.from(gmail_messages)
-		.where(
-			and(
-				eq(gmail_messages.processed, false),
-				or(isNull(gmail_messages.body_text), eq(gmail_messages.body_text, "")),
-			),
-		)
-		.all()
-		.map((row) => row.id);
-
-	if (missingBodies.length > 0) {
-		let refetched: Awaited<ReturnType<typeof fetchMessagesByIds>>;
-		try {
-			refetched = await fetchMessagesByIds(accessToken, missingBodies);
-		} catch (error) {
-			if (!isGoogleAuthError(error)) throw error;
-			accessToken = await forceRefreshAccessToken();
-			refetched = await fetchMessagesByIds(accessToken, missingBodies);
-		}
-		const recovered = refetched.emails.filter(
-			(email) => email.bodyText.length > 0,
-		);
-		upsertEmails(recovered);
-		batch.emails.push(...recovered);
-	}
-
-	return batch.emails.length;
-}
-
-// ============================================================================
-// Phase 3: read emails locally, convert to bank transactions
+// Read emails locally, convert to bank transactions
 // ============================================================================
 interface ImportResult {
 	inserted: number;
@@ -317,7 +120,7 @@ async function importTransactions(
 
 export async function syncBankTransactions(): Promise<
 	| { success: true; inserted: number; fetched: number }
-	| { success: false; error: string; needsReauth?: boolean }
+	| { success: false; error: string }
 > {
 	try {
 		const configs = getEnabledBankSenderConfigs();
@@ -345,7 +148,6 @@ export async function syncBankTransactions(): Promise<
 			success: false,
 			error:
 				error instanceof Error ? error.message : "Failed to fetch bank emails",
-			needsReauth: error instanceof RefreshTokenRevokedError,
 		};
 	}
 }

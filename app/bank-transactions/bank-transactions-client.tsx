@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw, Unplug } from "lucide-react";
 import type {
 	BankSenderConfig,
 	UnparsedEmail,
@@ -17,6 +17,7 @@ import SenderConfigCard from "./sender-config-card";
 import StatusBanner from "./status-banner";
 import UnparsedCard from "./unparsed-card";
 import { useBankSync } from "./use-bank-sync";
+import { useDisconnectMail } from "./use-disconnect-mail";
 import { useTotalSpent } from "./use-total-spent";
 
 export default function BankTransactionsClient({
@@ -35,11 +36,11 @@ export default function BankTransactionsClient({
 	const { status, isPending, isRefining, startTransition, sync } =
 		useBankSync();
 	const totalSpent = useTotalSpent(transactions);
+	const { isDisconnecting, disconnect } = useDisconnectMail();
 
 	if (!configured) {
 		return (
 			<PageContainer className="max-w-4xl">
-				{status?.needsReauth && <StatusBanner status={status} />}
 				<ConnectCard />
 			</PageContainer>
 		);
@@ -48,9 +49,7 @@ export default function BankTransactionsClient({
 	return (
 		<PageContainer className="max-w-4xl">
 			<div className="flex justify-between items-center gap-2 flex-wrap">
-				<p className="text-sm text-muted-foreground">
-					{email ? `Connected as ${email}` : "Connected to Gmail"}
-				</p>
+				<p className="text-sm text-muted-foreground">Connected as {email}</p>
 				<div className="flex items-center gap-2">
 					{isRefining && (
 						<p className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -65,6 +64,15 @@ export default function BankTransactionsClient({
 							<RefreshCw className="mr-2 h-4 w-4" />
 						)}
 						Sync bank emails
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={disconnect}
+						disabled={isDisconnecting}
+					>
+						<Unplug className="mr-2 h-4 w-4" />
+						Disconnect
 					</Button>
 				</div>
 			</div>

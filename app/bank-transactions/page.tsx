@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 export default async function BankTransactionsPage() {
-	const mailStatus = await getMailStatus();
+	const mailStatus = getMailStatus();
 	const transactions = getBankTransactions();
 	const senderConfigs = getBankSenderConfigs();
 	const unparsed = await listUnparsedBankEmailsAction();
