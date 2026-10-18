@@ -33,6 +33,38 @@ const meezan = (body: string) => ({
 
 export const FIXTURES: Fixture[] = [
 	{
+		name: "nayapay: wallet top-up from bank",
+		email: {
+			from: "NayaPay <service@nayapay.com>",
+			subject: "Rs. 5,000 added from Meezan-0417! 🎉",
+			receivedAt: "Fri, 16 Oct 2026 19:36:24 +0500 (PKT)",
+			body: "",
+		},
+		expect: {
+			transaction: true,
+			amount: 5000,
+			date: "2026-10-16T12:00:00.000Z",
+			type: "income",
+			description: "Meezan-0417",
+		},
+	},
+	{
+		name: "nayapay: money sent",
+		email: {
+			from: "NayaPay <service@nayapay.com>",
+			subject: "You sent Rs. 750 to Muhammad Ali Usama 💸",
+			receivedAt: "Sat, 17 Oct 2026 11:25:23 +0500 (PKT)",
+			body: "",
+		},
+		expect: {
+			transaction: true,
+			amount: 750,
+			date: "2026-10-17T12:00:00.000Z",
+			type: "expense",
+			description: "Muhammad Ali Usama",
+		},
+	},
+	{
 		name: "meezan: RAAST transfer out",
 		email: meezan(
 			"Dear Customer, PKR 640.00 sent from your account xxx0417 with the following details: Beneficiary Account Title: : J.SPORTS Branch : JHELUM BR JLM Transaction Date : 13-Sep-2026 Transaction Time : 17:47",
