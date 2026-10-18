@@ -21,12 +21,24 @@ const settingKey = (provider: AiProvider) => `${provider}_api_key`;
 export const isAiProvider = (value: unknown): value is AiProvider =>
 	AI_PROVIDERS.includes(value as AiProvider);
 
-const readStored = (provider: AiProvider) =>
+export const getSetting = (key: string) =>
 	db
 		.select({ value: app_settings.value })
 		.from(app_settings)
-		.where(eq(app_settings.key, settingKey(provider)))
+		.where(eq(app_settings.key, key))
 		.get()?.value ?? null;
+
+export function setSetting(key: string, value: string) {
+	db.insert(app_settings)
+		.values({ key, value })
+		.onConflictDoUpdate({
+			target: app_settings.key,
+			set: { value, updated_at: sql`(datetime('now'))` },
+		})
+		.run();
+}
+
+const readStored = (provider: AiProvider) => getSetting(settingKey(provider));
 
 function resolveApiKey(provider: AiProvider): {
 	source: ApiKeySource;
@@ -67,14 +79,7 @@ export function getAiKeyStatus(): AiKeyStatus {
 }
 
 export function storeApiKey(provider: AiProvider, apiKey: string) {
-	const value = encryptSecret(apiKey);
-	db.insert(app_settings)
-		.values({ key: settingKey(provider), value })
-		.onConflictDoUpdate({
-			target: app_settings.key,
-			set: { value, updated_at: sql`(datetime('now'))` },
-		})
-		.run();
+	setSetting(settingKey(provider), encryptSecret(apiKey));
 }
 
 export function removeApiKey(provider: AiProvider) {
@@ -112,13 +117,7 @@ export function storeProfile(profile: Profile) {
 				db.delete(app_settings).where(eq(app_settings.key, key)).run();
 				continue;
 			}
-			db.insert(app_settings)
-				.values({ key, value })
-				.onConflictDoUpdate({
-					target: app_settings.key,
-					set: { value, updated_at: sql`(datetime('now'))` },
-				})
-				.run();
+			setSetting(key, value);
 		}
 	});
 }
