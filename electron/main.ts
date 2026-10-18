@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import crypto from "node:crypto";
+import type { EventEmitter } from "node:events";
 import fs from "node:fs";
 import http from "node:http";
 import net from "node:net";
@@ -11,10 +12,12 @@ import {
 	nativeTheme,
 	safeStorage,
 	shell,
+	type UtilityProcess,
+	utilityProcess,
 } from "electron";
 
 let mainWindow: BrowserWindow | null = null;
-let nextServer: ChildProcess | null = null;
+let nextServer: ChildProcess | UtilityProcess | null = null;
 const PREFERRED_PORT = 3123;
 let serverPort = PREFERRED_PORT;
 
@@ -56,10 +59,6 @@ function listenOnce(port: number): Promise<number> {
 			server.close(() => resolve(address.port));
 		});
 	});
-}
-
-function getAppPort(): Promise<number> {
-	return listenOnce(PREFERRED_PORT).catch(() => listenOnce(0));
 }
 
 function appOrigin(): string {
@@ -115,16 +114,25 @@ function loadAppSecretKey(): string | undefined {
 	return key;
 }
 
+// Packaged builds leave out .env files, so settings such as the Google OAuth
+// client are read from app.env in the user-data folder (KEY=VALUE lines).
+function loadAppEnvFile(env: Record<string, string | undefined>): void {
+	const file = path.join(app.getPath("userData"), "app.env");
+	if (!fs.existsSync(file)) return;
+	for (const line of fs.readFileSync(file, "utf8").split("\n")) {
+		const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+		if (match && env[match[1]] === undefined) {
+			env[match[1]] = match[2].replace(/^(["'])(.*)\1$/, "$2");
+		}
+	}
+}
+
 function startNextServer(): Promise<void> {
 	return new Promise((resolve, reject) => {
-		let command: string;
-		let args: string[];
 		let serverFile = "";
 		const env: Record<string, string | undefined> = { ...process.env };
 
 		if (isDev) {
-			command = process.platform === "win32" ? "next.cmd" : "next";
-			args = ["dev", "--port", String(serverPort)];
 			env.ELECTRON_RUN_AS_NODE = undefined;
 		} else {
 			serverFile = getNextServerPath();
@@ -132,11 +140,10 @@ function startNextServer(): Promise<void> {
 				reject(new Error(`Next.js server not found at ${serverFile}`));
 				return;
 			}
-			command = process.execPath;
-			args = [serverFile];
+			loadAppEnvFile(env);
+			env.NEXT_PUBLIC_APP_URL = appOrigin();
 			env.HOSTNAME = "127.0.0.1";
 			env.NODE_ENV = "production";
-			env.ELECTRON_RUN_AS_NODE = "1";
 			env.APP_DB_PATH = path.join(app.getPath("userData"), "db.sqlite");
 			env.APP_MIGRATIONS_PATH = path.join(
 				process.resourcesPath,
@@ -156,14 +163,26 @@ function startNextServer(): Promise<void> {
 			else resolve();
 		};
 
-		nextServer = spawn(command, args, {
-			env: env as NodeJS.ProcessEnv,
-			cwd: isDev ? app.getAppPath() : path.dirname(serverFile),
-			stdio: ["pipe", "pipe", "pipe"],
-			shell: process.platform === "win32",
-		});
-		const child = nextServer;
-		if (!child) return;
+		// utilityProcess runs the server without a visible app-switcher entry;
+		// a spawned Electron child would appear as its own app.
+		const child: ChildProcess | UtilityProcess = isDev
+			? spawn(
+					process.platform === "win32" ? "next.cmd" : "next",
+					["dev", "--port", String(serverPort)],
+					{
+						env: env as NodeJS.ProcessEnv,
+						cwd: app.getAppPath(),
+						stdio: ["pipe", "pipe", "pipe"],
+						shell: process.platform === "win32",
+					},
+				)
+			: utilityProcess.fork(serverFile, [], {
+					env: env as NodeJS.ProcessEnv,
+					cwd: path.dirname(serverFile),
+					stdio: "pipe",
+					serviceName: "Next.js server",
+				});
+		nextServer = child;
 
 		child.stdout?.on("data", (data: Buffer) => {
 			console.log("[Next.js]", data.toString());
@@ -175,12 +194,14 @@ function startNextServer(): Promise<void> {
 			console.error("[Next.js Error]", text);
 		});
 
-		child.on("error", (err) => {
+		const events: EventEmitter = child;
+
+		events.on("error", (err: Error) => {
 			console.error("Failed to start Next.js server:", err);
 			finish(err);
 		});
 
-		child.on("exit", (code) => {
+		events.on("exit", (code: number) => {
 			console.log(`Next.js server exited with code ${code}`);
 			nextServer = null;
 			finish(
@@ -246,6 +267,12 @@ function createWindow(): void {
 	});
 
 	mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
+		// Google sign-in runs in the system browser; it returns via the deep link.
+		if (targetUrl.startsWith(`${appOrigin()}/api/auth/google/login`)) {
+			event.preventDefault();
+			shell.openExternal(targetUrl);
+			return;
+		}
 		if (isAppUrl(targetUrl)) return;
 		event.preventDefault();
 		openExternalIfWeb(targetUrl);
@@ -293,7 +320,8 @@ app.whenReady().then(async () => {
 	}
 
 	try {
-		serverPort = await getAppPort();
+		// Fixed port: the Google OAuth redirect URI must match exactly.
+		serverPort = await listenOnce(PREFERRED_PORT);
 		console.log(`Starting Next.js server on port ${serverPort}`);
 		await startNextServer();
 		createWindow();
@@ -332,12 +360,13 @@ app.on("before-quit", (event) => {
 	// Give the server a chance to checkpoint its WAL and close the sqlite
 	// handle (see lib/db/shutdown.ts) before the process is torn down.
 	const forceKillTimer = setTimeout(() => {
-		server.kill("SIGKILL");
+		if (server.pid) process.kill(server.pid, "SIGKILL");
 	}, 3000);
 
-	server.once("exit", () => {
+	const events: EventEmitter = server;
+	events.once("exit", () => {
 		clearTimeout(forceKillTimer);
 		app.quit();
 	});
-	server.kill("SIGTERM");
+	server.kill();
 });

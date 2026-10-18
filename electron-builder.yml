@@ -6,6 +6,11 @@ directories:
   output: release
   buildResources: resources
 
+protocols:
+  - name: Personal Finance
+    schemes:
+      - myfinanceapp
+
 files:
   - dist-electron/**/*
   - resources/dock-*.png
