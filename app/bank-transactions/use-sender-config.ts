@@ -1,4 +1,3 @@
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import {
 	addBankSenderConfigAction,
@@ -6,9 +5,9 @@ import {
 	removeBankSenderConfigAction,
 	setBankSenderConfigEnabledAction,
 } from "@/app/actions/bank/sender-config";
+import { actionError, toastOnError } from "@/lib/action-result";
 
 export function useSenderConfig() {
-	const router = useRouter();
 	const [isPending, startTransition] = useTransition();
 	const [senderEmail, setSenderEmail] = useState("");
 	const [accountName, setAccountName] = useState("");
@@ -20,21 +19,22 @@ export function useSenderConfig() {
 	const handleAdd = () => {
 		setError(null);
 		startTransition(async () => {
-			const result = await addBankSenderConfigAction(senderEmail, accountName);
+			const result = await addBankSenderConfigAction({
+				senderEmail,
+				accountName,
+			});
 			if (result.success) {
 				setSenderEmail("");
 				setAccountName("");
-				router.refresh();
 			} else {
-				setError(result.error);
+				setError(actionError(result));
 			}
 		});
 	};
 
 	const handleToggle = (id: string, enabled: boolean) => {
 		startTransition(async () => {
-			await setBankSenderConfigEnabledAction(id, enabled);
-			router.refresh();
+			await toastOnError(setBankSenderConfigEnabledAction({ id, enabled }));
 		});
 	};
 
@@ -43,8 +43,7 @@ export function useSenderConfig() {
 		const id = pendingDelete.id;
 		setPendingDelete(null);
 		startTransition(async () => {
-			await removeBankSenderConfigAction(id);
-			router.refresh();
+			await toastOnError(removeBankSenderConfigAction(id));
 		});
 	};
 

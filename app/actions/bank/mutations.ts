@@ -1,61 +1,54 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import {
 	clearMailCredentials,
 	storeMailCredentials,
 } from "@/lib/mail/credentials";
 import { MailAuthError, verifyCredentials } from "@/lib/mail/imap";
 import { hasSecretKey } from "@/lib/secrets";
+import { serverAction } from "@/lib/server-action";
+import { UserError } from "@/lib/user-error";
 
-export async function connectMail(payload: {
-	email: string;
-	appPassword: string;
-}): Promise<ActionState> {
-	const email = payload.email.trim().toLowerCase();
-	const appPassword = payload.appPassword.replace(/\s/g, "");
-	if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-		return {
-			success: false,
-			errors: { email: { message: "Enter a valid email address." } },
-		};
-	}
-	if (!/^[a-z]{16}$/i.test(appPassword)) {
-		return {
-			success: false,
-			errors: {
-				appPassword: {
-					message: "An app password is 16 letters, like abcd efgh ijkl mnop.",
-				},
-			},
-		};
-	}
-	if (!hasSecretKey()) {
-		return {
-			success: false,
-			message:
+export const connectMail = serverAction(
+	z.object({
+		email: z
+			.string()
+			.trim()
+			.toLowerCase()
+			.pipe(z.email("Enter a valid email address.")),
+		appPassword: z
+			.string()
+			.transform((value) => value.replace(/\s/g, ""))
+			.pipe(
+				z
+					.string()
+					.regex(
+						/^[a-z]{16}$/i,
+						"An app password is 16 letters, like abcd efgh ijkl mnop.",
+					),
+			),
+	}),
+	async (credentials) => {
+		if (!hasSecretKey()) {
+			throw new UserError(
 				"No encryption key is configured, so the app password can't be stored securely. Set APP_SECRET_KEY (see README).",
-		};
-	}
-
-	try {
-		await verifyCredentials({ email, appPassword });
-	} catch (error) {
-		return {
-			success: false,
-			message:
+			);
+		}
+		try {
+			await verifyCredentials(credentials);
+		} catch (error) {
+			throw new UserError(
 				error instanceof MailAuthError
 					? error.message
 					: "Couldn't reach Gmail. Check your connection and that IMAP is enabled.",
-		};
-	}
+			);
+		}
+		storeMailCredentials(credentials);
+		return { success: true, message: "Gmail connected." };
+	},
+);
 
-	storeMailCredentials({ email, appPassword });
-	revalidatePath("/bank-transactions");
-	return { success: true, message: "Gmail connected." };
-}
-
-export async function disconnectMail() {
+export const disconnectMail = serverAction(z.void(), () => {
 	clearMailCredentials();
-	revalidatePath("/bank-transactions");
-}
+});

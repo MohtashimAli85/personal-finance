@@ -1,16 +1,15 @@
-import { useRouter } from "next/navigation";
 import { type TransitionStartFunction, useState } from "react";
 import {
 	acceptBankTransaction,
 	rejectBankTransaction,
 } from "@/app/actions/bank/sync";
+import { toastOnError } from "@/lib/action-result";
 import type { BankTransactionRow } from "@/lib/bank-transaction";
 
 export function usePendingReview(
 	transactions: BankTransactionRow[],
 	startTransition: TransitionStartFunction,
 ) {
-	const router = useRouter();
 	const [acceptingId, setAcceptingId] = useState<string | null>(null);
 	const [acceptCategory, setAcceptCategory] = useState<Record<string, string>>(
 		{},
@@ -28,16 +27,16 @@ export function usePendingReview(
 	const accept = (t: BankTransactionRow) => {
 		setAcceptingId(t.id);
 		startTransition(async () => {
-			await acceptBankTransaction(t.id, categoryFor(t) ?? null);
+			await toastOnError(
+				acceptBankTransaction({ id: t.id, categoryId: categoryFor(t) ?? null }),
+			);
 			setAcceptingId(null);
-			router.refresh();
 		});
 	};
 
 	const reject = (t: BankTransactionRow) => {
 		startTransition(async () => {
-			await rejectBankTransaction(t.id);
-			router.refresh();
+			await toastOnError(rejectBankTransaction(t.id));
 		});
 	};
 

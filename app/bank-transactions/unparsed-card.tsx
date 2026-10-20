@@ -30,7 +30,9 @@ export default function UnparsedCard({ emails }: { emails: UnparsedEmail[] }) {
 				<ul className="space-y-1 text-sm">
 					{emails.map((email) => (
 						<li key={email.id} className="flex gap-2 text-muted-foreground">
-							<span className="whitespace-nowrap">{formatDate(email.date)}</span>
+							<span className="whitespace-nowrap">
+								{formatDate(email.date)}
+							</span>
 							<span className="truncate">
 								{email.subject ?? "(no subject)"}
 							</span>

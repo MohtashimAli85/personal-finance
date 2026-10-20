@@ -2,14 +2,17 @@
 // lib/bank-parsers/ - see that folder's index.ts to register a new bank.
 import { parseBankEmail } from "@/lib/bank-parsers";
 import { normalizeDate } from "@/lib/bank-parsers/helpers";
-import type { BankEmail, ParsedBankTransaction } from "@/lib/bank-parsers/types";
+import type {
+	BankEmail,
+	ParsedBankTransaction,
+} from "@/lib/bank-parsers/types";
 
-export { formatAccountTitle } from "@/lib/bank-parsers/helpers";
 export { listTemplates, parseBankEmail } from "@/lib/bank-parsers";
+export { formatAccountTitle } from "@/lib/bank-parsers/helpers";
 export type {
 	BankEmail,
-	ParseFailure,
 	ParsedBankTransaction,
+	ParseFailure,
 	ParseOutcome,
 } from "@/lib/bank-parsers/types";
 

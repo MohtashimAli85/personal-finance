@@ -83,11 +83,7 @@ export default function PendingReviewCard({
 									>
 										Accept
 									</Button>
-									<Button
-										size="sm"
-										variant="outline"
-										onClick={() => reject(t)}
-									>
+									<Button size="sm" variant="outline" onClick={() => reject(t)}>
 										Reject
 									</Button>
 								</div>

@@ -12,7 +12,7 @@ const SUBJECT_PATTERNS: {
 
 const stripDecoration = (text: string) =>
 	text
-		.replace(/[\p{Extended_Pictographic}‍️]/gu, "")
+		.replace(/\p{Extended_Pictographic}|\u200D|\uFE0F/gu, "")
 		.replace(/!+\s*$/, "")
 		.trim();
 

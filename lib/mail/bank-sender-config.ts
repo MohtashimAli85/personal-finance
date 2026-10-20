@@ -1,3 +1,4 @@
+import "server-only";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { accounts, bank_sender_configs } from "@/lib/db/schema";
@@ -55,7 +56,7 @@ function ensureAccountId(name: string): string {
 		.get();
 	if (existing) return existing.id;
 	const id = crypto.randomUUID();
-	db.insert(accounts).values({ id, name: trimmed, balance: 0 }).run();
+	db.insert(accounts).values({ id, name: trimmed }).run();
 	return id;
 }
 

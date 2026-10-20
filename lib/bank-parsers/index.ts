@@ -6,7 +6,11 @@ import type { BankEmail, BankTemplate, ParseOutcome } from "./types";
 
 // Bank-specific templates first, generic fallback last. To support a new bank
 // that the generic rules mis-read, add a template file and register it here.
-const TEMPLATES: BankTemplate[] = [meezanTemplate, nayapayTemplate, genericTemplate];
+const TEMPLATES: BankTemplate[] = [
+	meezanTemplate,
+	nayapayTemplate,
+	genericTemplate,
+];
 
 export function listTemplates(): { id: string; label: string }[] {
 	return TEMPLATES.map(({ id, label }) => ({ id, label }));

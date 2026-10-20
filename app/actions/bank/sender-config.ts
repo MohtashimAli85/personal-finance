@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import { parseBankEmail } from "@/lib/bank-email-parse";
 import {
 	addBankSenderConfig,
@@ -11,6 +11,9 @@ import {
 	setBankSenderConfigEnabled,
 } from "@/lib/mail/bank-sender-config";
 import { getAllEmails } from "@/lib/mail/gmail-store";
+import { serverAction } from "@/lib/server-action";
+import { UserError } from "@/lib/user-error";
+import { id, requiredText } from "@/lib/validation";
 
 export type { BankSenderConfig };
 
@@ -62,44 +65,30 @@ export async function listBankSenderConfigsAction(): Promise<
 	return getBankSenderConfigs();
 }
 
-export async function addBankSenderConfigAction(
-	senderEmail: string,
-	accountName: string,
-): Promise<{ success: true } | { success: false; error: string }> {
-	const email = senderEmail.trim();
-	const account = accountName.trim();
-	if (!email || !account) {
-		return {
-			success: false,
-			error: "Sender email and account name are both required.",
-		};
-	}
-	if (!email.includes("@")) {
-		return { success: false, error: "Enter a valid email address." };
-	}
+export const addBankSenderConfigAction = serverAction(
+	z.object({
+		senderEmail: z
+			.string()
+			.trim()
+			.pipe(z.email("Enter a valid email address.")),
+		accountName: requiredText("Account name"),
+	}),
+	({ senderEmail, accountName }) => {
+		try {
+			addBankSenderConfig(senderEmail, accountName);
+		} catch {
+			throw new UserError("That sender is already configured.");
+		}
+	},
+);
 
-	try {
-		addBankSenderConfig(email, account);
-	} catch {
-		return {
-			success: false,
-			error: "That sender is already configured.",
-		};
-	}
+export const setBankSenderConfigEnabledAction = serverAction(
+	z.object({ id, enabled: z.boolean() }),
+	({ id, enabled }) => {
+		setBankSenderConfigEnabled(id, enabled);
+	},
+);
 
-	revalidatePath("/bank-transactions");
-	return { success: true };
-}
-
-export async function setBankSenderConfigEnabledAction(
-	id: string,
-	enabled: boolean,
-): Promise<void> {
-	setBankSenderConfigEnabled(id, enabled);
-	revalidatePath("/bank-transactions");
-}
-
-export async function removeBankSenderConfigAction(id: string): Promise<void> {
-	removeBankSenderConfig(id);
-	revalidatePath("/bank-transactions");
-}
+export const removeBankSenderConfigAction = serverAction(id, (configId) => {
+	removeBankSenderConfig(configId);
+});

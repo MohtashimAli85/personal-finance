@@ -73,8 +73,9 @@ export const meezanTemplate: BankTemplate = {
 		if (!direction) return null;
 
 		const date = resolveDate(
-			normalizeDate(extractLabeledField(text, "Transaction\\s+Date", FIELD_STOP)) ??
-				normalizeDate(text),
+			normalizeDate(
+				extractLabeledField(text, "Transaction\\s+Date", FIELD_STOP),
+			) ?? normalizeDate(text),
 			email.receivedAt,
 		);
 		if (!date) return null;
