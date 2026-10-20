@@ -14,8 +14,10 @@ import {
 export const accounts = sqliteTable("accounts", {
 	id: text("id").primaryKey(),
 	name: text("name").notNull().unique(),
-	balance: integer("balance").notNull().default(0),
-	account_type: text("account_type").notNull().default("on_budget"),
+	account_type: text("account_type")
+		.$type<"on_budget" | "off_budget">()
+		.notNull()
+		.default("on_budget"),
 	closed_at: text("closed_at"),
 	created_at: text("created_at").default(sql`(datetime('now'))`),
 });
@@ -67,7 +69,10 @@ export const transactions = sqliteTable(
 		// "pending" rows (fresh bank imports) are excluded from budget activity
 		// until reviewed and accepted; "cleared" is the default for everything
 		// entered directly and for rows a user has accepted.
-		status: text("status").notNull().default("cleared"),
+		status: text("status")
+			.$type<"pending" | "cleared">()
+			.notNull()
+			.default("cleared"),
 		// Links the two legs of a transfer between the user's own accounts.
 		// Transfer legs carry no category and are excluded from income/expense
 		// summaries and (for on-budget <-> on-budget transfers) budget activity.

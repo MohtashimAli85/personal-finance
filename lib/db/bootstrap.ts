@@ -6,6 +6,7 @@ import { parseBankEmail } from "../bank-email-parse";
 import { db } from "./client";
 import { CREATE_INCOME_GROUP_TRIGGER } from "./income-trigger";
 import {
+	app_settings,
 	categories,
 	category_group,
 	gmail_messages,
@@ -30,11 +31,29 @@ export const ensureIncomeGroupTrigger = () => {
 // equal ATM withdrawals in one sitting became one row. They are keyed by Gmail
 // message id now. This re-keys the rows written under the old scheme so that
 // re-reading a mailbox reconciles against them instead of duplicating them.
-// Idempotent: once every row carries a message-id hash, it does nothing.
+// Runs once per database, recorded in app_settings, since it re-parses every
+// stored email. Safe to delete once every install has booted past it.
+const EMAIL_HASH_BACKFILL_KEY = "email_hash_backfill_done";
+
 const messageIdHash = (id: string) =>
 	createHash("sha256").update(id).digest("hex");
 
 const backfillEmailTransactionHashes = () => {
+	const done = db
+		.select({ key: app_settings.key })
+		.from(app_settings)
+		.where(eq(app_settings.key, EMAIL_HASH_BACKFILL_KEY))
+		.get();
+	if (done) return;
+	db.transaction(() => {
+		rekeyEmailTransactions();
+		db.insert(app_settings)
+			.values({ key: EMAIL_HASH_BACKFILL_KEY, value: new Date().toISOString() })
+			.run();
+	});
+};
+
+const rekeyEmailTransactions = () => {
 	const emailRows = db
 		.select({
 			id: gmail_messages.id,
@@ -221,20 +240,10 @@ const normalizeCategoryGroupState = () => {
 let ready = false;
 
 /**
- * Runs migrations and one-time setup. Safe to call more than once - only the
- * first call does anything. Call this explicitly from a single entry point
- * (lib/db/index.ts) rather than relying on module-import side effects.
+ * Runs migrations and boot-time setup. Safe to call more than once - only the
+ * first call does anything. Called from instrumentation.ts before the server
+ * takes requests, and from createTestDb in tests.
  */
-export const recomputeBalances = () => {
-	db.run(sql`
-		UPDATE accounts SET balance = (
-			SELECT coalesce(sum(coalesce(deposit, 0) - coalesce(payment, 0)), 0)
-			FROM transactions
-			WHERE transactions.account_id = accounts.id AND status != 'pending'
-		)
-	`);
-};
-
 export const ensureDatabaseReady = () => {
 	if (ready) return;
 	try {
@@ -242,13 +251,9 @@ export const ensureDatabaseReady = () => {
 		backfillEmailTransactionHashes();
 		normalizeCategoryGroupState();
 		ensureIncomeGroupTrigger();
-		recomputeBalances();
 		ready = true;
 	} catch (error) {
 		console.error("Database bootstrap failed:", error);
 		throw error;
 	}
 };
-
-// Back-compat alias.
-export const bootstrapDatabase = ensureDatabaseReady;

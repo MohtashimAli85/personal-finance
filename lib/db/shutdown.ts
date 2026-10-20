@@ -5,7 +5,8 @@ let registered = false;
 /**
  * Checkpoints the WAL and closes the database handle on process exit, so a
  * quit doesn't leave a large db.sqlite-wal behind and every committed write
- * is folded into the main file. Safe to call more than once.
+ * is folded into the main file. Next handles SIGTERM/SIGINT itself, draining
+ * in-flight requests before it exits. Safe to call more than once.
  */
 export function registerShutdownHandlers() {
 	if (registered) return;
@@ -23,14 +24,6 @@ export function registerShutdownHandlers() {
 		}
 	};
 
-	process.once("SIGTERM", () => {
-		shutdown();
-		process.exit(0);
-	});
-	process.once("SIGINT", () => {
-		shutdown();
-		process.exit(0);
-	});
 	process.once("beforeExit", shutdown);
 	process.once("exit", shutdown);
 }

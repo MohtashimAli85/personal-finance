@@ -4,6 +4,7 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
+import { UserError } from "../user-error";
 import { backupDatabase } from "./backup";
 import { migrationsFolder } from "./bootstrap";
 import {
@@ -16,7 +17,7 @@ const MIGRATIONS_TABLE = "__drizzle_migrations";
 const NOT_A_BACKUP =
 	"This isn't a Personal Finance export. Choose a .sqlite file made with Export data.";
 
-export class RestoreError extends Error {}
+export class RestoreError extends UserError {}
 
 const withTempDir = <T>(run: (dir: string) => T) => {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pf-restore-"));
