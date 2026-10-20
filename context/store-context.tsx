@@ -1,14 +1,14 @@
 "use client";
-import { createContext, type ReactNode, useContext, useMemo } from "react";
+import { createContext, type ReactNode, useContext } from "react";
 
 export type StoreData = {
 	accounts: Account[];
 	groupedCategories: GroupedCategory[];
 };
 
-const StoreContext = createContext<Partial<StoreData> | undefined>(undefined);
+const StoreContext = createContext<StoreData | undefined>(undefined);
 
-export function useStore<T>(selector: (state: Partial<StoreData>) => T): T {
+export function useStore<T>(selector: (state: StoreData) => T): T {
 	const state = useContext(StoreContext);
 	if (!state) throw new Error("useStore must be used within StoreProvider");
 	return selector(state);
@@ -19,10 +19,11 @@ export default function StoreProvider({
 	initialData,
 }: {
 	children: ReactNode;
-	initialData?: Partial<StoreData>;
+	initialData: StoreData;
 }) {
-	const value = useMemo(() => initialData ?? {}, [initialData]);
 	return (
-		<StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+		<StoreContext.Provider value={initialData}>
+			{children}
+		</StoreContext.Provider>
 	);
 }

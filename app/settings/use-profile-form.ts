@@ -22,7 +22,7 @@ export function useProfileForm(profile: Profile) {
 
 	const submit = (event: React.FormEvent) => {
 		event.preventDefault();
-		run(() => saveProfile({ success: false }, values));
+		run(() => saveProfile(values));
 	};
 
 	return { values, dirty, feedback, isPending, update, submit };

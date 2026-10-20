@@ -1,18 +1,18 @@
 import { type Tool, tool } from "ai";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { setBudgetedAmount } from "@/app/actions/budget/mutations";
 import { getBudgetView } from "@/lib/budget";
+import { setBudgetedAmount } from "@/lib/budget-mutations";
 import { getMonthKey, getMonthRange, isMonthKey } from "@/lib/date";
 import {
 	computeGoalProgress,
 	createGoalRecord,
-	GoalError,
 	getGoals,
 	updateGoalRecord,
 } from "@/lib/goal";
 import { toCents } from "@/lib/money";
 import { getTransactions } from "@/lib/transaction";
+import { UserError } from "@/lib/user-error";
 import {
 	addMonths,
 	getCategorySpending,
@@ -33,11 +33,8 @@ const dateKey = z
 	.describe("Date as YYYY-MM-DD");
 const amount = z.number().positive().describe("Amount in PKR (not paisa)");
 
-const revalidateMoneyPages = () => {
-	revalidatePath("/goals");
-	revalidatePath("/budget");
-	revalidatePath("/");
-};
+// Tools run in the chat route handler, where refresh() isn't available.
+const revalidateAll = () => revalidatePath("/", "layout");
 
 const goalSummary = (goal: ReturnType<typeof getGoals>[number]) => ({
 	id: goal.id,
@@ -278,11 +275,11 @@ export const writeTools = {
 					categoryId,
 					notes,
 				});
-				revalidateMoneyPages();
+				revalidateAll();
 				const goal = getGoals().find((g) => g.id === id);
 				return { ok: true, goal: goal ? goalSummary(goal) : { id } };
 			} catch (error) {
-				if (error instanceof GoalError)
+				if (error instanceof UserError)
 					return { ok: false, error: error.message };
 				throw error;
 			}
@@ -308,13 +305,13 @@ export const writeTools = {
 					targetMonth,
 					notes,
 				});
-				revalidateMoneyPages();
+				revalidateAll();
 				const goal = getGoals({ includeArchived: true }).find(
 					(g) => g.id === goalId,
 				);
 				return { ok: true, goal: goal ? goalSummary(goal) : { id: goalId } };
 			} catch (error) {
-				if (error instanceof GoalError)
+				if (error instanceof UserError)
 					return { ok: false, error: error.message };
 				throw error;
 			}
@@ -338,7 +335,8 @@ export const writeTools = {
 			if (ref.isIncome) {
 				return { ok: false, error: "Income categories can't be budgeted" };
 			}
-			await setBudgetedAmount(ref.id, month, value);
+			setBudgetedAmount(ref.id, month, toCents(value));
+			revalidateAll();
 			const view = getBudgetView(month);
 			const row = view.groups
 				.flatMap((g) => g.categories)

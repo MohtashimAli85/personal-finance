@@ -16,7 +16,7 @@ export function useAddKey() {
 		if (!provider) return;
 		clear();
 		run(
-			() => saveApiKey({ success: false }, { provider, apiKey }),
+			() => saveApiKey({ provider, apiKey }),
 			() => {
 				setApiKey("");
 				setChosen(null);

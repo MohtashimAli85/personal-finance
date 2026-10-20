@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { z } from "zod";
 import {
 	CHAT_ID_RE,
 	type ChatSummary,
@@ -8,27 +8,23 @@ import {
 	listChats,
 	setChatTitle,
 } from "@/lib/chat";
+import { serverAction } from "@/lib/server-action";
 
-export async function renameChat(
-	chatId: string,
-	title: string,
-): Promise<ActionState> {
-	if (!CHAT_ID_RE.test(chatId) || !title.trim()) {
-		return { success: false, message: "Give the chat a name." };
-	}
-	setChatTitle(chatId, title);
-	revalidatePath("/chat", "layout");
-	return { success: true };
-}
+const chatId = z.string().regex(CHAT_ID_RE, "Invalid chat.");
 
-export async function deleteChat(chatId: string): Promise<ActionState> {
-	if (!CHAT_ID_RE.test(chatId)) {
-		return { success: false, message: "Invalid chat." };
-	}
-	deleteChatRecord(chatId);
-	revalidatePath("/chat", "layout");
-	return { success: true };
-}
+export const renameChat = serverAction(
+	z.object({
+		chatId,
+		title: z.string().trim().min(1, "Give the chat a name."),
+	}),
+	({ chatId, title }) => {
+		setChatTitle(chatId, title);
+	},
+);
+
+export const deleteChat = serverAction(chatId, (id) => {
+	deleteChatRecord(id);
+});
 
 export async function listChatsAction(): Promise<ChatSummary[]> {
 	return listChats();

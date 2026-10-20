@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { deleteChat, renameChat } from "@/app/actions/chat/mutations";
+import { toastOnError } from "@/lib/action-result";
 import type { ChatSummary } from "@/lib/chat";
 
 export function useChatListItem(
@@ -20,14 +21,15 @@ export function useChatListItem(
 		setEditing(false);
 		if (!title.trim() || title === chat.title) return;
 		startTransition(async () => {
-			await renameChat(chat.id, title);
-			onChanged();
+			const result = await toastOnError(renameChat({ chatId: chat.id, title }));
+			if (result.success) onChanged();
 		});
 	};
 
 	const remove = () =>
 		startTransition(async () => {
-			await deleteChat(chat.id);
+			const result = await toastOnError(deleteChat(chat.id));
+			if (!result.success) return;
 			onChanged();
 			if (active) router.push("/chat");
 		});
