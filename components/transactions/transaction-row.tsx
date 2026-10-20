@@ -1,6 +1,5 @@
 "use client";
 import { memo, useState } from "react";
-import { updateTransactionColumn } from "@/app/actions/transaction/mutations";
 import AccountSelector from "@/components/accounts/account-combobox";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useTransactionSelection } from "@/context/transaction-selection-context";
@@ -10,6 +9,7 @@ import { InputNumber } from "../ui/input-number";
 import TransactionCategory from "./transaction-category";
 import TransactionCheckbox from "./transaction-checkbox";
 import { TransactionDatePicker } from "./transaction-date-picker";
+import { useTransactionEdit } from "./use-transaction-edit";
 
 const TransactionRowInner = ({
 	tx,
@@ -22,6 +22,7 @@ const TransactionRowInner = ({
 	// Locally controlled so typing doesn't write to the DB on every
 	// keystroke - only on blur/Enter, once the user is done editing.
 	const [notes, setNotes] = useState(tx.notes ?? "");
+	const update = useTransactionEdit(tx.id);
 
 	return (
 		<TableRow
@@ -35,7 +36,7 @@ const TransactionRowInner = ({
 			<TableCell>
 				<TransactionDatePicker
 					date={tx.date}
-					onSelect={(date) => updateTransactionColumn(tx.id, "date", date)}
+					onSelect={(date) => update("date", date)}
 				/>
 			</TableCell>
 			{showAccountCell && (
@@ -44,9 +45,7 @@ const TransactionRowInner = ({
 						variant={"table"}
 						value={tx.account_id ?? undefined}
 						label={tx.account_name ?? undefined}
-						onChange={(value) =>
-							updateTransactionColumn(tx.id, "account_id", value)
-						}
+						onChange={(value) => update("account_id", value)}
 					/>
 				</TableCell>
 			)}
@@ -59,7 +58,7 @@ const TransactionRowInner = ({
 					onChange={(e) => setNotes(e.target.value)}
 					onBlur={() => {
 						if (notes !== (tx.notes ?? "")) {
-							updateTransactionColumn(tx.id, "notes", notes);
+							update("notes", notes);
 						}
 					}}
 					onKeyDown={(e) => {
@@ -72,9 +71,7 @@ const TransactionRowInner = ({
 					accountId={tx.account_id}
 					value={tx.category_id ?? undefined}
 					label={tx.category_name ?? undefined}
-					onChange={(value) =>
-						updateTransactionColumn(tx.id, "category_id", value)
-					}
+					onChange={(value) => update("category_id", value)}
 				/>
 			</TableCell>
 			<TableCell className="text-right">
@@ -86,7 +83,7 @@ const TransactionRowInner = ({
 					onBlur={(e) => {
 						const currentDecimal = tx.payment ? fromCents(tx.payment) : "";
 						if (e.target.value !== String(currentDecimal))
-							updateTransactionColumn(tx.id, "payment", e.target.value);
+							update("payment", e.target.value);
 					}}
 				/>
 			</TableCell>
@@ -99,7 +96,7 @@ const TransactionRowInner = ({
 					onBlur={(e) => {
 						const currentDecimal = tx.deposit ? fromCents(tx.deposit) : "";
 						if (e.target.value !== String(currentDecimal))
-							updateTransactionColumn(tx.id, "deposit", e.target.value);
+							update("deposit", e.target.value);
 					}}
 				/>
 			</TableCell>

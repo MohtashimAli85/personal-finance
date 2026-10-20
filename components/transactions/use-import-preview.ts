@@ -14,7 +14,7 @@ export function useImportPreview(accountId: string, importRows: ImportRow[]) {
 	useEffect(() => {
 		if (!accountId || importRows.length === 0) return;
 		let cancelled = false;
-		previewImport(accountId, importRows).then((result) => {
+		previewImport({ accountId, rows: importRows }).then((result) => {
 			if (!cancelled) setPreview({ rows: importRows, accountId, ...result });
 		});
 		return () => {

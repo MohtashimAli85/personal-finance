@@ -1,5 +1,5 @@
 import { Trash2 } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { bulkDeleteTransactions } from "@/app/actions/transaction/mutations";
 import {
 	AlertDialog,
@@ -15,18 +15,21 @@ import {
 import { Button } from "@/components/ui/button";
 
 import { useTransactionSelection } from "@/context/transaction-selection-context";
+import { useServerAction } from "@/hooks/use-server-action";
 
 const TransactionDelete = () => {
 	const { selectedIds, clearSelection } = useTransactionSelection();
-	const [isPending, startTransition] = useTransition();
+	const { isPending, run } = useServerAction();
 	const [dialogOpen, setDialogOpen] = useState(false);
 
 	const handleBulkDelete = () => {
-		startTransition(async () => {
-			await bulkDeleteTransactions(Array.from(selectedIds));
-			clearSelection();
-			setDialogOpen(false);
-		});
+		run(
+			() => bulkDeleteTransactions(Array.from(selectedIds)),
+			() => {
+				clearSelection();
+				setDialogOpen(false);
+			},
+		);
 	};
 	if (!selectedIds.size) return null;
 	return (

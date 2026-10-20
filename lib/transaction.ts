@@ -11,6 +11,9 @@ const transactionSelect = {
 	notes: transactions.notes,
 	account_id: transactions.account_id,
 	category_id: transactions.category_id,
+	source: transactions.source,
+	status: transactions.status,
+	transfer_id: transactions.transfer_id,
 	account_name: accounts.name,
 	category_name: categories.name,
 };
@@ -66,7 +69,7 @@ export const getTransactions = cache(
 				const rows = transactionQuery()
 					.where(whereClause)
 					.orderBy(desc(transactions.date))
-					.all() as TransactionRow[];
+					.all();
 				return { data: rows, hasMore: false };
 			}
 
@@ -75,7 +78,7 @@ export const getTransactions = cache(
 				.orderBy(desc(transactions.date))
 				.limit(limit + 1)
 				.offset(offset || 0)
-				.all() as TransactionRow[];
+				.all();
 			const hasMore = rows.length > limit;
 
 			return {

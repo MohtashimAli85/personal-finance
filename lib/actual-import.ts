@@ -6,6 +6,7 @@ import {
 	CREATE_INCOME_GROUP_TRIGGER,
 	DROP_INCOME_GROUP_TRIGGER,
 } from "./db/income-trigger";
+import { UserError } from "./user-error";
 import { isZip, readZipEntry } from "./zip";
 
 const SQLITE_MAGIC = "SQLite format 3\0";
@@ -22,7 +23,7 @@ const REQUIRED_TABLES = [
 const NOT_AN_EXPORT =
 	"This isn't an Actual Budget export. Choose the .zip from Actual's Settings → Export, or its db.sqlite.";
 
-export class ActualImportError extends Error {}
+export class ActualImportError extends UserError {}
 
 interface SourceAccount {
 	id: string;
@@ -331,20 +332,13 @@ export function applyActualImport(
 			DELETE FROM accounts;
 		`);
 
-		const balances = new Map<string, number>();
-		for (const t of data.transactions) {
-			if (t.pending) continue;
-			balances.set(t.account, (balances.get(t.account) ?? 0) + t.amount);
-		}
-
 		const insertAccount = target.prepare(
-			"insert into accounts (id, name, balance, account_type, closed_at) values (?, ?, ?, ?, ?)",
+			"insert into accounts (id, name, account_type, closed_at) values (?, ?, ?, ?)",
 		);
 		for (const a of data.accounts) {
 			insertAccount.run(
 				a.id,
 				a.name,
-				balances.get(a.id) ?? 0,
 				a.offbudget ? "off_budget" : "on_budget",
 				a.closed ? new Date().toISOString() : null,
 			);

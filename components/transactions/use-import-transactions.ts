@@ -1,6 +1,7 @@
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { bulkImportTransactions } from "@/app/actions/transaction/mutations";
 import { useStore } from "@/context/store-context";
+import { useServerAction } from "@/hooks/use-server-action";
 import { useCsvFile } from "./use-csv-file";
 import { useImportPreview } from "./use-import-preview";
 import { useImportRows } from "./use-import-rows";
@@ -8,7 +9,7 @@ import { useImportRows } from "./use-import-rows";
 export function useImportTransactions(defaultAccountId?: string) {
 	const accounts = useStore((s) => s.accounts);
 	const [open, setOpen] = useState(false);
-	const [isPending, startTransition] = useTransition();
+	const { isPending, run } = useServerAction();
 	const [selectedAccountId, setSelectedAccountId] = useState(
 		defaultAccountId ?? "",
 	);
@@ -35,19 +36,22 @@ export function useImportTransactions(defaultAccountId?: string) {
 
 	const handleImport = () => {
 		if (!selectedAccountId || rows.dataRows.length === 0) return;
-		startTransition(async () => {
-			const result = await bulkImportTransactions(
-				selectedAccountId,
-				rows.importRows,
-			);
-			setOpen(false);
-			resetState();
-			setImportResult({
-				imported: result.inserted,
-				skippedInvalidDate: rows.skippedInvalidDate,
-				duplicates: result.duplicates,
-			});
-		});
+		run(
+			() =>
+				bulkImportTransactions({
+					accountId: selectedAccountId,
+					rows: rows.importRows,
+				}),
+			(result) => {
+				setOpen(false);
+				resetState();
+				setImportResult({
+					imported: Number(result.payload?.inserted ?? 0),
+					skippedInvalidDate: rows.skippedInvalidDate,
+					duplicates: Number(result.payload?.duplicates ?? 0),
+				});
+			},
+		);
 	};
 
 	return {
