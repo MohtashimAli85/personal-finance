@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "./db-test-utils";
 
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, refresh: () => {} }));
 vi.mock("next/headers", () => ({
 	cookies: async () => ({ get: () => undefined }),
 }));
@@ -13,14 +13,7 @@ beforeAll(async () => {
 	ctx = await createTestDb();
 });
 
-function makeAccount(balance: number) {
-	const id = randomUUID();
-	ctx.db
-		.insert(ctx.schema.accounts)
-		.values({ id, name: `Pending ${id}`, balance })
-		.run();
-	return id;
-}
+const makeAccount = (balance: number) => ctx.makeAccount({}, balance);
 
 function addPending(accountId: string, payment: number) {
 	const id = randomUUID();
@@ -38,16 +31,10 @@ function addPending(accountId: string, payment: number) {
 	return id;
 }
 
-const balanceOf = (accountId: string) =>
-	(
-		ctx.sqlite
-			.prepare("select balance from accounts where id = ?")
-			.get(accountId) as { balance: number }
-	).balance;
+const balanceOf = (accountId: string) => ctx.balanceOf(accountId);
 
 describe("pending transactions and account balance", () => {
-	it("recompute ignores pending rows", async () => {
-		const { recomputeAccountBalance } = await import("@/lib/balance");
+	it("balance ignores pending rows", async () => {
 		const accountId = makeAccount(0);
 		ctx.db
 			.insert(ctx.schema.transactions)
@@ -60,14 +47,14 @@ describe("pending transactions and account balance", () => {
 			.run();
 		addPending(accountId, 4000);
 
-		expect(recomputeAccountBalance(accountId)).toBe(10000);
+		expect(balanceOf(accountId)).toBe(10000);
 	});
 
 	it("accepting a pending row applies it, rejecting or deleting one does not", async () => {
 		const { acceptBankTransaction, rejectBankTransaction } = await import(
 			"@/app/actions/bank/sync"
 		);
-		const { deleteTransaction } = await import(
+		const { bulkDeleteTransactions } = await import(
 			"@/app/actions/transaction/mutations"
 		);
 		const accountId = makeAccount(10000);
@@ -75,12 +62,10 @@ describe("pending transactions and account balance", () => {
 		await rejectBankTransaction(addPending(accountId, 1000));
 		expect(balanceOf(accountId)).toBe(10000);
 
-		const form = new FormData();
-		form.set("id", addPending(accountId, 2000));
-		await deleteTransaction(form);
+		await bulkDeleteTransactions([addPending(accountId, 2000)]);
 		expect(balanceOf(accountId)).toBe(10000);
 
-		await acceptBankTransaction(addPending(accountId, 3000));
+		await acceptBankTransaction({ id: addPending(accountId, 3000) });
 		expect(balanceOf(accountId)).toBe(7000);
 	});
 });

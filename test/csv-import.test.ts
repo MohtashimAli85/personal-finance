@@ -3,19 +3,12 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "./db-test-utils";
 
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, refresh: () => {} }));
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let actions: typeof import("@/app/actions/transaction/mutations");
 
-function seedAccount(name: string) {
-	const id = randomUUID();
-	ctx.db
-		.insert(ctx.schema.accounts)
-		.values({ id, name, balance: 100_000_00 })
-		.run();
-	return id;
-}
+const seedAccount = (name: string) => ctx.makeAccount({ name });
 
 function seedExisting(
 	accountId: string,
@@ -35,13 +28,6 @@ function seedExisting(
 		})
 		.run();
 }
-
-const balanceOf = (accountId: string) =>
-	ctx.db
-		.select()
-		.from(ctx.schema.accounts)
-		.where(eq(ctx.schema.accounts.id, accountId))
-		.get()?.balance;
 
 const countFor = (accountId: string) =>
 	ctx.db
@@ -69,16 +55,25 @@ describe("CSV import duplicate detection", () => {
 			{ date: "2026-10-02", payment: 500, notes: "Milk" },
 		];
 
-		expect(await actions.previewImport(accountId, rows)).toEqual({
+		expect(
+			await actions.previewImport({ accountId: accountId, rows: rows }),
+		).toEqual({
 			newCount: 1,
 			duplicates: 2,
 		});
-		expect(await actions.bulkImportTransactions(accountId, rows)).toEqual({
+		expect(
+			(
+				await actions.bulkImportTransactions({
+					accountId: accountId,
+					rows: rows,
+				})
+			).payload,
+		).toEqual({
 			inserted: 1,
 			duplicates: 2,
 		});
 		expect(countFor(accountId)).toBe(3);
-		expect(balanceOf(accountId)).toBe(100_000_00 - 500_00);
+		expect(ctx.balanceOf(accountId)).toBe(-(24_000 + 150_000 + 500_00));
 	});
 
 	it("keeps genuinely repeated rows and is idempotent on re-import", async () => {
@@ -89,11 +84,25 @@ describe("CSV import duplicate detection", () => {
 			{ date: "2026-10-04", deposit: 1000 },
 		];
 
-		expect(await actions.bulkImportTransactions(accountId, rows)).toEqual({
+		expect(
+			(
+				await actions.bulkImportTransactions({
+					accountId: accountId,
+					rows: rows,
+				})
+			).payload,
+		).toEqual({
 			inserted: 3,
 			duplicates: 0,
 		});
-		expect(await actions.bulkImportTransactions(accountId, rows)).toEqual({
+		expect(
+			(
+				await actions.bulkImportTransactions({
+					accountId: accountId,
+					rows: rows,
+				})
+			).payload,
+		).toEqual({
 			inserted: 0,
 			duplicates: 3,
 		});
@@ -102,7 +111,9 @@ describe("CSV import duplicate detection", () => {
 			...rows,
 			{ date: "2026-10-04", payment: 240, notes: "Roti" },
 		];
-		expect(await actions.previewImport(accountId, withOneMore)).toEqual({
+		expect(
+			await actions.previewImport({ accountId: accountId, rows: withOneMore }),
+		).toEqual({
 			newCount: 1,
 			duplicates: 3,
 		});
@@ -114,9 +125,10 @@ describe("CSV import duplicate detection", () => {
 		const b = seedAccount("B");
 		seedExisting(a, "2026-10-01", 10_000, "Fuel");
 		expect(
-			await actions.previewImport(b, [
-				{ date: "2026-10-01", payment: 100, notes: "Fuel" },
-			]),
+			await actions.previewImport({
+				accountId: b,
+				rows: [{ date: "2026-10-01", payment: 100, notes: "Fuel" }],
+			}),
 		).toEqual({ newCount: 1, duplicates: 0 });
 	});
 });

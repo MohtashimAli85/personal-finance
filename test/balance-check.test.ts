@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "./db-test-utils";
 
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, refresh: () => {} }));
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 
@@ -11,19 +11,8 @@ beforeAll(async () => {
 	ctx = await createTestDb();
 });
 
-function makeAccount(balance: number, closed = false) {
-	const id = randomUUID();
-	ctx.db
-		.insert(ctx.schema.accounts)
-		.values({
-			id,
-			name: `Check ${id}`,
-			balance,
-			closed_at: closed ? "2026-01-01" : null,
-		})
-		.run();
-	return id;
-}
+const makeAccount = (balance: number, closed = false) =>
+	ctx.makeAccount({ closed_at: closed ? "2026-01-01" : null }, balance);
 
 function makeCategory() {
 	const groupId = randomUUID();
@@ -39,13 +28,6 @@ function makeCategory() {
 	return id;
 }
 
-const balanceOf = (accountId: string) =>
-	ctx.db
-		.select({ balance: ctx.schema.accounts.balance })
-		.from(ctx.schema.accounts)
-		.where(eq(ctx.schema.accounts.id, accountId))
-		.get()?.balance;
-
 describe("balance check", () => {
 	it("books adjustments as cleared transactions and marks verified", async () => {
 		const { saveBalanceCheck } = await import(
@@ -59,18 +41,19 @@ describe("balance check", () => {
 		const result = await saveBalanceCheck({
 			accountId,
 			adjustments: [
-				{ categoryId: food, amount: -3000 },
-				{ categoryId: salary, amount: 500 },
+				{ categoryId: food, amount: -30 },
+				{ categoryId: salary, amount: 5 },
 			],
 		});
 
 		expect(result.success).toBe(true);
-		expect(balanceOf(accountId)).toBe(97500);
+		expect(ctx.balanceOf(accountId)).toBe(97500);
 		const rows = ctx.db
 			.select()
 			.from(ctx.schema.transactions)
 			.where(eq(ctx.schema.transactions.account_id, accountId))
-			.all();
+			.all()
+			.filter((row) => row.notes === "Balance adjustment");
 		expect(rows).toHaveLength(2);
 		expect(rows.find((row) => row.category_id === food)).toMatchObject({
 			payment: 3000,
@@ -88,7 +71,7 @@ describe("balance check", () => {
 		);
 		const result = await saveBalanceCheck({
 			accountId: null,
-			adjustments: [{ categoryId: null, amount: -100 }],
+			adjustments: [{ categoryId: null, amount: -1 }],
 		});
 		expect(result.success).toBe(false);
 	});

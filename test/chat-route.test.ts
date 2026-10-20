@@ -10,7 +10,7 @@ import type { CoachUIMessage } from "@/lib/ai/message-types";
 import type { ResolvedModel } from "@/lib/ai/models";
 import { createTestDb } from "./db-test-utils";
 
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, refresh: () => {} }));
 
 let mockModels: ResolvedModel[] = [];
 vi.mock("@/lib/ai/models", async (importOriginal) => {

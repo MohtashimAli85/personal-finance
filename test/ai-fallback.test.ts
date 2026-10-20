@@ -10,6 +10,8 @@ describe("describeChatError", () => {
 			reason: "invalid signature",
 		});
 
-		expect(describeChatError(error)).toBe("This approval has expired. Ask again.");
+		expect(describeChatError(error)).toBe(
+			"This approval has expired. Ask again.",
+		);
 	});
 });

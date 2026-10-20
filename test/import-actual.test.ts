@@ -140,7 +140,11 @@ describe("applyActualImport", () => {
 			{ notes: null, transfer_id: "t4:t5" },
 		]);
 		expect(
-			app.prepare("select balance from accounts where id = 'acc'").get(),
+			app
+				.prepare(
+					"select sum(coalesce(deposit, 0) - coalesce(payment, 0)) as balance from transactions where account_id = 'acc' and status != 'pending'",
+				)
+				.get(),
 		).toEqual({ balance: 55000 });
 		expect(
 			app

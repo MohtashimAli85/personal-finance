@@ -165,7 +165,7 @@ describe("goal records", () => {
 		const accountId = randomUUID();
 		ctx.db
 			.insert(ctx.schema.accounts)
-			.values({ id: accountId, name: "Bank", balance: 1_000_000_00 })
+			.values({ id: accountId, name: "Bank" })
 			.run();
 		const id = goalLib.createGoalRecord({
 			name: "Motorbike fund",

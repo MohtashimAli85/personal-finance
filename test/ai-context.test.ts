@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "./db-test-utils";
 
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, refresh: () => {} }));
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let context: typeof import("@/lib/ai/context");
@@ -66,7 +66,7 @@ beforeAll(async () => {
 	const accountId = randomUUID();
 	ctx.db
 		.insert(ctx.schema.accounts)
-		.values({ id: accountId, name: "Main Bank", balance: 500_000_00 })
+		.values({ id: accountId, name: "Main Bank" })
 		.run();
 	const salary = seedCategory("Earnings", "Paycheck", true);
 	const food = seedCategory("Daily", "Groceries Test");
@@ -91,7 +91,7 @@ describe("finance snapshot", () => {
 	it("summarises accounts, budget, history and goals in whole rupees", () => {
 		const snapshot = context.buildFinanceSnapshot();
 		expect(snapshot).toContain(`Current month: ${month}`);
-		expect(snapshot).toContain("- Main Bank (on-budget): 500,000");
+		expect(snapshot).toContain("- Main Bank (on-budget): 405,000");
 		expect(snapshot).toContain("- Groceries Test | 45,000 | 15,000 | 30,000");
 		expect(snapshot).toContain(
 			"Average: income 200,000, spending 60,000, saved 140,000 per month",

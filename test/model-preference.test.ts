@@ -1,5 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { availableModels, MODEL_CHAIN } from "@/lib/ai/models";
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createTestDb } from "./db-test-utils";
+
+let models: typeof import("@/lib/ai/models");
+
+beforeAll(async () => {
+	await createTestDb();
+	models = await import("@/lib/ai/models");
+});
 
 describe("availableModels preferred model", () => {
 	const saved = {
@@ -20,23 +27,25 @@ describe("availableModels preferred model", () => {
 	});
 
 	it("keeps the chain order when no model is preferred", () => {
-		const order = availableModels(MODEL_CHAIN).map((entry) => entry.model);
+		const order = models
+			.availableModels(models.MODEL_CHAIN)
+			.map((entry) => entry.model);
 		expect(order[0]).toBe("openai/gpt-oss-120b");
 	});
 
 	it("moves the preferred model to the front and keeps the rest as fallbacks", () => {
-		const order = availableModels(MODEL_CHAIN, "gemini-3.5-flash").map(
-			(entry) => entry.model,
-		);
+		const order = models
+			.availableModels(models.MODEL_CHAIN, "gemini-3.5-flash")
+			.map((entry) => entry.model);
 		expect(order[0]).toBe("gemini-3.5-flash");
 		expect(order).toHaveLength(4);
 		expect(order).toContain("openai/gpt-oss-120b");
 	});
 
 	it("ignores a preferred model that is not in the chain", () => {
-		const order = availableModels(MODEL_CHAIN, "unknown-model").map(
-			(entry) => entry.model,
-		);
+		const order = models
+			.availableModels(models.MODEL_CHAIN, "unknown-model")
+			.map((entry) => entry.model);
 		expect(order[0]).toBe("openai/gpt-oss-120b");
 	});
 });

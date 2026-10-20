@@ -27,7 +27,7 @@ describe("export and restore", () => {
 		);
 		const app = testDb.sqlite;
 		app.exec(`
-			INSERT INTO accounts (id, name, balance) VALUES ('a1', 'Bank', 5000);
+			INSERT INTO accounts (id, name) VALUES ('a1', 'Bank');
 			INSERT INTO categories (id, name) VALUES ('c1', 'Food');
 			INSERT INTO transactions (id, account_id, category_id, date, payment)
 				VALUES ('t1', 'a1', 'c1', '2026-10-01', 1200);

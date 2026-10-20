@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "./db-test-utils";
 
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, refresh: () => {} }));
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let budget: typeof import("@/lib/budget");
@@ -73,7 +73,7 @@ function tx(
 	categoryId: string | null,
 	date: string,
 	amount: number,
-	options: { accountId?: string; status?: string } = {},
+	options: { accountId?: string; status?: "pending" | "cleared" } = {},
 ) {
 	ctx.db
 		.insert(ctx.schema.transactions)
@@ -180,7 +180,11 @@ describe("Actual-style envelope budget", () => {
 		const dining = seedCategory();
 		tx(incomeCategoryId, "2026-03-01", 50_000);
 		assign(dining, "2026-03", 5_000);
-		await actions.setCategoryCarryover(dining, "2026-03", true);
+		await actions.setCategoryCarryover({
+			categoryId: dining,
+			month: "2026-03",
+			carryover: true,
+		});
 		tx(dining, "2026-04-10", -8_000);
 
 		expect(categoryIn("2026-04", dining)?.carryover).toBe(true);
@@ -255,16 +259,28 @@ describe("budget actions", () => {
 		assign(dining, "2026-09", 1_000);
 		assign(dining, "2026-11", 1_000);
 
-		await actions.setCategoryCarryover(dining, "2026-10", true);
+		await actions.setCategoryCarryover({
+			categoryId: dining,
+			month: "2026-10",
+			carryover: true,
+		});
 
 		expect(categoryIn("2026-09", dining)?.carryover).toBe(false);
 		expect(categoryIn("2026-10", dining)?.carryover).toBe(true);
 		expect(categoryIn("2026-11", dining)?.carryover).toBe(true);
 
-		await actions.setBudgetedAmount(dining, "2026-10", 0);
+		await actions.setBudgetedAmount({
+			categoryId: dining,
+			month: "2026-10",
+			amount: 0,
+		});
 		expect(categoryIn("2026-10", dining)?.carryover).toBe(true);
 
-		await actions.setBudgetedAmount(dining, "2026-12", 50);
+		await actions.setBudgetedAmount({
+			categoryId: dining,
+			month: "2026-12",
+			amount: 50,
+		});
 		expect(categoryIn("2026-12", dining)?.carryover).toBe(true);
 	});
 
@@ -278,8 +294,13 @@ describe("budget actions", () => {
 		tx(old, "2026-01-10", -30_000);
 		const before = budget.getBudgetView("2026-02").toBudget;
 
-		await expect(actions.deleteBudgetCategory(old)).rejects.toThrow();
-		await actions.deleteBudgetCategory(old, target);
+		expect(
+			await actions.deleteBudgetCategory({ categoryId: old }),
+		).toMatchObject({ success: false });
+		await actions.deleteBudgetCategory({
+			categoryId: old,
+			transferToId: target,
+		});
 
 		const feb = budget.getBudgetView("2026-02");
 		expect(feb.toBudget).toBe(before);
@@ -298,12 +319,24 @@ describe("budget actions", () => {
 		const old = seedCategory();
 		tx(old, "2026-01-10", -1_000);
 
-		await expect(
-			actions.deleteBudgetCategory(old, randomUUID()),
-		).rejects.toThrow(/not found/);
-		await expect(
-			actions.deleteBudgetCategory(old, incomeCategoryId),
-		).rejects.toThrow(/expense/);
+		expect(
+			await actions.deleteBudgetCategory({
+				categoryId: old,
+				transferToId: randomUUID(),
+			}),
+		).toMatchObject({
+			success: false,
+			message: expect.stringMatching(/not found/),
+		});
+		expect(
+			await actions.deleteBudgetCategory({
+				categoryId: old,
+				transferToId: incomeCategoryId,
+			}),
+		).toMatchObject({
+			success: false,
+			message: expect.stringMatching(/expense/),
+		});
 
 		expect(categoryIn("2026-01", old)).toMatchObject({ spent: -1_000 });
 	});
@@ -316,7 +349,10 @@ describe("budget actions", () => {
 		assign(old, "2026-03", 2_000, true);
 		assign(target, "2026-03", 500, false);
 
-		await actions.deleteBudgetCategory(old, target);
+		await actions.deleteBudgetCategory({
+			categoryId: old,
+			transferToId: target,
+		});
 
 		expect(categoryIn("2026-01", target)).toMatchObject({
 			budgeted: 1_000,
@@ -343,12 +379,21 @@ describe("budget actions", () => {
 			})
 			.run();
 
-		await expect(actions.deleteBudgetCategory(saving)).rejects.toThrow(
-			/Emergency fund/,
-		);
-		await expect(actions.deleteBudgetCategory(saving, target)).rejects.toThrow(
-			/Emergency fund/,
-		);
+		expect(
+			await actions.deleteBudgetCategory({ categoryId: saving }),
+		).toMatchObject({
+			success: false,
+			message: expect.stringMatching(/Emergency fund/),
+		});
+		expect(
+			await actions.deleteBudgetCategory({
+				categoryId: saving,
+				transferToId: target,
+			}),
+		).toMatchObject({
+			success: false,
+			message: expect.stringMatching(/Emergency fund/),
+		});
 
 		expect(categoryIn("2026-01", saving)?.in_use).toBe(true);
 		expect(
@@ -363,7 +408,7 @@ describe("budget actions", () => {
 	it("deletes an unused category without a transfer target", async () => {
 		const empty = seedCategory();
 		expect(categoryIn("2026-01", empty)?.in_use).toBe(false);
-		await actions.deleteBudgetCategory(empty);
+		await actions.deleteBudgetCategory({ categoryId: empty });
 		expect(categoryIn("2026-01", empty)).toBeUndefined();
 	});
 
@@ -371,7 +416,7 @@ describe("budget actions", () => {
 		const dining = seedCategory();
 		assign(dining, "2025-12", 4_000);
 
-		expect(await actions.copyPreviousMonthBudget("2026-01")).toEqual({
+		expect((await actions.copyPreviousMonthBudget("2026-01")).payload).toEqual({
 			copied: 1,
 		});
 		expect(categoryIn("2026-01", dining)?.budgeted).toBe(4_000);
@@ -380,7 +425,10 @@ describe("budget actions", () => {
 	it("caps a hold at what's left to budget and can reset it", async () => {
 		tx(incomeCategoryId, "2026-10-01", 40_000);
 
-		expect(await actions.holdForNextMonth("2026-10", 1_000)).toEqual({
+		expect(
+			(await actions.holdForNextMonth({ month: "2026-10", amount: 1_000 }))
+				.payload,
+		).toEqual({
 			buffered: 40_000,
 		});
 		expect(budget.getBudgetView("2026-10").toBudget).toBe(0);

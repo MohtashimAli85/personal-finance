@@ -12,7 +12,7 @@ import type { ResolvedModel } from "@/lib/ai/models";
 import { FIXTURES } from "@/lib/bank-parsers/fixtures";
 import { createTestDb } from "./db-test-utils";
 
-vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, refresh: () => {} }));
 vi.mock("@/lib/mail/imap", () => ({ fetchNewEmails: async () => [] }));
 vi.mock("@/lib/mail/credentials", () => ({
 	getMailCredentials: () => ({ email: "me@gmail.com", appPassword: "x" }),

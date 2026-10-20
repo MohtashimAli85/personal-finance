@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { beforeAll, describe, expect, it } from "vitest";
+import { sql } from "drizzle-orm";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 import { createTestDb } from "./db-test-utils";
+
+vi.mock("next/cache", () => ({ revalidatePath: () => {}, refresh: () => {} }));
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 
@@ -8,64 +11,81 @@ beforeAll(async () => {
 	ctx = await createTestDb();
 });
 
-function makeAccount(name: string, initialBalance = 0) {
-	const { db, schema } = ctx;
-	const id = randomUUID();
-	db.insert(schema.accounts)
-		.values({ id, name, balance: initialBalance })
-		.run();
-	return id;
-}
+const sumOfTransactions = (accountId: string) =>
+	Number(
+		ctx.db.get<{ total: number }>(
+			sql`select coalesce(sum(coalesce(deposit, 0) - coalesce(payment, 0)), 0) as total
+				from transactions where account_id = ${accountId} and status != 'pending'`,
+		)?.total ?? 0,
+	);
 
-describe("balance recompute", () => {
-	it("rebuilds an account's balance from the sum of its transactions", async () => {
-		const { db, schema } = ctx;
-		const { applyBalanceDelta, signedAmount, recomputeAccountBalance } =
-			await import("@/lib/balance");
+describe("account balance", () => {
+	it("always equals the sum of cleared transactions across mixed writes", async () => {
+		const tx = await import("@/app/actions/transaction/mutations");
+		const bank = await import("@/app/actions/bank/sync");
+		const accounts = await import("@/app/actions/accounts/mutations");
+		const { getAccounts } = await import("@/lib/account");
 
-		const accountId = makeAccount("Recompute Test", 999999); // deliberately wrong cache
+		const a = ctx.makeAccount({ name: "Wallet" }, 1_000_00);
+		const b = ctx.makeAccount({ name: "Bank" });
+		const c = ctx.makeAccount({ name: "Savings" });
 
-		db.insert(schema.transactions)
-			.values([
-				{
-					id: randomUUID(),
-					account_id: accountId,
-					payment: 5000,
-					date: "2026-01-01",
-				},
-				{
-					id: randomUUID(),
-					account_id: accountId,
-					deposit: 2000,
-					date: "2026-01-02",
-				},
-				{
-					id: randomUUID(),
-					account_id: accountId,
-					payment: 300,
-					date: "2026-01-03",
-				},
-			])
+		await tx.createTransaction({
+			account_id: a,
+			payment: "250.50",
+			date: "2026-10-01",
+		});
+		await tx.createTransfer({
+			fromAccountId: a,
+			toAccountId: b,
+			amount: 100,
+			date: "2026-10-02",
+		});
+		const rows = ctx.db.select().from(ctx.schema.transactions).all();
+		const spend = rows.find((row) => row.payment === 250_50);
+		const out = rows.find((row) => row.source === "transfer" && row.payment);
+		if (!spend || !out) throw new Error("seed rows missing");
+
+		await tx.updateTransactionColumn({
+			id: spend.id,
+			column: "deposit",
+			value: 20,
+		});
+		await tx.updateTransactionColumn({
+			id: out.id,
+			column: "account_id",
+			value: c,
+		});
+
+		const pending = randomUUID();
+		ctx.db
+			.insert(ctx.schema.transactions)
+			.values({
+				id: pending,
+				account_id: b,
+				payment: 30_00,
+				date: "2026-10-03",
+				status: "pending",
+			})
 			.run();
+		expect(ctx.balanceOf(b)).toBe(100_00);
+		await bank.acceptBankTransaction({ id: pending });
 
-		const recomputed = recomputeAccountBalance(accountId);
-		// -5000 + 2000 - 300 = -3300
-		expect(recomputed).toBe(-3300);
+		const doomed = randomUUID();
+		ctx.db
+			.insert(ctx.schema.transactions)
+			.values({ id: doomed, account_id: a, payment: 5_00, date: "2026-10-04" })
+			.run();
+		await tx.bulkDeleteTransactions([doomed]);
 
-		const raw = ctx.sqlite
-			.prepare("select balance from accounts where id = ?")
-			.get(accountId) as { balance: number };
-		expect(raw.balance).toBe(-3300);
+		await accounts.archiveAccount({ id: c, transferAccountId: a });
 
-		expect(applyBalanceDelta).toBeTypeOf("function");
-		expect(signedAmount(5000, 2000)).toBe(-3000);
-	});
-
-	it("signedAmount treats payment as negative and deposit as positive", async () => {
-		const { signedAmount } = await import("@/lib/balance");
-		expect(signedAmount(100, null)).toBe(-100);
-		expect(signedAmount(null, 100)).toBe(100);
-		expect(signedAmount(null, null)).toBe(0);
-		expect(signedAmount(100, 100)).toBe(0);
+		expect(ctx.balanceOf(a)).toBe(1_000_00 + 20_00 - 100_00);
+		expect(ctx.balanceOf(b)).toBe(100_00 - 30_00);
+		expect(ctx.balanceOf(c)).toBe(0);
+		for (const id of [a, b, c]) {
+			expect(ctx.balanceOf(id)).toBe(sumOfTransactions(id));
+		}
+		expect(getAccounts().map((account) => account.id)).not.toContain(c);
 	});
 });
