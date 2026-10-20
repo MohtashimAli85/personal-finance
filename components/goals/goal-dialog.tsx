@@ -78,8 +78,8 @@ export default function GoalDialog({
 		};
 		startTransition(async () => {
 			const result = goal
-				? await updateGoal(goal.id, payload)
-				: await createGoal({ success: false }, payload);
+				? await updateGoal({ ...payload, id: goal.id })
+				: await createGoal(payload);
 			if (result.success) {
 				setOpen(false);
 				return;

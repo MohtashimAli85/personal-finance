@@ -1,7 +1,7 @@
 "use client";
 
 import { MoreHorizontal } from "lucide-react";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import {
 	archiveGoal,
 	deleteGoal,
@@ -27,6 +27,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useServerAction } from "@/hooks/use-server-action";
 import type { GoalStatus, GoalView } from "@/lib/goal";
 import { formatMoney } from "@/lib/money";
 import { cn } from "@/lib/tailwindcss/utils";
@@ -66,14 +67,9 @@ const STATUS_META: Record<
 
 export default function GoalCard({ goal }: { goal: GoalView }) {
 	const [confirmDelete, setConfirmDelete] = useState(false);
-	const [isPending, startTransition] = useTransition();
+	const { isPending, run } = useServerAction();
 	const meta = STATUS_META[goal.status];
 	const inactive = Boolean(goal.archivedAt || goal.achievedAt);
-
-	const run = (action: () => Promise<ActionState>) =>
-		startTransition(async () => {
-			await action();
-		});
 
 	return (
 		<Card className={cn(inactive && "opacity-70")}>
@@ -123,14 +119,18 @@ export default function GoalCard({ goal }: { goal: GoalView }) {
 								/>
 								<DropdownMenuItem
 									onSelect={() =>
-										run(() => markGoalAchieved(goal.id, !goal.achievedAt))
+										run(() =>
+											markGoalAchieved({ id: goal.id, on: !goal.achievedAt }),
+										)
 									}
 								>
 									{goal.achievedAt ? "Mark as not achieved" : "Mark achieved"}
 								</DropdownMenuItem>
 								<DropdownMenuItem
 									onSelect={() =>
-										run(() => archiveGoal(goal.id, !goal.archivedAt))
+										run(() =>
+											archiveGoal({ id: goal.id, on: !goal.archivedAt }),
+										)
 									}
 								>
 									{goal.archivedAt ? "Unarchive" : "Archive"}

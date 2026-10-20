@@ -4,6 +4,7 @@ import { getBudgetView } from "@/lib/budget";
 import { getMonthKey, isMonthKey, monthsBetween } from "@/lib/date";
 import { db } from "@/lib/db";
 import { categories, category_group, goals } from "@/lib/db/schema";
+import { UserError } from "@/lib/user-error";
 
 export const SAVINGS_GROUP_NAME = "Savings Goals";
 
@@ -139,7 +140,7 @@ export const getGoals = cache(
 	},
 );
 
-export class GoalError extends Error {}
+export class GoalError extends UserError {}
 
 function ensureSavingsGroup(): string {
 	const existing = db
