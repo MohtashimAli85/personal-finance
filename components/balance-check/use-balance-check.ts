@@ -1,7 +1,7 @@
 import { useState, useTransition } from "react";
 import { saveBalanceCheck } from "@/app/actions/balance-check/mutations";
 import { useIsOffBudget } from "@/components/transactions/use-is-off-budget";
-import { toCents } from "@/lib/money";
+import { actionError } from "@/lib/action-result";
 import { useAmountRows } from "./use-amount-rows";
 
 export function useBalanceCheck(appTotal: number, pendingTotal: number) {
@@ -41,7 +41,7 @@ export function useBalanceCheck(appTotal: number, pendingTotal: number) {
 				? []
 				: splits.filled.map((row) => ({
 						categoryId: offBudget ? null : row.target,
-						amount: sign * toCents(row.amount),
+						amount: sign * Number(row.amount),
 					}));
 		startTransition(async () => {
 			const result = await saveBalanceCheck({
@@ -49,7 +49,7 @@ export function useBalanceCheck(appTotal: number, pendingTotal: number) {
 				adjustments,
 			});
 			if (!result.success) {
-				setError(result.message);
+				setError(actionError(result));
 				return;
 			}
 			changeOpen(false);

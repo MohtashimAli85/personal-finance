@@ -1,32 +1,36 @@
-import { asc, count, desc, eq, isNull, sql } from "drizzle-orm";
+import {
+	asc,
+	count,
+	desc,
+	eq,
+	getTableColumns,
+	isNull,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 import { cache } from "react";
+import { accountBalance } from "@/lib/balance";
 import { db } from "@/lib/db";
 import { accounts, transactions } from "@/lib/db/schema";
 
-export const getAccounts = cache((): Account[] => {
-	return db
-		.select()
+const selectAccounts = (where?: SQL) =>
+	db
+		.select({ ...getTableColumns(accounts), balance: accountBalance })
 		.from(accounts)
-		.where(isNull(accounts.closed_at))
+		.where(where)
 		.orderBy(asc(accounts.created_at))
-		.all() as Account[];
-});
+		.all();
 
-export const getAllAccounts = cache((): Account[] => {
-	return db
-		.select()
-		.from(accounts)
-		.orderBy(asc(accounts.created_at))
-		.all() as Account[];
-});
+export const getAccounts = cache((): Account[] =>
+	selectAccounts(isNull(accounts.closed_at)),
+);
 
-export const getAccountById = cache((id: string): Account | null => {
-	return (
-		(db.select().from(accounts).where(eq(accounts.id, id)).get() as
-			| Account
-			| undefined) ?? null
-	);
-});
+export const getAllAccounts = cache((): Account[] => selectAccounts());
+
+export const getAccountById = cache(
+	(id: string): Account | null =>
+		selectAccounts(eq(accounts.id, id))[0] ?? null,
+);
 
 export const countAccountTransactions = cache((accountId: string): number => {
 	return (

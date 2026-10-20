@@ -1,7 +1,3 @@
-import {
-	archiveAccount,
-	forceCloseAccount,
-} from "@/app/actions/accounts/mutations";
 import ConfirmDialog from "../confirm-dialog";
 import { Money } from "../money";
 import { Button } from "../ui/button";
@@ -13,10 +9,11 @@ import {
 	DialogTitle,
 } from "../ui/dialog";
 import AccountCombobox from "./account-combobox";
-import CloseAccountSubmit from "./close-account-submit";
+import { useCloseAccount } from "./use-close-account";
 
 const CloseAccount = ({ account }: { account: Account }) => {
 	const hasBalance = account.balance !== 0;
+	const close = useCloseAccount(account.id);
 
 	return (
 		<DialogContent>
@@ -39,11 +36,18 @@ const CloseAccount = ({ account }: { account: Account }) => {
 					)}
 				</DialogDescription>
 			</DialogHeader>
-			<form action={archiveAccount} className="space-y-4">
-				<input type="hidden" name="id" value={account.id} />
-				{hasBalance && <AccountCombobox modal />}
+			<form onSubmit={close.archive} className="space-y-4">
+				{hasBalance && (
+					<AccountCombobox
+						modal
+						value={close.transferAccountId}
+						onChange={close.setTransferAccountId}
+					/>
+				)}
 				<DialogFooter>
-					<CloseAccountSubmit />
+					<Button type="submit" disabled={close.isPending}>
+						{close.isPending ? "Closing..." : "Close Account"}
+					</Button>
 				</DialogFooter>
 			</form>
 			<p className="text-xs text-muted-foreground">
@@ -52,7 +56,7 @@ const CloseAccount = ({ account }: { account: Account }) => {
 					title={`Permanently delete ${account.name}?`}
 					description="This destroys the account and all of its transactions. This cannot be undone."
 					confirmLabel="Delete forever"
-					onConfirm={() => forceCloseAccount(account.id)}
+					onConfirm={close.remove}
 					trigger={
 						<Button variant="link" className="h-auto p-0 text-xs underline">
 							permanently delete

@@ -1,9 +1,10 @@
 "use client";
-import { updateAccount } from "@/app/actions/accounts/mutations";
+import { renameAccount } from "@/app/actions/accounts/mutations";
 import { useInlineEdit } from "@/hooks/use-inline-edit";
+import { toastOnError } from "@/lib/action-result";
+import { Money } from "../money";
 import NavItem from "../sidebar/nav-item";
 import { Dialog } from "../ui/dialog";
-import { Money } from "../money";
 import { SidebarMenuItem } from "../ui/sidebar";
 import AccountContextMenu from "./account-context-menu";
 import CloseAccount from "./close-account";
@@ -11,7 +12,7 @@ import CloseAccount from "./close-account";
 export const AccountItem = ({ account }: { account: Account }) => {
 	const { containerRef, startEditing, handleBlur, handleKeyDown } =
 		useInlineEdit((value) => {
-			updateAccount(account.id, { name: value });
+			toastOnError(renameAccount({ id: account.id, name: value }));
 		});
 
 	return (
