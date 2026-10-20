@@ -1,3 +1,4 @@
+import "server-only";
 import { eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { app_settings } from "@/lib/db/schema";

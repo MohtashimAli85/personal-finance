@@ -1,13 +1,8 @@
+import type { accounts, transactions } from "@/lib/db/schema";
+
 declare global {
-	/** All money fields are integer cents (see lib/money.ts). */
-	interface Account {
-		id: string;
-		name: string;
-		balance: number;
-		account_type: "on_budget" | "off_budget";
-		closed_at: string | null;
-		created_at: string | null;
-	}
+	/** balance is integer cents, the sum of the account's cleared transactions. */
+	type Account = typeof accounts.$inferSelect & { balance: number };
 	interface Category {
 		id: string;
 		name: string;
@@ -26,18 +21,7 @@ declare global {
 		categories: Category[];
 	}
 	/** payment/deposit are integer cents (see lib/money.ts); date is YYYY-MM-DD. */
-	interface Transaction {
-		id: string;
-		payment: number | null;
-		deposit: number | null;
-		date: string;
-		notes: string | null;
-		account_id: string | null;
-		category_id: string | null;
-		source?: string;
-		status?: "pending" | "cleared";
-		transfer_id?: string | null;
-	}
+	type Transaction = Omit<typeof transactions.$inferSelect, "external_hash">;
 	interface TransactionRow extends Transaction {
 		account_name: string | null;
 		category_name: string | null;
@@ -45,7 +29,6 @@ declare global {
 	interface ActionState {
 		success: boolean;
 		message?: string;
-		shouldValidate?: boolean;
 		errors?: Record<string, { message: string } | undefined>;
 		payload?: Record<string, string | number | boolean | null>;
 	}
@@ -136,5 +119,3 @@ declare global {
 		electronAPI?: ElectronAPI;
 	}
 }
-
-export {};

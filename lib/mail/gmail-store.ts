@@ -1,3 +1,4 @@
+import "server-only";
 import { and, eq, isNull, ne } from "drizzle-orm";
 import type { ParsedBankTransaction } from "@/lib/bank-parsers/types";
 import { db } from "@/lib/db";

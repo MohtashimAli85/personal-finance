@@ -4,6 +4,7 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@": import.meta.dirname,
+			"server-only": `${import.meta.dirname}/node_modules/server-only/empty.js`,
 		},
 	},
 	test: {

@@ -30,7 +30,9 @@ exports.default = async function afterPack(context) {
 		throw new Error(`Standalone node_modules not found at ${srcModules}`);
 	}
 
-	console.log(`Copying standalone node_modules from ${srcModules} to ${destModules}`);
+	console.log(
+		`Copying standalone node_modules from ${srcModules} to ${destModules}`,
+	);
 
 	fs.rmSync(destModules, { recursive: true, force: true });
 	fs.cpSync(srcModules, destModules, {

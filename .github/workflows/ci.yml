@@ -20,10 +20,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm lint
-      - run: pnpm test
-      # Lint has pre-existing debt across the codebase (mostly generated
-      # shadcn/ui primitives) that predates this workflow - informational
-      # until that's paid down, so a real regression is visible without
-      # blocking every PR on unrelated files.
       - run: pnpm check
-        continue-on-error: true
+      - run: pnpm test

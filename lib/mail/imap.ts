@@ -1,3 +1,4 @@
+import "server-only";
 import { type FetchMessageObject, ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import type { MailCredentials } from "./credentials";

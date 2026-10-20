@@ -1,12 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-	/* config options here */
 	output: "standalone",
 	reactCompiler: true,
 	serverExternalPackages: ["better-sqlite3", "imapflow", "mailparser"],
 	experimental: { serverActions: { bodySizeLimit: "200mb" } },
-	allowedDevOrigins: ["http://127.0.0.1:3000", "http://localhost:3000"],
+	allowedDevOrigins: ["127.0.0.1"],
 	// cacheComponents: true,
 };
 
