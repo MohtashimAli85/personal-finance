@@ -6,7 +6,7 @@ interface MutationOptions<T> {
 }
 
 export function useMutation<TInput>(
-	action: (state: ActionState, payload: TInput) => Promise<ActionState>,
+	action: (payload: TInput) => Promise<ActionState>,
 	initialState: ActionState,
 ) {
 	const [state, setState] = useState<ActionState>(initialState);
@@ -15,7 +15,7 @@ export function useMutation<TInput>(
 		payload: TInput,
 		options?: MutationOptions<ActionState>,
 	) => {
-		const result = await action(state, payload);
+		const result = await action(payload);
 		setState(result);
 
 		if (result.success) {

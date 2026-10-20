@@ -155,7 +155,11 @@
 		background: transparent;
 	}
 	*::-webkit-scrollbar-thumb {
-		background-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+		background-color: color-mix(
+			in oklab,
+			var(--muted-foreground) 50%,
+			transparent
+		);
 		border-radius: 9999px;
 	}
 	*::-webkit-scrollbar-thumb:hover {

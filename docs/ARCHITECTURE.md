@@ -16,25 +16,55 @@ function and calls it directly. The `app/api/**` routes that do exist are for
 things that must be HTTP endpoints for a reason outside this pattern - the
 streaming chat endpoint and file exports.
 
-## Writes: server actions
+## Writes: domain functions in `lib/`, thin server actions
 
-All creates/updates/deletes live in `app/actions/**/mutations.ts` as
-`"use server"` functions. Each one:
+Every write lives in a `lib/*.ts` domain function (`lib/transaction-mutations.ts`,
+`lib/account-mutations.ts`, `lib/budget-mutations.ts`, `lib/budget-structure.ts`,
+`lib/goal.ts`, `lib/bank-review.ts`, ...). A domain function:
 
-1. Wraps its DB writes in `db.transaction(() => { ... })` so a multi-table
-   write (e.g. insert a transaction + adjust an account balance) can't
+1. Wraps multi-table writes in `db.transaction(() => { ... })` so they can't
    partially apply.
-2. Calls `revalidatePath(...)` for every route that reads data the write
-   affects (typically `/`, `/transactions`, `/budget`).
+2. Takes cents and `YYYY-MM-DD` dates, and throws `UserError`
+   (`lib/user-error.ts`) for an expected failure the user should see. Any
+   other throw is a bug.
+
+`app/actions/**/mutations.ts` holds the `"use server"` actions. Each one is a
+thin wrapper built with `serverAction(schema, run)` (`lib/server-action.ts`):
+
+1. It validates its single input object with zod (`lib/validation.ts` has the
+   shared pieces). Server actions are public POST endpoints, so nothing
+   reaches the DB unvalidated.
+2. It calls the domain function.
+3. It returns `ActionState` - a `UserError` or invalid input becomes
+   `{ success: false, message, errors }` instead of a throw - and calls
+   `refresh()` on success. Nothing is server-cached (SQLite is state outside
+   the cache), so a refresh is all a write needs. Backup restore and Actual
+   import also `revalidatePath("/", "layout")` before redirecting.
+
+The client calls actions through `useServerAction` / `toastOnError`
+(`hooks/use-server-action.ts`, `lib/action-result.ts`), which toast a failed
+result, or `useActionFeedback` for inline form feedback. AI write tools
+(`lib/ai/tools.ts`) call the same domain functions; they run in the chat
+route handler, where `refresh()` isn't available, so they
+`revalidatePath("/", "layout")`.
+
+## Account balances: computed on read
+
+There is no stored balance. `lib/balance.ts`'s `accountBalance` is a SQL
+expression summing an account's cleared transactions (pending imports don't
+count), selected by `lib/account.ts`. No write path has to keep a cache in
+sync.
 
 ## Money: integer cents
 
 Every money column in the schema, and every money value returned by a
-`lib/*.ts` read function or accepted by a server action's DB-facing
-parameters, is an **integer number of cents** (`lib/money.ts`: `toCents`,
-`fromCents`, `formatMoney`). Floating point is only touched at the outer
-edges - a form input's raw string, a CSV cell, a parsed email amount - and
-converted immediately.
+`lib/*.ts` read function or taken by a domain write, is an **integer number
+of cents** (`lib/money.ts`: `toCents`, `fromCents`, `formatMoney`). Server
+actions are the one boundary that takes **decimals** - what the user typed -
+and their zod schema converts them with `cents` / `positiveCents` from
+`lib/validation.ts`, so cents never cross the wire. Floating point is only
+touched at the outer edges - a form input's raw string, a CSV cell, a parsed
+email amount - and converted immediately.
 
 ## Dates: plain calendar dates
 
@@ -89,10 +119,20 @@ rules; the numbers were checked against a real Actual export.
    data, copy `db.sqlite` elsewhere first and run migrations against the
    copy, asserting row counts and cent-for-cent balance totals match.
 3. Add the read function to the relevant `lib/*.ts` file.
-4. Add the write to `app/actions/**/mutations.ts`, in a `db.transaction`,
-   with a `revalidatePath` call.
+4. Add the write as a domain function in `lib/`, in a `db.transaction`,
+   throwing `UserError` for expected failures. Expose it with
+   `serverAction(schema, run)` in `app/actions/**/mutations.ts`.
 5. Add a test in `test/*.test.ts` - for DB-backed logic, use
    `test/db-test-utils.ts`'s `createTestDb()`, which gives you an isolated
    temp database with migrations applied. Import app modules dynamically
    *after* calling it (never a static top-level import of anything that
-   reaches `lib/db`), or the module binds to the wrong database.
+   reaches `lib/db`), or the module binds to the wrong database. Tests that
+   call actions mock `next/cache` (`revalidatePath`, `refresh`).
+
+## Database bootstrap
+
+Importing `lib/db` only opens the connection. `instrumentation.ts`'s
+`register()` runs `ensureDatabaseReady()` (`lib/db/bootstrap.ts`) once before
+the server takes requests: migrations, a one-time email re-key backfill
+(recorded in `app_settings`), category-group normalisation and the
+income-group trigger. Tests call it from `createTestDb()`.
