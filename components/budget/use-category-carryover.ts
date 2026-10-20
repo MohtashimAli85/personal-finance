@@ -1,11 +1,11 @@
-import { useTransition } from "react";
 import { setCategoryCarryover } from "@/app/actions/budget/mutations";
+import { useServerAction } from "@/hooks/use-server-action";
 
 export function useCategoryCarryover(categoryId: string, month: string) {
-	const [isPending, startTransition] = useTransition();
+	const { isPending, run } = useServerAction();
 
 	const setCarryover = (carryover: boolean) =>
-		startTransition(() => setCategoryCarryover(categoryId, month, carryover));
+		run(() => setCategoryCarryover({ categoryId, month, carryover }));
 
 	return { isPending, setCarryover };
 }

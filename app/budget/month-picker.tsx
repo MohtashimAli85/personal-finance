@@ -47,8 +47,12 @@ export default function MonthPicker({ month }: MonthPickerProps) {
 				<ChevronLeft />
 			</Button>
 			<div className="min-w-36 text-center">
-				<div className="text-muted-foreground text-xs">{format(selectedMonth, "yyyy")}</div>
-				<div className="text-sm font-semibold">{format(selectedMonth, "MMMM")}</div>
+				<div className="text-muted-foreground text-xs">
+					{format(selectedMonth, "yyyy")}
+				</div>
+				<div className="text-sm font-semibold">
+					{format(selectedMonth, "MMMM")}
+				</div>
 			</div>
 			<Button
 				type="button"

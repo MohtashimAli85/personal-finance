@@ -1,4 +1,5 @@
 import { setBudgetedAmount } from "@/app/actions/budget/mutations";
+import { toastOnError } from "@/lib/action-result";
 import { formatCurrency } from "@/lib/helper";
 import { evaluateExpression } from "@/lib/math-expression";
 import { fromCents, toCents } from "@/lib/money";
@@ -23,7 +24,9 @@ export function useBudgetAmount(
 		input.value = formatted;
 		if (result === null) return;
 		const next = fromCents(toCents(result));
-		if (next !== current) setBudgetedAmount(categoryId, month, next);
+		if (next !== current) {
+			toastOnError(setBudgetedAmount({ categoryId, month, amount: next }));
+		}
 	};
 
 	const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {

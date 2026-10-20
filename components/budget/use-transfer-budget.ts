@@ -1,5 +1,6 @@
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { transferBetweenCategories } from "@/app/actions/budget/mutations";
+import { useServerAction } from "@/hooks/use-server-action";
 import { fromCents } from "@/lib/money";
 
 export function useTransferBudget(
@@ -10,13 +11,14 @@ export function useTransferBudget(
 ) {
 	const [amount, setAmount] = useState(String(Math.max(fromCents(balance), 0)));
 	const [toId, setToId] = useState("");
-	const [isPending, startTransition] = useTransition();
+	const { isPending, run } = useServerAction();
 
 	const transfer = () =>
-		startTransition(async () => {
-			await transferBetweenCategories(fromId, toId, month, Number(amount || 0));
-			onDone();
-		});
+		run(
+			() =>
+				transferBetweenCategories({ fromId, toId, month, amount: amount || 0 }),
+			onDone,
+		);
 
 	return {
 		amount,

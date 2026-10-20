@@ -4,6 +4,7 @@ import { renameBudgetCategory } from "@/app/actions/budget/mutations";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useInlineEdit } from "@/hooks/use-inline-edit";
+import { toastOnError } from "@/lib/action-result";
 import { formatCurrency } from "@/lib/helper";
 import { cn } from "@/lib/tailwindcss/utils";
 import BalanceCell from "./balance-cell";
@@ -23,7 +24,9 @@ const BudgetCategoryRow = ({
 }) => {
 	const { containerRef, startEditing, handleBlur, handleKeyDown } =
 		useInlineEdit((value) => {
-			renameBudgetCategory(category.id, value);
+			toastOnError(
+				renameBudgetCategory({ categoryId: category.id, name: value }),
+			);
 		});
 	const amount = useBudgetAmount(category.id, month, category.budgeted);
 	const href = categoryTransactionsHref(category.id, month);

@@ -2,6 +2,7 @@
 import { createBudgetCategory } from "@/app/actions/budget/mutations";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
+import { toastOnError } from "@/lib/action-result";
 
 const AddCategoryRow = ({
 	groupId,
@@ -24,7 +25,7 @@ const AddCategoryRow = ({
 					onBlur={(e) => {
 						const name = e.currentTarget.value.trim();
 						onDone();
-						if (name) createBudgetCategory(groupId, name);
+						if (name) toastOnError(createBudgetCategory({ groupId, name }));
 					}}
 					onKeyDown={(e) => {
 						if (e.key === "Enter") e.currentTarget.blur();

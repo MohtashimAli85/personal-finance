@@ -3,18 +3,6 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { categories, category_group } from "@/lib/db/schema";
 
-type CategoryRow = {
-	category_id: string | null;
-	category_name: string | null;
-	category_sort_order: number | null;
-	group_id: string;
-	group_name: string;
-	group_sort_order: number;
-	group_is_income: boolean;
-	category_hidden: boolean | null;
-	group_hidden: boolean;
-};
-
 const groupedSelect = {
 	category_id: categories.id,
 	category_name: categories.name,
@@ -39,7 +27,7 @@ export const getGroupedCategories = cache((): GroupedCategory[] => {
 			asc(categories.sort_order),
 			asc(categories.name),
 		)
-		.all() as CategoryRow[];
+		.all();
 
 	const groups = new Map<string, GroupedCategory>();
 

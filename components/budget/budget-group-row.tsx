@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { useBudgetContext } from "@/context/budget-context";
 import { useInlineEdit } from "@/hooks/use-inline-edit";
+import { toastOnError } from "@/lib/action-result";
 import { formatCurrency } from "@/lib/helper";
 import { cn } from "@/lib/tailwindcss/utils";
 import { NUMBER_CELL } from "./budget-cells";
@@ -31,7 +32,7 @@ const BudgetGroupRow = ({
 
 	const { containerRef, startEditing, handleBlur, handleKeyDown } =
 		useInlineEdit((value) => {
-			renameBudgetGroup(group.id, value);
+			toastOnError(renameBudgetGroup({ groupId: group.id, name: value }));
 		});
 
 	const isCollapsed = collapsedGroups[group.id] ?? false;
@@ -87,7 +88,7 @@ const BudgetGroupRow = ({
 								onRename={startEditing}
 								onDelete={
 									group.can_delete && canMutateGroup
-										? () => deleteBudgetGroup(group.id)
+										? () => toastOnError(deleteBudgetGroup(group.id))
 										: undefined
 								}
 							/>

@@ -1,16 +1,18 @@
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { deleteBudgetCategory } from "@/app/actions/budget/mutations";
+import { useServerAction } from "@/hooks/use-server-action";
 
 export function useDeleteCategory(category: BudgetCategoryRow) {
 	const [open, setOpen] = useState(false);
 	const [transferToId, setTransferToId] = useState("");
-	const [isPending, startTransition] = useTransition();
+	const { isPending, run } = useServerAction();
 
 	const remove = (toId: string | null) =>
-		startTransition(async () => {
-			await deleteBudgetCategory(category.id, toId);
-			setOpen(false);
-		});
+		run(
+			() =>
+				deleteBudgetCategory({ categoryId: category.id, transferToId: toId }),
+			() => setOpen(false),
+		);
 
 	return {
 		open,
