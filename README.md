@@ -154,6 +154,17 @@ packages it with Electron via `electron-builder`. The packaged app resolves its
 database to the OS's per-user application data directory (`app.getPath("userData")`)
 and its migrations to a bundled `drizzle/` folder - never the project directory.
 
+### Releases
+
+Pushing a tag like `v0.1.0` (it must match the `version` in `package.json`)
+runs `.github/workflows/release.yml`, which builds the Windows (`.exe`
+installer and portable) and Linux (`.AppImage` and `.deb`) packages and
+attaches them to a GitHub Release.
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
 `scripts/verify-no-secrets.cjs` runs as an `electron-builder` `beforePack` hook
 and refuses to package the app if a `.env` file or a local `db.sqlite` is present
 in the build output, since the standalone build can otherwise contain a
