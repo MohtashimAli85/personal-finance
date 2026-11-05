@@ -51,7 +51,7 @@ describe("pending transactions and account balance", () => {
 	});
 
 	it("accepting a pending row applies it, rejecting or deleting one does not", async () => {
-		const { acceptBankTransaction, rejectBankTransaction } = await import(
+		const { acceptBankTransactions, rejectBankTransactions } = await import(
 			"@/app/actions/bank/sync"
 		);
 		const { bulkDeleteTransactions } = await import(
@@ -59,13 +59,32 @@ describe("pending transactions and account balance", () => {
 		);
 		const accountId = makeAccount(10000);
 
-		await rejectBankTransaction(addPending(accountId, 1000));
+		await rejectBankTransactions([addPending(accountId, 1000)]);
 		expect(balanceOf(accountId)).toBe(10000);
 
 		await bulkDeleteTransactions([addPending(accountId, 2000)]);
 		expect(balanceOf(accountId)).toBe(10000);
 
-		await acceptBankTransaction({ id: addPending(accountId, 3000) });
+		await acceptBankTransactions([{ id: addPending(accountId, 3000) }]);
+		expect(balanceOf(accountId)).toBe(7000);
+	});
+
+	it("accepts and rejects several pending rows at once", async () => {
+		const { acceptBankTransactions, rejectBankTransactions } = await import(
+			"@/app/actions/bank/sync"
+		);
+		const accountId = makeAccount(10000);
+
+		await rejectBankTransactions([
+			addPending(accountId, 1000),
+			addPending(accountId, 2000),
+		]);
+		expect(balanceOf(accountId)).toBe(10000);
+
+		await acceptBankTransactions([
+			{ id: addPending(accountId, 1000) },
+			{ id: addPending(accountId, 2000) },
+		]);
 		expect(balanceOf(accountId)).toBe(7000);
 	});
 });

@@ -5,6 +5,7 @@ import type {
 	BankEmail,
 	ParsedBankTransaction,
 } from "@/lib/bank-parsers/types";
+import { isRejectedImport } from "@/lib/bank-review";
 import { toDateKey } from "@/lib/date";
 import { db } from "@/lib/db";
 import { accounts, type gmail_messages, transactions } from "@/lib/db/schema";
@@ -117,6 +118,10 @@ export async function importEmailTransactions(
 					.where(eq(transactions.external_hash, hash))
 					.run();
 			}
+			continue;
+		}
+		if (isRejectedImport(hash)) {
+			processedIds.push(email.id);
 			continue;
 		}
 		known.set(hash, tx.description);

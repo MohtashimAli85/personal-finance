@@ -10,6 +10,7 @@ import {
 	transactionFields,
 } from "@/lib/bank-import";
 import { extractWithAi } from "@/lib/bank-parsers/ai";
+import { isRejectedImport } from "@/lib/bank-review";
 import { db } from "@/lib/db";
 import { type gmail_messages, transactions } from "@/lib/db/schema";
 import {
@@ -93,6 +94,7 @@ function applyAiResult(
 		.get();
 
 	if (!existing) {
+		if (isRejectedImport(hash)) return;
 		db.insert(transactions)
 			.values({
 				id: crypto.randomUUID(),

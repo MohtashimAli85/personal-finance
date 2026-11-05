@@ -138,6 +138,11 @@ export const gmail_messages = sqliteTable(
 	],
 );
 
+// Bank emails whose transaction the user rejected, so a re-sync skips them.
+export const rejected_bank_imports = sqliteTable("rejected_bank_imports", {
+	external_hash: text("external_hash").primaryKey(),
+});
+
 export const gmail_sync_state = sqliteTable("gmail_sync_state", {
 	id: text("id").primaryKey(),
 	history_id: text("history_id"),

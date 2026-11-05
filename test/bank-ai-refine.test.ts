@@ -78,6 +78,7 @@ afterAll(() => ctx.cleanup());
 beforeEach(() => {
 	ctx.db.delete(ctx.schema.transactions).run();
 	ctx.db.delete(ctx.schema.gmail_messages).run();
+	ctx.db.delete(ctx.schema.rejected_bank_imports).run();
 	ctx.db.delete(ctx.schema.bank_sender_configs).run();
 	ctx.db.delete(ctx.schema.accounts).run();
 
@@ -209,5 +210,35 @@ describe("AI refine pass", () => {
 			refined: 0,
 			skipped: true,
 		});
+	});
+});
+
+describe("rejecting an imported transaction", () => {
+	const rejectOnly = async () => {
+		await regexImport();
+		await sync.rejectBankTransactions([onlyTransaction().id]);
+	};
+	const transactionCount = () =>
+		ctx.db.select().from(ctx.schema.transactions).all().length;
+
+	it("is not re-imported by the next sync", async () => {
+		await rejectOnly();
+		await regexImport();
+		expect(transactionCount()).toBe(0);
+	});
+
+	it("is not re-added by the AI refine pass", async () => {
+		await rejectOnly();
+		useModel(
+			aiReply({
+				isTransaction: true,
+				amount: 650,
+				date: "2026-09-14",
+				type: "expense",
+				counterparty: "Jhelum Sports",
+			}),
+		);
+		await refine.refineBankTransactionsWithAi();
+		expect(transactionCount()).toBe(0);
 	});
 });

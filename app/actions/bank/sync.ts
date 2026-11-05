@@ -49,13 +49,16 @@ export const syncBankTransactions = serverAction(z.void(), async () => {
 	return { success: true, payload };
 });
 
-export const acceptBankTransaction = serverAction(
-	z.object({ id, categoryId: optionalId }),
-	({ id, categoryId }) => {
-		review.acceptBankTransactions([id], categoryId);
+export const acceptBankTransactions = serverAction(
+	z.array(z.object({ id, categoryId: optionalId })).min(1),
+	(items) => {
+		review.acceptBankTransactions(items);
 	},
 );
 
-export const rejectBankTransaction = serverAction(id, (transactionId) => {
-	review.rejectBankTransaction(transactionId);
-});
+export const rejectBankTransactions = serverAction(
+	z.array(id).min(1),
+	(ids) => {
+		review.rejectBankTransactions(ids);
+	},
+);

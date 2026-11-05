@@ -69,7 +69,7 @@ describe("account balance", () => {
 			})
 			.run();
 		expect(ctx.balanceOf(b)).toBe(100_00);
-		await bank.acceptBankTransaction({ id: pending });
+		await bank.acceptBankTransactions([{ id: pending }]);
 
 		const doomed = randomUUID();
 		ctx.db

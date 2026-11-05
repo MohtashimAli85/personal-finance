@@ -22,7 +22,7 @@ export const TransactionSelectionProvider = ({
 	transactions,
 }: {
 	children: React.ReactNode;
-	transactions: Transaction[];
+	transactions: { id: string }[];
 }) => {
 	const transactionIds = useMemo(
 		() => transactions.map((tx) => tx.id),
