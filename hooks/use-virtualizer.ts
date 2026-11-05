@@ -64,7 +64,9 @@ export function useVirtualizer(options: VirtualizerOptions): Virtualizer {
 	// Keeps callbacks stable so consumers don't need to memoize them.
 	// ------------------------------------------------------------------
 	const latestRef = useRef({ getScrollElement, itemSize });
-	latestRef.current = { getScrollElement, itemSize };
+	useEffect(() => {
+		latestRef.current = { getScrollElement, itemSize };
+	});
 
 	// ------------------------------------------------------------------
 	// Velocity bookkeeping (ephemeral, not state-driven)
@@ -155,13 +157,10 @@ export function useVirtualizer(options: VirtualizerOptions): Virtualizer {
 		const scrollElement = getScrollElement();
 		if (!scrollElement) return;
 
-		// One-time initial measurement (no rAF + flushSync needed).
-		setScrollTop(scrollElement.scrollTop);
-		setClientHeight(scrollElement.clientHeight);
-
 		scrollElement.addEventListener("scroll", onScroll, { passive: true });
 
 		const ro = new ResizeObserver(() => {
+			setScrollTop(scrollElement.scrollTop);
 			setClientHeight(scrollElement.clientHeight);
 		});
 		ro.observe(scrollElement);

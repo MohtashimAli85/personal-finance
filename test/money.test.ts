@@ -53,14 +53,15 @@ describe("sumCents", () => {
 });
 
 describe("formatMoney", () => {
-	it("formats cents as a decimal string with two fraction digits", () => {
-		expect(formatMoney(15050)).toBe("150.50");
+	it("formats cents as a decimal string with up to two fraction digits", () => {
+		expect(formatMoney(15050)).toBe("150.5");
+		expect(formatMoney(15025)).toBe("150.25");
 		expect(formatMoney(0)).toBe("0");
 	});
 
-	it("formats with a currency symbol when a currency is given", () => {
-		expect(formatMoney(15050, { currency: "USD", locale: "en-US" })).toContain(
-			"150.50",
+	it("formats with a currency symbol and no fraction digits when a currency is given", () => {
+		expect(formatMoney(15050, { currency: "USD", locale: "en-US" })).toBe(
+			"$151",
 		);
 	});
 });

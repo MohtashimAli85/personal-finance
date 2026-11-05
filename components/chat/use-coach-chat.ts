@@ -12,6 +12,32 @@ import type { CoachUIMessage } from "@/lib/ai/message-types";
 import type { ModelEntry } from "@/lib/ai/models";
 import { useChatShell } from "./chat-shell";
 
+const createModelStore = () => {
+	let current = AUTO_MODEL;
+	return {
+		get: () => current,
+		set: (value: string) => {
+			current = value;
+		},
+	};
+};
+
+const createTransport = (getModel: () => string) =>
+	new DefaultChatTransport({
+		api: "/api/chat",
+		prepareSendMessagesRequest: ({ id, messages, body }) => {
+			const model = getModel();
+			return {
+				body: {
+					...body,
+					id,
+					messages,
+					model: model === AUTO_MODEL ? undefined : model,
+				},
+			};
+		},
+	});
+
 export function useCoachChat({
 	id,
 	initialMessages,
@@ -26,22 +52,8 @@ export function useCoachChat({
 	const { refreshChats } = useChatShell();
 	const [input, setInput] = useState("");
 	const [model, setModel] = useState(AUTO_MODEL);
-	const modelRef = useRef(AUTO_MODEL);
-	const [transport] = useState(
-		() =>
-			new DefaultChatTransport({
-				api: "/api/chat",
-				prepareSendMessagesRequest: ({ id, messages, body }) => ({
-					body: {
-						...body,
-						id,
-						messages,
-						model:
-							modelRef.current === AUTO_MODEL ? undefined : modelRef.current,
-					},
-				}),
-			}),
-	);
+	const [modelStore] = useState(createModelStore);
+	const [transport] = useState(() => createTransport(modelStore.get));
 	const urlIsSet = useRef(!isNew);
 	const hasKey = models.length > 0;
 
@@ -79,7 +91,7 @@ export function useCoachChat({
 	};
 
 	const selectModel = (value: string) => {
-		modelRef.current = value;
+		modelStore.set(value);
 		setModel(value);
 	};
 
