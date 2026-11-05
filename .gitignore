@@ -21,3 +21,6 @@ tsconfig.tsbuildinfo
 
 # local database backups
 backups/
+
+# Next.js generated types
+next-env.d.ts
