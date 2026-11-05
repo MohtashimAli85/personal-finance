@@ -47,7 +47,7 @@ export default function PendingBulkActions({
 						<AlertDialogTitle>Reject transactions?</AlertDialogTitle>
 						<AlertDialogDescription>
 							{selected.length} transaction{selected.length === 1 ? "" : "s"}{" "}
-							will be removed and won't be imported again on the next sync.
+							will be removed and won&apos;t be imported again on the next sync.
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
