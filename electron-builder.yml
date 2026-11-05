@@ -73,6 +73,7 @@ nsis:
 
 linux:
   icon: resources/icons
+  maintainer: Mohtashim Ali <MohtashimAli85@users.noreply.github.com>
   category: Finance
   target:
     - target: AppImage
