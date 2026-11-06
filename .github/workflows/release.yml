@@ -62,15 +62,25 @@ jobs:
       - run: pnpm electron:build:${{ matrix.platform }} ${{ matrix.args }}
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - name: Build macOS DMG
+        if: matrix.platform == 'mac'
+        shell: bash
+        run: |
+          zip=$(ls release/*-mac.zip)
+          dmg="${zip%-mac.zip}.dmg"
+          rm -rf /tmp/dmg-stage && mkdir /tmp/dmg-stage
+          ditto -x -k "$zip" /tmp/dmg-stage
+          ln -s /Applications /tmp/dmg-stage/Applications
+          hdiutil create -volname "Personal Finance" -srcfolder /tmp/dmg-stage -fs APFS -format UDZO -ov "$dmg"
       - name: Verify macOS packages
         if: matrix.platform == 'mac'
         shell: bash
         run: |
-          for f in release/*.zip; do unzip -tq "$f"; done
+          for f in release/*.zip; do ditto -x -k "$f" /tmp/zip-check; done
           for f in release/*.dmg; do
             hdiutil verify "$f"
             hdiutil attach "$f" -readonly -nobrowse -mountpoint /tmp/dmg-mnt
-            find /tmp/dmg-mnt -maxdepth 1 -name "*.app" | grep -q .
+            find /tmp/dmg-mnt -maxdepth 1 -name "*.app" | grep .
             hdiutil detach /tmp/dmg-mnt
           done
       - name: Verify Linux packages
