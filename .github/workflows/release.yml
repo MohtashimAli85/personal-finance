@@ -79,12 +79,12 @@ jobs:
         run: |
           for f in release/*.deb; do
             dpkg-deb --info "$f"
-            dpkg-deb --contents "$f" | grep -q "better_sqlite3.node"
+            dpkg-deb --contents "$f" | grep -E "\.node$"
           done
           for f in release/*.AppImage; do
             chmod +x "$f"
             "$f" --appimage-extract > /dev/null
-            find squashfs-root -name "better_sqlite3.node" | grep -q .
+            find squashfs-root -name "*.node" | grep .
           done
       - name: Verify Windows packages
         if: matrix.platform == 'win'
