@@ -135,7 +135,7 @@ run(
 	"Compiling Electron TypeScript",
 );
 
-const platform = process.argv[2] || "";
+const platform = process.argv.slice(2).join(" ");
 const builderCmd = platform
 	? `npx electron-builder ${platform}`
 	: "npx electron-builder";
