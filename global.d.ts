@@ -9,6 +9,7 @@ declare global {
 		group_id: string;
 		sort_order?: number;
 		hidden?: boolean;
+		recurring_amount?: number | null;
 	}
 	interface CategoryGroup {
 		id: string;
@@ -58,6 +59,7 @@ declare global {
 		balance: number;
 		carryover: boolean;
 		in_use: boolean;
+		recurring: number;
 	}
 
 	interface BudgetGroup {

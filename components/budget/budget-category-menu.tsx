@@ -10,11 +10,13 @@ import {
 
 interface BudgetCategoryMenuProps {
 	onRename: () => void;
+	onRecurring: () => void;
 	onDelete: () => void;
 }
 
 const BudgetCategoryMenu = ({
 	onRename,
+	onRecurring,
 	onDelete,
 }: BudgetCategoryMenuProps) => {
 	return (
@@ -29,6 +31,9 @@ const BudgetCategoryMenu = ({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
 				<DropdownMenuItem onSelect={onRename}>Rename</DropdownMenuItem>
+				<DropdownMenuItem onSelect={onRecurring}>
+					Recurring amount…
+				</DropdownMenuItem>
 				<DropdownMenuItem className="text-destructive" onSelect={onDelete}>
 					Delete
 				</DropdownMenuItem>

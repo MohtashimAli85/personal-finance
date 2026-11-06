@@ -4,6 +4,7 @@ import MonthPicker from "@/app/budget/month-picker";
 import ToBudgetSummary from "@/components/budget/to-budget-summary";
 import BudgetProvider from "@/context/budget-context";
 import { getBudgetView } from "@/lib/budget";
+import { applyRecurringBudgets } from "@/lib/budget-mutations";
 import { getMonthKey, isMonthKey } from "@/lib/date";
 
 export const metadata: Metadata = {
@@ -16,6 +17,7 @@ export default async function BudgetPage(props: SearchPageProps) {
 	const monthParam = searchParams.month;
 	const month =
 		monthParam && isMonthKey(monthParam) ? monthParam : getMonthKey();
+	if (month === getMonthKey()) applyRecurringBudgets(month);
 	const budget = getBudgetView(month);
 	return (
 		<div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col gap-4 overflow-hidden">

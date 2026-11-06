@@ -1,5 +1,5 @@
 import { and, desc, eq, lt, sql } from "drizzle-orm";
-import { getBudgetView } from "@/lib/budget";
+import { computeBudgetView, getBudgetView } from "@/lib/budget";
 import { TO_BUDGET } from "@/lib/budget-targets";
 import { monthsBetween } from "@/lib/date";
 import { db } from "@/lib/db";
@@ -134,5 +134,55 @@ export function holdForNextMonth(month: string, amount: number): number {
 }
 
 export function resetHold(month: string) {
-	db.delete(budget_months).where(eq(budget_months.month, month)).run();
+	db.update(budget_months)
+		.set({ buffered: 0 })
+		.where(eq(budget_months.month, month))
+		.run();
+}
+
+export function setCategoryRecurring(categoryId: string, amount: number) {
+	const updated = db
+		.update(categories)
+		.set({ recurring_amount: amount > 0 ? amount : null })
+		.where(eq(categories.id, categoryId))
+		.run();
+	if (updated.changes === 0) throw new UserError("Category not found.");
+}
+
+/** Once the month has income, tops each recurring category up to its amount
+ * from To Budget, in budget order. After every one is fully funded the month
+ * is marked filled, so later manual edits stick. */
+export function applyRecurringBudgets(month: string) {
+	const filled = db
+		.select({ filled: budget_months.recurring_filled })
+		.from(budget_months)
+		.where(eq(budget_months.month, month))
+		.get()?.filled;
+	if (filled) return;
+
+	const view = computeBudgetView(month);
+	const recurring = view.groups
+		.flatMap((group) => group.categories)
+		.filter((category) => category.recurring > 0);
+	if (view.income <= 0 || recurring.length === 0) return;
+
+	let available = Math.max(view.toBudget, 0);
+	let short = false;
+	db.transaction(() => {
+		for (const category of recurring) {
+			const missing = Math.max(category.recurring - category.budgeted, 0);
+			const topUp = Math.min(missing, available);
+			if (topUp > 0) addToBudget(category.id, month, topUp);
+			available -= topUp;
+			if (topUp < missing) short = true;
+		}
+		if (short) return;
+		db.insert(budget_months)
+			.values({ month, recurring_filled: true })
+			.onConflictDoUpdate({
+				target: budget_months.month,
+				set: { recurring_filled: true },
+			})
+			.run();
+	});
 }

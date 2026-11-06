@@ -7,6 +7,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {}, refresh: () => {} }));
 
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let budget: typeof import("@/lib/budget");
+let mutations: typeof import("@/lib/budget-mutations");
 let actions: typeof import("@/app/actions/budget/mutations");
 let incomeCategoryId: string;
 let account: string;
@@ -14,6 +15,7 @@ let account: string;
 beforeAll(async () => {
 	ctx = await createTestDb();
 	budget = await import("@/lib/budget");
+	mutations = await import("@/lib/budget-mutations");
 	actions = await import("@/app/actions/budget/mutations");
 	const incomeGroup = ctx.db
 		.select()
@@ -38,6 +40,7 @@ beforeEach(() => {
 	db.delete(schema.monthly_budgets).run();
 	db.delete(schema.budget_months).run();
 	db.delete(schema.accounts).run();
+	db.update(schema.categories).set({ recurring_amount: null }).run();
 	account = seedAccount("Checking", "on_budget");
 });
 
@@ -438,5 +441,43 @@ describe("budget actions", () => {
 			buffered: 0,
 			toBudget: 40_000,
 		});
+	});
+
+	it("fills a recurring category once income arrives, then leaves it alone", async () => {
+		const rent = seedCategory();
+		await actions.setCategoryRecurring({ categoryId: rent, amount: 500 });
+
+		mutations.applyRecurringBudgets("2026-11");
+		expect(categoryIn("2026-11", rent)?.budgeted).toBe(0);
+
+		tx(incomeCategoryId, "2026-11-01", 80_000);
+		mutations.applyRecurringBudgets("2026-11");
+		expect(categoryIn("2026-11", rent)).toMatchObject({
+			budgeted: 50_000,
+			recurring: 50_000,
+		});
+
+		await actions.setBudgetedAmount({
+			categoryId: rent,
+			month: "2026-11",
+			amount: 0,
+		});
+		mutations.applyRecurringBudgets("2026-11");
+		expect(categoryIn("2026-11", rent)?.budgeted).toBe(0);
+	});
+
+	it("tops a recurring category up as more income comes in", () => {
+		const rent = seedCategory();
+		mutations.setCategoryRecurring(rent, 50_000);
+
+		tx(incomeCategoryId, "2026-11-01", 30_000);
+		mutations.applyRecurringBudgets("2026-11");
+		expect(budget.getBudgetView("2026-11")).toMatchObject({ toBudget: 0 });
+		expect(categoryIn("2026-11", rent)?.budgeted).toBe(30_000);
+
+		tx(incomeCategoryId, "2026-11-15", 40_000);
+		mutations.applyRecurringBudgets("2026-11");
+		expect(categoryIn("2026-11", rent)?.budgeted).toBe(50_000);
+		expect(budget.getBudgetView("2026-11").toBudget).toBe(20_000);
 	});
 });

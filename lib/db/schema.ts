@@ -48,6 +48,7 @@ export const categories = sqliteTable("categories", {
 	}),
 	sort_order: integer("sort_order").notNull().default(0),
 	hidden: integer("hidden", { mode: "boolean" }).notNull().default(false),
+	recurring_amount: integer("recurring_amount"),
 });
 
 export const transactions = sqliteTable(
@@ -113,6 +114,9 @@ export const monthly_budgets = sqliteTable(
 export const budget_months = sqliteTable("budget_months", {
 	month: text("month").primaryKey(),
 	buffered: integer("buffered").notNull().default(0),
+	recurring_filled: integer("recurring_filled", { mode: "boolean" })
+		.notNull()
+		.default(false),
 });
 
 export const gmail_messages = sqliteTable(

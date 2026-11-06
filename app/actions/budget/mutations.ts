@@ -28,6 +28,16 @@ export const setCategoryCarryover = serverAction(
 	},
 );
 
+export const setCategoryRecurring = serverAction(
+	z.object({
+		categoryId: id,
+		amount: cents.refine((value) => value >= 0, "Amount can't be negative"),
+	}),
+	({ categoryId, amount }) => {
+		amounts.setCategoryRecurring(categoryId, amount);
+	},
+);
+
 export const transferBetweenCategories = serverAction(
 	z.object({ fromId: id, toId: id, month: monthKey, amount: cents }),
 	({ fromId, toId, month, amount }) => {

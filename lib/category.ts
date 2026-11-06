@@ -13,6 +13,7 @@ const groupedSelect = {
 	group_is_income: category_group.is_income,
 	category_hidden: categories.hidden,
 	group_hidden: category_group.hidden,
+	category_recurring_amount: categories.recurring_amount,
 };
 
 export const getGroupedCategories = cache((): GroupedCategory[] => {
@@ -53,6 +54,7 @@ export const getGroupedCategories = cache((): GroupedCategory[] => {
 				group_id: groupId,
 				sort_order: row.category_sort_order ?? 0,
 				hidden: row.category_hidden ?? false,
+				recurring_amount: row.category_recurring_amount,
 			});
 		}
 	}

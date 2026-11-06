@@ -1,8 +1,14 @@
 "use client";
+import { Repeat } from "lucide-react";
 import Link from "next/link";
 import { renameBudgetCategory } from "@/app/actions/budget/mutations";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useInlineEdit } from "@/hooks/use-inline-edit";
 import { toastOnError } from "@/lib/action-result";
 import { formatCurrency } from "@/lib/helper";
@@ -12,7 +18,9 @@ import BudgetCategoryMenu from "./budget-category-menu";
 import { amountTone, CATEGORY_INDENT, NUMBER_CELL } from "./budget-cells";
 import { categoryTransactionsHref } from "./category-href";
 import DeleteCategoryDialog from "./delete-category-dialog";
+import RecurringCategoryDialog from "./recurring-category-dialog";
 import { useBudgetAmount } from "./use-budget-amount";
+import { useCategoryRecurring } from "./use-category-recurring";
 import { useDeleteCategory } from "./use-delete-category";
 
 const BudgetCategoryRow = ({
@@ -31,6 +39,7 @@ const BudgetCategoryRow = ({
 	const amount = useBudgetAmount(category.id, month, category.budgeted);
 	const href = categoryTransactionsHref(category.id, month);
 	const remove = useDeleteCategory(category);
+	const recurring = useCategoryRecurring(category);
 
 	return (
 		<TableRow className={cn("group", category.hidden && "opacity-50")}>
@@ -50,8 +59,22 @@ const BudgetCategoryRow = ({
 							{category.name}
 						</Link>
 					</div>
+					{category.recurring > 0 && (
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<Repeat
+									aria-label="Recurring"
+									className="size-3 text-muted-foreground"
+								/>
+							</TooltipTrigger>
+							<TooltipContent>
+								Recurring {formatCurrency(category.recurring)} a month
+							</TooltipContent>
+						</Tooltip>
+					)}
 					<BudgetCategoryMenu
 						onRename={startEditing}
+						onRecurring={() => recurring.setOpen(true)}
 						onDelete={remove.requestDelete}
 					/>
 				</div>
@@ -64,6 +87,7 @@ const BudgetCategoryRow = ({
 					onConfirm={remove.confirmDelete}
 					isPending={remove.isPending}
 				/>
+				<RecurringCategoryDialog category={category} recurring={recurring} />
 			</TableCell>
 			<TableCell className="h-8 p-0">
 				<Input

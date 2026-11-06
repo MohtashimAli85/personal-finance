@@ -133,7 +133,7 @@ function uncategorizedSpending(month: string): number {
  * - To Budget = income + last month's To Budget and hold + last month's
  *   overspending - budgeted - held for next month.
  */
-export const getBudgetView = cache((month: string): BudgetView => {
+export function computeBudgetView(month: string): BudgetView {
 	if (!isMonthKey(month)) {
 		throw new Error(`Invalid month key: ${month}`);
 	}
@@ -207,6 +207,7 @@ export const getBudgetView = cache((month: string): BudgetView => {
 					balance: balance.get(c.id) ?? 0,
 					carryover: carryover.get(c.id) ?? false,
 					in_use: used.has(c.id),
+					recurring: c.recurring_amount ?? 0,
 				})),
 			}));
 			view = {
@@ -245,7 +246,9 @@ export const getBudgetView = cache((month: string): BudgetView => {
 
 	if (!view) throw new Error(`No budget computed for ${month}`);
 	return view;
-});
+}
+
+export const getBudgetView = cache(computeBudgetView);
 
 /** Copies every category's budgeted amount from `fromMonth` into `toMonth`,
  * skipping categories that already have an assignment in `toMonth`. */
