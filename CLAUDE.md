@@ -2,9 +2,14 @@
 
 # Project rules
 
-## UI: always shadcn/ui
-- Build UI from shadcn/ui components in `components/ui`. Don't hand-roll a
+## UI: only shadcn/ui
+- Build UI only from shadcn/ui components in `components/ui`. Don't hand-roll a
   button, dialog, popover, tabs, badge, progress bar, etc.
+- Never use native browser pickers or widgets (`<input type="date|month|time|
+  number|color">`, `<select>`, `<dialog>`). Dates and months use `Calendar`
+  inside a `Popover`; options use `Select`/`Combobox`.
+- Money inputs use `InputNumber` (`components/ui/input-number.tsx`), which
+  formats on blur and evaluates math like `1+3`; never a plain `Input`.
 - If a component is missing, add it with the shadcn CLI
   (`pnpm dlx shadcn@latest add <component>`) instead of writing a custom one.
   Config is in `components.json` (style `radix-nova`, aliases `@/components/ui`).
