@@ -12,27 +12,22 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 
+import { getMonthKey, parseMonthKey } from "@/lib/date";
+
 type MonthPickerProps = {
 	month: string;
 };
-
-const monthKeyToDate = (month: string) => {
-	const [year, monthNumber] = month.split("-").map(Number);
-	return new Date(year, monthNumber - 1, 1);
-};
-
-const dateToMonthKey = (date: Date) => format(date, "yyyy-MM");
 
 export default function MonthPicker({ month }: MonthPickerProps) {
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
-	const selectedMonth = useMemo(() => monthKeyToDate(month), [month]);
+	const selectedMonth = useMemo(() => parseMonthKey(month), [month]);
 	const [calendarMonth, setCalendarMonth] = useState<Date>(selectedMonth);
 
 	const updateMonth = (nextDate: Date) => {
 		const params = new URLSearchParams(searchParams.toString());
-		params.set("month", dateToMonthKey(nextDate));
+		params.set("month", getMonthKey(nextDate));
 		router.replace(`${pathname}?${params.toString()}`, { scroll: false });
 	};
 

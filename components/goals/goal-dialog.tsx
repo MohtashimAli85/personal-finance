@@ -22,6 +22,7 @@ import {
 	FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { InputNumber } from "@/components/ui/input-number";
 import {
 	Select,
 	SelectContent,
@@ -33,6 +34,7 @@ import { Textarea } from "@/components/ui/textarea";
 import type { GoalView } from "@/lib/goal";
 import { type GoalInput, type GoalValues, goalSchema } from "@/lib/goal-schema";
 import { fromCents } from "@/lib/money";
+import { GoalMonthPicker } from "./goal-month-picker";
 
 const NEW_CATEGORY = "__new__";
 
@@ -136,11 +138,10 @@ export default function GoalDialog({
 								render={({ field, fieldState }) => (
 									<Field data-invalid={fieldState.invalid}>
 										<FieldLabel>Target amount</FieldLabel>
-										<Input
+										<InputNumber
 											{...field}
-											data-money
 											value={String(field.value ?? "")}
-											inputMode="decimal"
+											className="text-left"
 											placeholder="250000"
 											aria-invalid={fieldState.invalid}
 										/>
@@ -154,11 +155,10 @@ export default function GoalDialog({
 								render={({ field, fieldState }) => (
 									<Field data-invalid={fieldState.invalid}>
 										<FieldLabel>Target month</FieldLabel>
-										<Input
-											{...field}
+										<GoalMonthPicker
 											value={field.value ?? ""}
-											type="month"
-											aria-invalid={fieldState.invalid}
+											onChange={field.onChange}
+											invalid={fieldState.invalid}
 										/>
 										<FieldError>{fieldState.error?.message}</FieldError>
 									</Field>

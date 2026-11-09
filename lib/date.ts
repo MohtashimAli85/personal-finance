@@ -77,6 +77,11 @@ export const getMonthKey = (date: Date = new Date()): string =>
 
 export const isMonthKey = (value: string): boolean => MONTH_KEY_RE.test(value);
 
+export const parseMonthKey = (month: string): Date => {
+	const [year, monthNumber] = month.split("-").map(Number);
+	return new Date(year, monthNumber - 1, 1);
+};
+
 export const prevMonthKey = (month: string): string => {
 	if (!isMonthKey(month)) {
 		throw new Error(`Invalid month key: ${month}`);
