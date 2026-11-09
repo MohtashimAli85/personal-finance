@@ -5,3 +5,8 @@ allowBuilds:
   esbuild: true
   msw: false
   unrs-resolver: true
+
+overrides:
+  "zod": 4.3.6
+  "@types/react": 19.3.0
+  "@types/react-dom": 19.3.0
