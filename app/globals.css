@@ -21,7 +21,11 @@
 	-webkit-app-region: drag;
 }
 
-[data-titlebar="inset"] [data-titlebar-drag] :is(button, a) {
+[data-titlebar="inset"] [data-titlebar-drag] :is(button, a),
+[data-titlebar="inset"]:has(
+		[data-collapsible="offcanvas"] [data-slot="sidebar-container"]:hover
+	)
+	[data-titlebar-drag] {
 	-webkit-app-region: no-drag;
 }
 

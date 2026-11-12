@@ -8,6 +8,7 @@ import {
 	SidebarMenuItem,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { cn } from "@/lib/tailwindcss/utils";
 import AccountsList from "../accounts/accounts-list";
 import AddAccount from "../accounts/add-account";
 import Logo from "../logo";
@@ -16,7 +17,13 @@ import { navLinks } from "./nav-links";
 
 export default function AppSidebar() {
 	return (
-		<Sidebar className="hover:left-0! has-data-[state=open]:left-0! group-has-[[data-sidebar-peek]:hover]/sidebar-wrapper:left-0! group-data-[collapsible=offcanvas]:z-20 group-data-[collapsible=offcanvas]:shadow-2xl">
+		<Sidebar
+			className={cn(
+				"hover:left-0! has-data-[state=open]:left-0! group-has-[[data-sidebar-peek]:hover]/sidebar-wrapper:left-0!",
+				"group-data-[collapsible=offcanvas]:z-20 group-data-[collapsible=offcanvas]:shadow-2xl",
+				"group-data-[collapsible=offcanvas]:after:absolute group-data-[collapsible=offcanvas]:after:inset-y-0 group-data-[collapsible=offcanvas]:after:left-full group-data-[collapsible=offcanvas]:after:w-3",
+			)}
+		>
 			<SidebarHeader data-titlebar-drag>
 				<div className="flex h-8 items-center gap-2 pl-2 text-sm font-semibold titlebar:pl-20">
 					<Logo className="size-5 titlebar:hidden" />
