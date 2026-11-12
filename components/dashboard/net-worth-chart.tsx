@@ -56,6 +56,7 @@ export default function NetWorthChart({
 				/>
 				<ChartTooltip content={<ChartTooltipContent indicator="line" />} />
 				<Area
+					isAnimationActive={false}
 					dataKey="netWorth"
 					type="monotone"
 					stroke="var(--color-netWorth)"

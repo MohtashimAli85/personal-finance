@@ -41,11 +41,17 @@ export default function CashFlowChart({
 				<ChartTooltip content={<ChartTooltipContent />} />
 				<ChartLegend content={<ChartLegendContent />} />
 				<Bar
+					isAnimationActive={false}
 					dataKey="income"
 					fill="var(--color-income)"
 					radius={[4, 4, 0, 0]}
 				/>
-				<Bar dataKey="spent" fill="var(--color-spent)" radius={[4, 4, 0, 0]} />
+				<Bar
+					isAnimationActive={false}
+					dataKey="spent"
+					fill="var(--color-spent)"
+					radius={[4, 4, 0, 0]}
+				/>
 			</BarChart>
 		</ChartContainer>
 	);

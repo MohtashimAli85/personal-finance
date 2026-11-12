@@ -49,7 +49,13 @@ export default function SpendingByGroupChart({
 					cursor={false}
 					content={<ChartTooltipContent hideLabel />}
 				/>
-				<Bar dataKey="spent" fill="var(--color-spent)" radius={4} barSize={18}>
+				<Bar
+					isAnimationActive={false}
+					dataKey="spent"
+					fill="var(--color-spent)"
+					radius={4}
+					barSize={18}
+				>
 					<LabelList
 						dataKey="spent"
 						position="right"
