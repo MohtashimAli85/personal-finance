@@ -110,11 +110,12 @@ jobs:
             win)
               root="$RUNNER_TEMP/nsis"
               7z x -y -o"$root" release/*Setup*.exe > /dev/null || true
+              find "$root" -name "app-*.7z" -exec 7z x -y -o"$root" {} \; > /dev/null
               ;;
           esac
           server=$(find "$root" -path "*standalone/server.js" -not -path "*/node_modules/*" | head -1)
-          dir=$(dirname "$server")
-          cd "$dir"
+          if [ -z "$server" ]; then echo "standalone/server.js not found in $root"; exit 1; fi
+          cd "$(dirname "$server")"
           PORT=39123 HOSTNAME=127.0.0.1 NODE_ENV=production \
             APP_DB_PATH="$RUNNER_TEMP/smoke.sqlite" APP_MIGRATIONS_PATH="$PWD/drizzle" \
             node server.js > "$RUNNER_TEMP/server.log" 2>&1 &
@@ -136,11 +137,15 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true
+      - run: .github/scripts/release-notes.sh "$GITHUB_REF_NAME" > notes.md
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Personal Finance $GITHUB_REF_NAME" --notes-file notes.md
