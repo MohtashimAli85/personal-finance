@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { app_settings } from "@/lib/db/schema";
 import { decryptSecret, encryptSecret } from "@/lib/secrets";
 import { getSetting, setSetting } from "@/lib/settings";
+import { UserError } from "@/lib/user-error";
 
 const EMAIL_KEY = "mail_email";
 const PASSWORD_KEY = "mail_app_password";
@@ -27,7 +28,13 @@ export function getMailCredentials(): MailCredentials | null {
 	const email = getSetting(EMAIL_KEY);
 	const password = getSetting(PASSWORD_KEY);
 	if (!email || !password) return null;
-	return { email, appPassword: decryptSecret(password) };
+	try {
+		return { email, appPassword: decryptSecret(password) };
+	} catch {
+		throw new UserError(
+			"Your saved Gmail app password can't be read with this app's encryption key. Disconnect and connect Gmail again.",
+		);
+	}
 }
 
 export function storeMailCredentials({ email, appPassword }: MailCredentials) {
