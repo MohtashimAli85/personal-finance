@@ -23,6 +23,7 @@ import {
 	AI_PROVIDERS,
 	removeApiKey,
 	storeApiKey,
+	storeHouseExcludedCategories,
 	storeProfile,
 } from "@/lib/settings";
 import { UserError } from "@/lib/user-error";
@@ -137,3 +138,10 @@ export const importBackup = serverAction(upload, (bytes) => {
 	revalidatePath("/", "layout");
 	redirect("/");
 });
+
+export const saveHouseExcludedCategories = serverAction(
+	z.array(z.string()),
+	(ids) => {
+		storeHouseExcludedCategories(ids);
+	},
+);

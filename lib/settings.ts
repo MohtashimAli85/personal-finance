@@ -122,3 +122,11 @@ export function storeProfile(profile: Profile) {
 		}
 	});
 }
+
+const HOUSE_EXCLUDED_KEY = "house_excluded_categories";
+
+export const getHouseExcludedCategories = (): string[] =>
+	JSON.parse(getSetting(HOUSE_EXCLUDED_KEY) ?? "[]");
+
+export const storeHouseExcludedCategories = (ids: string[]) =>
+	setSetting(HOUSE_EXCLUDED_KEY, JSON.stringify(ids));

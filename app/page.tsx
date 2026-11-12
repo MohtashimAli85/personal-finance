@@ -1,11 +1,20 @@
 import { format, formatDistanceToNow } from "date-fns";
-import { ArrowDownLeft, ArrowUpRight, Landmark, Wallet } from "lucide-react";
+import {
+	ArrowDownLeft,
+	ArrowUpRight,
+	CalendarDays,
+	House,
+	Landmark,
+	TriangleAlert,
+	Wallet,
+} from "lucide-react";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import VerifyBalanceDialog from "@/components/balance-check/verify-balance-dialog";
 import CashFlowChart from "@/components/dashboard/cash-flow-chart";
 import ChartCard from "@/components/dashboard/chart-card";
 import GoalsCard from "@/components/dashboard/goals-card";
+import HouseSpendDialog from "@/components/dashboard/house-spend-dialog";
 import NetWorthChart from "@/components/dashboard/net-worth-chart";
 import RecentTransactions from "@/components/dashboard/recent-transactions";
 import SpendingByGroupChart from "@/components/dashboard/spending-by-group-chart";
@@ -17,11 +26,15 @@ import { getBalanceVerifiedAt, getPendingTotal } from "@/lib/balance-check";
 import { getBudgetView } from "@/lib/budget";
 import {
 	getCashFlow,
+	getDailySpend,
+	getHouseSpend,
 	getNetWorthTrend,
+	getOverspent,
 	getSpendingByGroup,
 } from "@/lib/dashboard";
 import { getMonthKey, getMonthRange } from "@/lib/date";
 import { getGoals } from "@/lib/goal";
+import { getHouseExcludedCategories } from "@/lib/settings";
 import { getSummary } from "@/lib/summary";
 import { getTransactions } from "@/lib/transaction";
 
@@ -32,6 +45,9 @@ export const metadata: Metadata = {
 
 const sumBalances = (accounts: Account[]) =>
 	accounts.reduce((sum, a) => sum + a.balance, 0);
+
+const categoryCount = (count: number) =>
+	`${count} ${count === 1 ? "category" : "categories"}`;
 
 export default async function DashboardPage() {
 	await connection();
@@ -53,6 +69,9 @@ export default async function DashboardPage() {
 		accounts.filter((a) => a.account_type === "off_budget"),
 	);
 	const net = summary.income - summary.expense;
+	const daily = getDailySpend();
+	const houseExcluded = getHouseExcludedCategories();
+	const overspent = getOverspent(budget);
 	const verifiedAt = getBalanceVerifiedAt();
 
 	return (
@@ -118,6 +137,53 @@ export default async function DashboardPage() {
 						summary.income > 0
 							? `${Math.round((summary.expense / summary.income) * 100)}% of income`
 							: "No income yet this month"
+					}
+				/>
+				<div className="sm:col-span-2">
+					<StatCard
+						label={`House spend · ${monthName}`}
+						value={getHouseSpend(budget, houseExcluded)}
+						icon={House}
+						footer={
+							<div className="flex items-center gap-1">
+								{houseExcluded.length > 0
+									? `Leaves out ${categoryCount(houseExcluded.length)}`
+									: "Counts every category"}{" "}
+								·
+								<HouseSpendDialog excluded={houseExcluded} />
+							</div>
+						}
+					/>
+				</div>
+				<StatCard
+					label="Spent today"
+					value={daily.today}
+					icon={CalendarDays}
+					footer={
+						<>
+							Yesterday <Money value={daily.yesterday} /> · avg{" "}
+							<Money value={daily.average} />
+							/day
+						</>
+					}
+				/>
+				<StatCard
+					label={`Overspent · ${monthName}`}
+					value={overspent.total}
+					icon={TriangleAlert}
+					href="/budget"
+					valueClassName={
+						overspent.count > 0 ? "text-destructive" : "text-emerald-500"
+					}
+					footer={
+						overspent.worst ? (
+							<>
+								{categoryCount(overspent.count)} over · {overspent.worst.name}{" "}
+								<Money value={overspent.worst.balance} />
+							</>
+						) : (
+							"All categories on track"
+						)
 					}
 				/>
 			</div>

@@ -1,6 +1,6 @@
-import { addMonths, format } from "date-fns";
+import { addDays, addMonths, format, subDays } from "date-fns";
 import { sql } from "drizzle-orm";
-import { getMonthKey, getMonthRange } from "@/lib/date";
+import { getMonthKey, getMonthRange, toDateKey } from "@/lib/date";
 import { db } from "@/lib/db";
 import { transactions } from "@/lib/db/schema";
 import { getSummary } from "@/lib/summary";
@@ -22,6 +22,20 @@ export function getCashFlow(count = 6) {
 		const { income, expense } = getSummary(start, end);
 		return { ...point, income, spent: expense };
 	});
+}
+
+export function getDailySpend(now = new Date()) {
+	const today = toDateKey(now);
+	const tomorrow = toDateKey(addDays(now, 1));
+	const yesterday = toDateKey(subDays(now, 1));
+	const { start } = getMonthRange(getMonthKey(now));
+	const monthToDate = getSummary(start, tomorrow).expense;
+
+	return {
+		today: getSummary(today, tomorrow).expense,
+		yesterday: getSummary(yesterday, today).expense,
+		average: Math.round(monthToDate / now.getDate() / 100) * 100,
+	};
 }
 
 export function getNetWorthTrend(count = 12) {
@@ -51,4 +65,25 @@ export function getSpendingByGroup(view: BudgetView) {
 		}))
 		.filter((group) => group.spent > 0)
 		.sort((a, b) => b.spent - a.spent);
+}
+
+const budgetCategories = (view: BudgetView) =>
+	view.groups.flatMap((group) => group.categories);
+
+export function getHouseSpend(view: BudgetView, excluded: string[]) {
+	const skip = new Set(excluded);
+	return -budgetCategories(view)
+		.filter((category) => !skip.has(category.id))
+		.reduce((sum, category) => sum + category.spent, 0);
+}
+
+export function getOverspent(view: BudgetView) {
+	const over = budgetCategories(view)
+		.filter((category) => category.balance < 0)
+		.sort((a, b) => a.balance - b.balance);
+	return {
+		total: -over.reduce((sum, category) => sum + category.balance, 0),
+		count: over.length,
+		worst: over[0] ?? null,
+	};
 }
