@@ -17,9 +17,9 @@ import { navLinks } from "./nav-links";
 export default function AppSidebar() {
 	return (
 		<Sidebar className="hover:left-0! has-data-[state=open]:left-0! group-has-[[data-sidebar-peek]:hover]/sidebar-wrapper:left-0! group-data-[collapsible=offcanvas]:z-20 group-data-[collapsible=offcanvas]:shadow-2xl">
-			<SidebarHeader>
-				<div className="flex h-8 items-center gap-2 pl-2 text-sm font-semibold">
-					<Logo className="size-5" />
+			<SidebarHeader data-titlebar-drag>
+				<div className="flex h-8 items-center gap-2 pl-2 text-sm font-semibold titlebar:pl-20">
+					<Logo className="size-5 titlebar:hidden" />
 					Personal Finance
 					<SidebarTrigger className="ml-auto" />
 				</div>

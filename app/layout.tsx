@@ -54,7 +54,7 @@ export default async function RootLayout({
 				<script
 					// biome-ignore lint/security/noDangerouslySetInnerHtml: static inline script that sets privacy mode before paint
 					dangerouslySetInnerHTML={{
-						__html: `document.documentElement.dataset.privacy=localStorage.getItem("privacy-mode")==="on"?"on":"off"`,
+						__html: `document.documentElement.dataset.privacy=localStorage.getItem("privacy-mode")==="on"?"on":"off";if(window.electronAPI?.platform==="darwin")document.documentElement.dataset.titlebar="inset"`,
 					}}
 				/>
 			</head>

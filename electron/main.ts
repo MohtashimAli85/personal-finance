@@ -136,7 +136,9 @@ function startNextServer(): Promise<void> {
 			);
 		}
 		env.PORT = String(serverPort);
-		env.APP_SECRET_KEY = loadAppSecretKey();
+		// In dev, next dev reads APP_SECRET_KEY from .env, so the browser and
+		// Electron can decrypt the same db.sqlite.
+		if (!isDev) env.APP_SECRET_KEY = loadAppSecretKey();
 
 		let settled = false;
 		let stderr = "";
@@ -224,6 +226,10 @@ function createWindow(): void {
 		minWidth: 900,
 		minHeight: 600,
 		title: "Personal Finance",
+		...(process.platform === "darwin" && {
+			titleBarStyle: "hidden",
+			trafficLightPosition: { x: 16, y: 17 },
+		}),
 		webPreferences: {
 			nodeIntegration: false,
 			contextIsolation: true,

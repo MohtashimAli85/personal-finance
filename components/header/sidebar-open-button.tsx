@@ -6,5 +6,11 @@ export default function SidebarOpenButton() {
 	const { state, isMobile } = useSidebar();
 	if (state === "expanded" && !isMobile) return null;
 
-	return <SidebarTrigger data-sidebar-peek aria-label="Open sidebar" />;
+	return (
+		<SidebarTrigger
+			data-sidebar-peek
+			aria-label="Open sidebar"
+			className="titlebar:ml-18"
+		/>
+	);
 }

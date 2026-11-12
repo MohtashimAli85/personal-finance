@@ -15,6 +15,15 @@
 }
 
 @custom-variant dark (&:is(.dark *));
+@custom-variant titlebar (&:where([data-titlebar="inset"] *));
+
+[data-titlebar="inset"] [data-titlebar-drag] {
+	-webkit-app-region: drag;
+}
+
+[data-titlebar="inset"] [data-titlebar-drag] :is(button, a) {
+	-webkit-app-region: no-drag;
+}
 
 @theme inline {
 	--color-background: var(--background);
