@@ -83,20 +83,34 @@ export function resolveDate(
 	);
 }
 
-// Covers "PKR 1,234.56", "Rs. 1,234", "RS.1234.00", "INR 500", "AED 20.00",
-// "USD 15.99", "$15.99". Decimals optional - not every bank sends them.
-const AMOUNT_PATTERN =
-	/(?:PKR|RS\.?|INR|AED|SAR|USD|EUR|GBP|\$|₨|₹)\s*([\d,]+(?:\.\d{1,2})?)/gi;
+const CURRENCY = String.raw`(?:PKR|RS\.?|INR|AED|SAR|USD|EUR|GBP|\$|₨|₹)`;
+const NUMBER = String.raw`(\d[\d,]*(?:\.\d{1,2})?)`;
+
+// "PKR 1,234.56", "Rs.1234", "$15.99", and the currency-last "1,250.00 PKR".
+// Decimals are optional - not every bank sends them. A currency-last match
+// must not be followed by another number, or "Ref 12345 PKR 1,000" would read
+// the reference as the amount.
+const AMOUNT_SOURCE = `${CURRENCY}\\s*${NUMBER}|${NUMBER}\\s*${CURRENCY}(?![A-Za-z]|\\s*\\d)`;
+const AMOUNT_PATTERN = new RegExp(AMOUNT_SOURCE, "gi");
+
+// Table-style alerts often print the figure with no currency at all
+// ("Transaction Amount: 3,450.00").
+const LABELED_AMOUNT = new RegExp(
+	String.raw`\bAmount\s*[:-]+\s*${NUMBER}`,
+	"gi",
+);
 
 export function extractAmountMatch(
 	text: string,
 ): { amount: number; index: number } | null {
-	for (const match of text.matchAll(AMOUNT_PATTERN)) {
-		const amount = Number(match[1].replace(/,/g, ""));
-		// Skip zero-value matches ("Fee: Rs.0") and keep looking - the real
-		// transaction amount is usually the first non-zero figure.
-		if (Number.isFinite(amount) && amount > 0) {
-			return { amount, index: match.index ?? 0 };
+	for (const pattern of [AMOUNT_PATTERN, LABELED_AMOUNT]) {
+		for (const match of text.matchAll(pattern)) {
+			const amount = Number((match[1] ?? match[2]).replace(/,/g, ""));
+			// Skip zero-value matches ("Fee: Rs.0") and keep looking - the real
+			// transaction amount is usually the first non-zero figure.
+			if (Number.isFinite(amount) && amount > 0) {
+				return { amount, index: match.index ?? 0 };
+			}
 		}
 	}
 	return null;
@@ -107,15 +121,21 @@ export function extractAmount(text: string): number | null {
 }
 
 const EXPENSE_WORDS =
-	/\b(debited|debit|withdrawn|withdrawal|spent|paid|payment|sent|transferred|purchase|charged)\b/i;
+	/\b(debited|debit|deducted|withdrawn|withdrawal|spent|paid|payment|sent|transferred|purchase|purchased|charged|used)\b/i;
 const INCOME_WORDS =
-	/\b(credited|credit|received|deposited|deposit|refund|refunded|remittance)\b/i;
+	/\b(credited|credit|received|deposited|deposit|added|refund|refunded|remittance)\b/i;
+
+// "credit card" and "debit card" name a card, not a direction: "your credit
+// card was used for PKR 899" is a spend and "refunded to your debit card" is
+// money coming back.
+const CARD_NAMES = /\b(?:credit|debit)\s+card\b/gi;
 
 export function detectDirection(text: string): "income" | "expense" | null {
+	const words = text.replace(CARD_NAMES, "card");
 	// Debit wording wins: "PKR 500 debited ... credited to beneficiary" is an
 	// outgoing transfer described from both ends.
-	if (EXPENSE_WORDS.test(text)) return "expense";
-	if (INCOME_WORDS.test(text)) return "income";
+	if (EXPENSE_WORDS.test(words)) return "expense";
+	if (INCOME_WORDS.test(words)) return "income";
 	return null;
 }
 
@@ -140,6 +160,26 @@ export function detectDirectionNear(
 	return detectDirection(window);
 }
 
+const WORD_BEFORE = /(\w+)\W*$/;
+const WORD_AFTER = new RegExp(`^(?:${AMOUNT_SOURCE})\\W*(?<word>\\w+)`, "i");
+
+/**
+ * Direction word directly touching the amount ("sent Rs. 750", "Rs. 5,000
+ * added"). Used for one-line subjects, where a looser window would let
+ * "Rs. 500 off your first payment" through. "got" counts only here: "You got
+ * Rs. 3,200 from X" is a receipt, but "you've got Rs. 500 cashback" in a body
+ * is a promo.
+ */
+export function detectDirectionBeside(
+	text: string,
+	amountIndex: number,
+): "income" | "expense" | null {
+	const before = text.slice(0, amountIndex).match(WORD_BEFORE)?.[1] ?? "";
+	const after = text.slice(amountIndex).match(WORD_AFTER)?.groups?.word ?? "";
+	if (/^got$/i.test(before)) return "income";
+	return detectDirection(`${before} ${after}`);
+}
+
 // A mail that names a positive amount with a direction word beside it is a
 // transaction alert, even when the individual fields cannot be read. Used to
 // tell a genuine parser gap apart from an ordinary non-transaction email.
@@ -154,7 +194,7 @@ export function looksLikeTransaction(text: string): boolean {
 export function buildFieldStop(labels: string[]): string {
 	// The label must be followed by its colon to count as a stop. Without that
 	// check a merchant genuinely called "MODE FASHION" or a terminal named
-	// "CHAK KHASA BRANCH" would be truncated at the bare word.
+	// "CANTT BRANCH" would be truncated at the bare word.
 	const alternatives = labels
 		.map((label) => `\\s+${label}\\s*[:-]`)
 		.concat("\\s+For\\s+Any\\s+Inquiry\\b", "$");
@@ -182,10 +222,10 @@ export function formatAccountTitle(raw: string) {
 	// Drop long invoice/reference numbers (e.g. "1BILL INVOICES 100333027126")
 	// that add no meaning to the description but bloat the row.
 	s = s.replace(/\s+\d{8,}\b/g, "");
-	// Remove service/rail tokens and masked account refs ("xxxBANK", "xxx0417"),
-	// but only when the name has other words left - "JHELUM BR JLM" must not be
-	// reduced to nothing. Turns "FAISAL MATEEN EASYPAISA-TELENOR-xxxBANK"
-	// into "FAISAL MATEEN" while leaving "NAYAPAY - Load Wallet" intact.
+	// Remove service/rail tokens and masked account refs ("xxxBANK", "xxx1234"),
+	// but only when the name has other words left - "MAIN BR" must not be
+	// reduced to nothing. Turns "AHMED KHAN EASYPAISA-TELENOR-xxxBANK" into
+	// "AHMED KHAN" while leaving "WALLET - Load Wallet" intact.
 	const denoised = s
 		.replace(/\b(EASYPAISA|TELENOR|IBFT|ACC|ACCOUNT|CNIC)\b/gi, "")
 		.replace(/\bx{3,}\w*/gi, "")

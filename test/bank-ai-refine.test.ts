@@ -39,9 +39,9 @@ const usage = {
 	outputTokens: { total: 1, text: 1, reasoning: undefined },
 };
 
-const fixture = FIXTURES.find((f) => f.name === "meezan: RAAST transfer out");
-if (!fixture) throw new Error("missing meezan fixture");
-const SENDER = "no-reply@meezanbank.com";
+const fixture = FIXTURES.find((f) => f.name === "bank: instant transfer out");
+if (!fixture) throw new Error("missing bank transfer fixture");
+const SENDER = "alerts@examplebank.com";
 const MESSAGE_ID = "msg-1";
 
 const aiReply = (value: object) =>
@@ -82,7 +82,7 @@ beforeEach(() => {
 	ctx.db.delete(ctx.schema.bank_sender_configs).run();
 	ctx.db.delete(ctx.schema.accounts).run();
 
-	senders.addBankSenderConfig(SENDER, "Meezan");
+	senders.addBankSenderConfig(SENDER, "Bank");
 	ctx.db
 		.insert(ctx.schema.gmail_messages)
 		.values({
@@ -100,7 +100,7 @@ const regexImport = () => sync.syncBankTransactions();
 describe("AI refine pass", () => {
 	it("overwrites a pending regex row with the AI reading", async () => {
 		await regexImport();
-		expect(onlyTransaction().notes).toBe("J.SPORTS");
+		expect(onlyTransaction().notes).toBe("K.SPORTS");
 
 		useModel(
 			aiReply({
@@ -108,7 +108,7 @@ describe("AI refine pass", () => {
 				amount: 650,
 				date: "2026-09-14",
 				type: "expense",
-				counterparty: "Jhelum Sports",
+				counterparty: "City Sports",
 			}),
 		);
 		await expect(refine.refineBankTransactionsWithAi()).resolves.toEqual({
@@ -119,7 +119,7 @@ describe("AI refine pass", () => {
 		const tx = onlyTransaction();
 		expect(tx.payment).toBe(65000);
 		expect(tx.date).toBe("2026-09-14");
-		expect(tx.notes).toBe("Jhelum Sports");
+		expect(tx.notes).toBe("City Sports");
 		expect(tx.status).toBe("pending");
 	});
 
@@ -133,7 +133,7 @@ describe("AI refine pass", () => {
 				amount: 650,
 				date: "2026-09-14",
 				type: "expense",
-				counterparty: "Jhelum Sports",
+				counterparty: "City Sports",
 			}),
 		);
 		await refine.refineBankTransactionsWithAi();
@@ -141,7 +141,7 @@ describe("AI refine pass", () => {
 		const tx = onlyTransaction();
 		expect(tx.payment).toBe(64000);
 		expect(tx.date).toBe("2026-09-13");
-		expect(tx.notes).toBe("Jhelum Sports");
+		expect(tx.notes).toBe("City Sports");
 	});
 
 	it("caches the answer so a second run makes no model call", async () => {
@@ -151,7 +151,7 @@ describe("AI refine pass", () => {
 			amount: 640,
 			date: "2026-09-13",
 			type: "expense",
-			counterparty: "Jhelum Sports",
+			counterparty: "City Sports",
 		});
 		const doGenerate = vi.spyOn(model, "doGenerate");
 		useModel(model);
@@ -174,7 +174,7 @@ describe("AI refine pass", () => {
 				amount: 650,
 				date: "2026-09-14",
 				type: "expense",
-				counterparty: "Jhelum Sports",
+				counterparty: "City Sports",
 			}),
 		);
 		await refine.refineBankTransactionsWithAi();
@@ -182,7 +182,7 @@ describe("AI refine pass", () => {
 		await regexImport();
 
 		const tx = onlyTransaction();
-		expect(tx.notes).toBe("Jhelum Sports");
+		expect(tx.notes).toBe("City Sports");
 		expect(tx.payment).toBe(65000);
 	});
 
@@ -200,7 +200,7 @@ describe("AI refine pass", () => {
 		await refine.refineBankTransactionsWithAi();
 
 		const tx = onlyTransaction();
-		expect(tx.notes).toBe("J.SPORTS");
+		expect(tx.notes).toBe("K.SPORTS");
 		expect(tx.payment).toBe(64000);
 	});
 
@@ -235,7 +235,7 @@ describe("rejecting an imported transaction", () => {
 				amount: 650,
 				date: "2026-09-14",
 				type: "expense",
-				counterparty: "Jhelum Sports",
+				counterparty: "City Sports",
 			}),
 		);
 		await refine.refineBankTransactionsWithAi();

@@ -24,15 +24,5 @@ export type ParseFailure =
 
 export interface ParseOutcome {
 	transaction: ParsedBankTransaction | null;
-	/** Which template handled (or attempted) the email. */
-	templateId: string;
 	failure?: ParseFailure;
-}
-
-export interface BankTemplate {
-	id: string;
-	label: string;
-	/** Cheap signal check so the right template claims the email. */
-	matches(email: BankEmail): boolean;
-	parse(email: BankEmail): ParsedBankTransaction | null;
 }

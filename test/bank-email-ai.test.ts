@@ -24,9 +24,9 @@ const modelReplying = (value: object) =>
 	});
 
 const email: BankEmail = {
-	from: "Meezan Bank <no-reply@meezanbank.com>",
+	from: "Bank Alerts <alerts@examplebank.com>",
 	subject: "Transaction alert",
-	body: "PKR 640.00 sent from your account xxx0417 to J.SPORTS",
+	body: "PKR 640.00 sent from your account xxx1234 to K.SPORTS",
 	receivedAt: "2026-09-13T12:00:00.000Z",
 };
 
@@ -37,14 +37,14 @@ describe("extractWithAi", () => {
 			amount: 640,
 			date: "2026-09-12",
 			type: "expense",
-			counterparty: "  J. Sports  ",
+			counterparty: "  K. Sports  ",
 		});
 
 		await expect(extractWithAi(email, model)).resolves.toEqual({
 			amount: 640,
 			date: "2026-09-12T12:00:00.000Z",
 			type: "expense",
-			description: "J. Sports",
+			description: "K. Sports",
 		});
 	});
 

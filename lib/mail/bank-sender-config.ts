@@ -93,7 +93,7 @@ export function removeBankSenderConfig(id: string): void {
 
 // Matches a message's "From" header against the configured sender list -
 // case-insensitive substring match, since headers look like
-// `Meezan Bank <no-reply@meezanbank.com>` rather than a bare address.
+// `Bank Alerts <alerts@examplebank.com>` rather than a bare address.
 export function matchSenderConfig(
 	fromHeader: string | null,
 	configs: BankSenderConfig[],

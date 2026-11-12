@@ -1,5 +1,6 @@
 import {
 	buildFieldStop,
+	detectDirectionBeside,
 	detectDirectionNear,
 	extractAmountMatch,
 	extractLabeledField,
@@ -7,11 +8,10 @@ import {
 	normalizeDate,
 	resolveDate,
 } from "./helpers";
-import type { BankEmail, BankTemplate, ParsedBankTransaction } from "./types";
+import type { BankEmail, ParsedBankTransaction } from "./types";
 
-// Label vocabulary shared by most bank alert templates. A bank that uses
-// different wording only needs its own template file - this covers the
-// common shapes so a newly added sender usually works without one.
+// Label vocabulary shared by most bank alert emails. Labels run together on one
+// line, so each one also marks where the previous field's value ends.
 const LABELS = [
 	"Mode",
 	"Merchant(?:\\s+Name)?",
@@ -75,7 +75,7 @@ function describe(text: string): string {
 
 	// Unlabeled phrasing: "... at SHELL PETROL on ...", "... to JOHN SMITH."
 	const inline = text.match(
-		/\b(?:at|to|from|towards)\s+([A-Z0-9&.'-]{2,}(?:\s+[A-Z0-9&.'-]+){0,4})/,
+		/\b(?:at|to|from|by|towards)\s+([A-Z0-9&.'-]{2,}(?:\s+[A-Z0-9&.'-]+){0,4})/,
 	);
 	if (inline?.[1]) {
 		const formatted = formatAccountTitle(inline[1]);
@@ -85,39 +85,60 @@ function describe(text: string): string {
 	return "Bank Transaction";
 }
 
-export const genericTemplate: BankTemplate = {
-	id: "generic",
-	label: "Generic bank alert",
+function parseBody(email: BankEmail): ParsedBankTransaction | null {
+	const text = email.body;
 
-	// Last resort: claims anything, so ordering in the registry matters.
-	matches() {
-		return true;
-	},
+	// Without a banking noun this is not an account alert. Job ads quoting
+	// salaries and newsletters quoting prices otherwise sail through.
+	if (!BANKING_CONTEXT.test(text)) return null;
 
-	parse(email: BankEmail): ParsedBankTransaction | null {
-		const text = email.body;
+	const match = extractAmountMatch(text);
+	if (!match) return null;
 
-		// Without a banking noun this is not an account alert. Job ads quoting
-		// salaries and newsletters quoting prices otherwise sail through.
-		if (!BANKING_CONTEXT.test(text)) return null;
+	// The debit/credit word has to sit beside the amount, not merely appear
+	// somewhere in the mail - that is what keeps marketing copy out.
+	const type = detectDirectionNear(text, match.index);
+	if (!type) return null;
 
-		const match = extractAmountMatch(text);
-		if (!match) return null;
-		const { amount } = match;
+	let bodyDate: string | null = null;
+	for (const label of DATE_FIELDS) {
+		bodyDate = normalizeDate(extractLabeledField(text, label, FIELD_STOP));
+		if (bodyDate) break;
+	}
+	const date = resolveDate(bodyDate ?? normalizeDate(text), email.receivedAt);
+	if (!date) return null;
 
-		// The debit/credit word has to sit beside the amount, not merely appear
-		// somewhere in the mail - that is what keeps marketing copy out.
-		const direction = detectDirectionNear(text, match.index);
-		if (!direction) return null;
+	return { amount: match.amount, date, type, description: describe(text) };
+}
 
-		let bodyDate: string | null = null;
-		for (const label of DATE_FIELDS) {
-			bodyDate = normalizeDate(extractLabeledField(text, label, FIELD_STOP));
-			if (bodyDate) break;
-		}
-		const date = resolveDate(bodyDate ?? normalizeDate(text), email.receivedAt);
-		if (!date) return null;
+const DECORATION = /\p{Extended_Pictographic}|\u200D|\uFE0F/gu;
 
-		return { amount, date, type: direction, description: describe(text) };
-	},
-};
+// Wallet apps put the whole alert in the subject ("You sent Rs. 750 to Ahmed
+// Khan") and fill the body with marketing, so the subject is read first.
+function parseSubject(email: BankEmail): ParsedBankTransaction | null {
+	const subject = (email.subject ?? "")
+		.replace(DECORATION, "")
+		.replace(/!+\s*$/, "")
+		.trim();
+	const match = extractAmountMatch(subject);
+	if (!match) return null;
+
+	const type = detectDirectionBeside(subject, match.index);
+	const counterparty = subject
+		.slice(match.index)
+		.match(/\b(?:to|at|from)\s+(.+)$/i)?.[1];
+	if (!type || !counterparty || /^your\b/i.test(counterparty)) return null;
+
+	const date = resolveDate(null, email.receivedAt);
+	if (!date) return null;
+
+	return {
+		amount: match.amount,
+		date,
+		type,
+		description: formatAccountTitle(counterparty),
+	};
+}
+
+export const parseTransaction = (email: BankEmail) =>
+	parseSubject(email) ?? parseBody(email);

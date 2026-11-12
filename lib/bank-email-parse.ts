@@ -1,5 +1,4 @@
-// Entry point for bank email parsing. The per-bank rules live in
-// lib/bank-parsers/ - see that folder's index.ts to register a new bank.
+// Entry point for bank email parsing. The rules live in lib/bank-parsers/.
 import { parseBankEmail } from "@/lib/bank-parsers";
 import { normalizeDate } from "@/lib/bank-parsers/helpers";
 import type {
@@ -7,7 +6,7 @@ import type {
 	ParsedBankTransaction,
 } from "@/lib/bank-parsers/types";
 
-export { listTemplates, parseBankEmail } from "@/lib/bank-parsers";
+export { parseBankEmail } from "@/lib/bank-parsers";
 export { formatAccountTitle } from "@/lib/bank-parsers/helpers";
 export type {
 	BankEmail,

@@ -13,7 +13,7 @@ export default function ActualAmounts({ rows }: { rows: AmountRows }) {
 				addLabel="Add amount"
 				renderTarget={(row) => (
 					<Input
-						placeholder="e.g. Cash, Meezan"
+						placeholder="e.g. Cash, Bank account"
 						value={row.target}
 						onChange={(e) => rows.update(row.id, { target: e.target.value })}
 					/>

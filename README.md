@@ -66,10 +66,11 @@ Imported transactions land in a **review queue** on that page as `pending` -
 they don't count toward budget activity until you assign a category and accept
 them, so an unreviewed import can never silently skew your budget.
 
-Per-bank parsing rules live in `lib/bank-parsers/` (one file per bank, plus a
-generic fallback); `lib/bank-parsers/fixtures.ts` holds real-world email fixtures
-that run in the test suite and via `npx tsx scripts/check-parsers.ts` for quick
-manual iteration.
+Parsing lives in `lib/bank-parsers/`: one bank-agnostic parser that reads the
+amount, direction, date and payee from any alert, with an AI pass for formats it
+can't read. `lib/bank-parsers/fixtures.ts` holds anonymised real-world email
+fixtures that run in the test suite and via `npx tsx scripts/check-parsers.ts`
+for quick manual iteration.
 
 ## Savings goals
 
