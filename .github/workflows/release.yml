@@ -101,6 +101,30 @@ jobs:
         shell: bash
         run: |
           for f in release/*.exe; do 7z t "$f"; done
+      - name: Smoke test packaged server
+        shell: bash
+        run: |
+          case "${{ matrix.platform }}" in
+            mac) root=/tmp/zip-check ;;
+            linux) root=squashfs-root ;;
+            win)
+              root="$RUNNER_TEMP/nsis"
+              7z x -y -o"$root" release/*Setup*.exe > /dev/null || true
+              ;;
+          esac
+          server=$(find "$root" -path "*standalone/server.js" -not -path "*/node_modules/*" | head -1)
+          dir=$(dirname "$server")
+          cd "$dir"
+          PORT=39123 HOSTNAME=127.0.0.1 NODE_ENV=production \
+            APP_DB_PATH="$RUNNER_TEMP/smoke.sqlite" APP_MIGRATIONS_PATH="$PWD/drizzle" \
+            node server.js > "$RUNNER_TEMP/server.log" 2>&1 &
+          pid=$!
+          for i in $(seq 30); do
+            if curl -sfL -o /dev/null http://127.0.0.1:39123/; then kill $pid; exit 0; fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/server.log"
+          exit 1
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.name }}
