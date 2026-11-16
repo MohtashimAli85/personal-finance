@@ -1,4 +1,4 @@
-import { ArrowUp, Square } from "lucide-react";
+import { ArrowUp, Sparkles, Square } from "lucide-react";
 import type { FormEvent, KeyboardEvent, RefObject } from "react";
 import {
 	InputGroup,
@@ -6,6 +6,7 @@ import {
 	InputGroupButton,
 	InputGroupTextarea,
 } from "@/components/ui/input-group";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import {
 	Select,
 	SelectContent,
@@ -14,6 +15,11 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { AUTO_MODEL, modelLabel } from "@/lib/ai/labels";
 import type { ModelEntry } from "@/lib/ai/models";
 
@@ -47,8 +53,11 @@ export default function ChatComposer({
 	onModelChange: (model: string) => void;
 }) {
 	return (
-		<form className="mx-auto w-full max-w-3xl px-2 pt-2" onSubmit={onSubmit}>
-			<InputGroup>
+		<form
+			className="mx-auto flex w-full max-w-3xl flex-col gap-2 px-2 pt-2"
+			onSubmit={onSubmit}
+		>
+			<InputGroup className="rounded-2xl bg-card shadow-xs">
 				<InputGroupTextarea
 					ref={textareaRef}
 					value={value}
@@ -57,14 +66,20 @@ export default function ChatComposer({
 					placeholder={placeholder}
 					disabled={disabled}
 					rows={1}
-					className="field-sizing-content max-h-48 min-h-10"
+					className="field-sizing-content max-h-48 min-h-12"
 				/>
 				<InputGroupAddon align="block-end" className="justify-between">
-					<Select value={model} onValueChange={onModelChange}>
+					<Select
+						value={model}
+						onValueChange={onModelChange}
+						disabled={models.length === 0}
+					>
 						<SelectTrigger
 							size="sm"
-							className="border-0 bg-transparent shadow-none"
+							aria-label="Model"
+							className="border-0 bg-transparent text-muted-foreground shadow-none hover:text-foreground dark:bg-transparent"
 						>
+							<Sparkles />
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent align="start">
@@ -77,19 +92,30 @@ export default function ChatComposer({
 						</SelectContent>
 					</Select>
 					{busy ? (
-						<InputGroupButton
-							variant="outline"
-							size="icon-sm"
-							onClick={onStop}
-							aria-label="Stop"
-						>
-							{submitted ? <Spinner /> : <Square />}
-						</InputGroupButton>
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<InputGroupButton
+									variant="outline"
+									size="icon-sm"
+									className="rounded-full"
+									onClick={onStop}
+									aria-label="Stop"
+								>
+									{submitted ? (
+										<Spinner />
+									) : (
+										<Square className="fill-current" />
+									)}
+								</InputGroupButton>
+							</TooltipTrigger>
+							<TooltipContent>Stop</TooltipContent>
+						</Tooltip>
 					) : (
 						<InputGroupButton
 							type="submit"
 							variant="default"
 							size="icon-sm"
+							className="rounded-full"
 							disabled={!value.trim() || disabled}
 							aria-label="Send"
 						>
@@ -98,6 +124,14 @@ export default function ChatComposer({
 					)}
 				</InputGroupAddon>
 			</InputGroup>
+			<p className="hidden items-center justify-center gap-1.5 text-xs text-muted-foreground sm:flex">
+				<Kbd>Enter</Kbd> to send
+				<span aria-hidden>·</span>
+				<KbdGroup>
+					<Kbd>Shift</Kbd>+<Kbd>Enter</Kbd>
+				</KbdGroup>
+				for a new line
+			</p>
 		</form>
 	);
 }

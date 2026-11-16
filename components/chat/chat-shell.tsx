@@ -54,7 +54,7 @@ export default function ChatShell({
 			<div className="flex min-h-0 flex-1 gap-4">
 				<aside className="hidden w-56 shrink-0 flex-col gap-2 md:flex">
 					{newChatButton}
-					<nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
+					<nav className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
 						{chatList}
 					</nav>
 				</aside>
@@ -71,7 +71,7 @@ export default function ChatShell({
 									<SheetTitle>Chats</SheetTitle>
 								</SheetHeader>
 								{newChatButton}
-								<nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto">
+								<nav className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
 									{chatList}
 								</nav>
 							</SheetContent>

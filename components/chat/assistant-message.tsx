@@ -1,12 +1,17 @@
 import { isReasoningUIPart, isStaticToolUIPart, isTextUIPart } from "ai";
+import {
+	Message,
+	MessageContent,
+	MessageFooter,
+} from "@/components/ui/message";
 import type { CoachUIMessage } from "@/lib/ai/message-types";
 import { isWriteToolName } from "@/lib/ai/tool-names";
-import AssistantAvatar from "./assistant-avatar";
+import ApprovalCard from "./approval-card";
 import Markdown from "./markdown";
 import MessageActions from "./message-actions";
 import { messageText } from "./message-text";
 import ReasoningPart from "./reasoning-part";
-import { ApprovalCard, ToolActivity } from "./tool-parts";
+import ToolActivity from "./tool-activity";
 
 export default function AssistantMessage({
 	message,
@@ -22,9 +27,8 @@ export default function AssistantMessage({
 	onRetry: () => void;
 }) {
 	return (
-		<div className="flex gap-3">
-			<AssistantAvatar />
-			<div className="flex min-w-0 flex-1 flex-col gap-3">
+		<Message>
+			<MessageContent className="gap-3">
 				{message.parts.map((part, index) => {
 					const key = `${message.id}-${index}`;
 					if (isTextUIPart(part)) {
@@ -56,13 +60,14 @@ export default function AssistantMessage({
 					return null;
 				})}
 				{!isStreaming && messageText(message) && (
-					<MessageActions
-						message={message}
-						canRetry={canRetry}
-						onRetry={onRetry}
-					/>
+					<MessageFooter className="px-0">
+						<MessageActions
+							message={message}
+							onRetry={canRetry ? onRetry : undefined}
+						/>
+					</MessageFooter>
 				)}
-			</div>
-		</div>
+			</MessageContent>
+		</Message>
 	);
 }

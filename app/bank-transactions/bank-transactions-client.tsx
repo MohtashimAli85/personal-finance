@@ -6,6 +6,7 @@ import type {
 	UnparsedEmail,
 } from "@/app/actions/bank/sender-config";
 import BankHistoryCard from "@/components/bank-transactions/bank-history-card";
+import BrandLoader from "@/components/brand-loader";
 import { Money } from "@/components/money";
 import PageContainer from "@/components/page-container";
 import PageFigure from "@/components/page-figure";
@@ -107,7 +108,7 @@ export default function BankTransactionsClient({
 
 			{isRefining && (
 				<p className="-mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-					<Spinner />
+					<BrandLoader />
 					Improving transaction names with AI…
 				</p>
 			)}

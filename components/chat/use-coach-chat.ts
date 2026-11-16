@@ -78,6 +78,13 @@ export function useCoachChat({
 			(part) => isToolUIPart(part) && part.state === "approval-requested",
 		);
 
+	const thinking = status === "submitted" && lastMessage?.role === "user";
+	const placeholder = !hasKey
+		? "Add an API key in Settings to start"
+		: awaitingApproval
+			? "Confirm or cancel the change above first"
+			: "Ask about your budget or a savings plan…";
+
 	const send = (text: string) => {
 		const trimmed = text.trim();
 		if (!trimmed || busy || !hasKey) return;
@@ -102,7 +109,8 @@ export function useCoachChat({
 		send,
 		busy,
 		awaitingApproval,
-		lastMessage,
+		thinking,
+		placeholder,
 		hasKey,
 		models,
 		model,

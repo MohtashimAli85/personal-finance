@@ -1,6 +1,6 @@
-import { RotateCcw } from "lucide-react";
+import { CircleAlert, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
 function errorText(error: Error): string {
@@ -22,6 +22,8 @@ export default function ChatError({
 	const needsKey = /api key/i.test(message);
 	return (
 		<Alert variant="destructive">
+			<CircleAlert />
+			<AlertTitle>The coach couldn't reply</AlertTitle>
 			<AlertDescription className="flex flex-col gap-3">
 				<span>{message}</span>
 				<div className="flex flex-wrap gap-2">

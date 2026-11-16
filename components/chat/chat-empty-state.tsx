@@ -1,4 +1,5 @@
 import {
+	ArrowRight,
 	KeyRound,
 	Laptop,
 	type LucideIcon,
@@ -6,9 +7,26 @@ import {
 	Sparkles,
 	Target,
 	TrendingUp,
+	UserRound,
 } from "lucide-react";
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@/components/ui/empty";
+import {
+	Item,
+	ItemContent,
+	ItemDescription,
+	ItemMedia,
+	ItemTitle,
+} from "@/components/ui/item";
 
 const SUGGESTIONS: { text: string; detail: string; icon: LucideIcon }[] = [
 	{
@@ -37,59 +55,78 @@ export default function ChatEmptyState({
 	hasKey,
 	hasProfile,
 	onSuggestion,
+	composer,
 }: {
 	hasKey: boolean;
 	hasProfile: boolean;
 	onSuggestion: (text: string) => void;
+	composer: ReactNode;
 }) {
 	return (
-		<div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-6 px-2 py-8 text-center">
-			<div className="flex flex-col items-center gap-3">
-				<div className="flex size-12 items-center justify-center rounded-full border bg-card">
-					<Sparkles className="size-5 text-muted-foreground" />
-				</div>
-				<div>
-					<h1 className="text-xl font-semibold">Your money coach</h1>
-					<p className="text-sm text-muted-foreground">
-						Talk through your budget, spending, or how to save for something. It
-						can see your accounts, budget and goals.
-					</p>
-				</div>
-			</div>
-			{hasKey ? (
-				<div className="grid w-full max-w-xl gap-2 sm:grid-cols-2">
-					{SUGGESTIONS.map(({ text, detail, icon: Icon }) => (
-						<Button
-							key={text}
-							variant="outline"
-							className="h-auto justify-start gap-3 whitespace-normal py-3 text-left"
-							onClick={() => onSuggestion(text)}
-						>
-							<Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-							<span className="flex flex-col gap-0.5">
-								<span className="font-medium">{text}</span>
-								<span className="text-xs font-normal text-muted-foreground">
-									{detail}
-								</span>
-							</span>
-						</Button>
-					))}
-				</div>
-			) : (
-				<Button asChild>
-					<Link href="/settings">
-						<KeyRound /> Add an AI provider key in Settings
-					</Link>
-				</Button>
-			)}
-			{hasKey && !hasProfile && (
-				<Link
-					href="/settings"
-					className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+		<Empty className="min-h-0 overflow-y-auto px-0 py-8">
+			<EmptyHeader className="max-w-lg">
+				<EmptyMedia
+					variant="icon"
+					className="size-12 rounded-full border bg-card"
 				>
-					Tell the coach about yourself for more personal advice
-				</Link>
-			)}
-		</div>
+					<Sparkles className="size-5" />
+				</EmptyMedia>
+				<EmptyTitle className="text-2xl font-semibold tracking-tight">
+					Your money coach
+				</EmptyTitle>
+				<EmptyDescription>
+					Talk through your budget, spending, or how to save for something. It
+					can see your accounts, budget and goals.
+				</EmptyDescription>
+			</EmptyHeader>
+			{composer}
+			<EmptyContent className="max-w-3xl px-2">
+				{hasKey ? (
+					<div className="grid w-full gap-2 sm:grid-cols-2">
+						{SUGGESTIONS.map(({ text, detail, icon: Icon }) => (
+							<Item
+								key={text}
+								asChild
+								variant="outline"
+								size="sm"
+								className="cursor-pointer bg-card hover:bg-muted"
+							>
+								<button type="button" onClick={() => onSuggestion(text)}>
+									<ItemMedia variant="icon">
+										<Icon className="text-muted-foreground" />
+									</ItemMedia>
+									<ItemContent className="gap-0.5">
+										<ItemTitle>{text}</ItemTitle>
+										<ItemDescription className="text-xs">
+											{detail}
+										</ItemDescription>
+									</ItemContent>
+								</button>
+							</Item>
+						))}
+					</div>
+				) : (
+					<Button asChild>
+						<Link href="/settings">
+							<KeyRound /> Add an AI provider key in Settings
+						</Link>
+					</Button>
+				)}
+				{hasKey && !hasProfile && (
+					<Button
+						asChild
+						variant="link"
+						size="sm"
+						className="text-muted-foreground"
+					>
+						<Link href="/settings">
+							<UserRound />
+							Tell the coach about yourself for more personal advice
+							<ArrowRight />
+						</Link>
+					</Button>
+				)}
+			</EmptyContent>
+		</Empty>
 	);
 }
