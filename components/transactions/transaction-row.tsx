@@ -26,7 +26,8 @@ const TransactionRowInner = ({
 
 	return (
 		<TableRow
-			className="group"
+			className="group data-[status=pending]:[&_button,&_input]:italic data-[status=pending]:[&_button,&_input]:text-muted-foreground"
+			title={tx.status === "pending" ? "Pending review" : undefined}
 			data-state={isSelected(tx.id) ? "selected" : "default"}
 			data-status={tx.status === "pending" ? "pending" : undefined}
 		>
@@ -115,6 +116,7 @@ const MemoizedTransactionRow = memo(TransactionRowInner, (prev, next) => {
 		prev.tx.category_id === next.tx.category_id &&
 		prev.tx.account_name === next.tx.account_name &&
 		prev.tx.category_name === next.tx.category_name &&
+		prev.tx.status === next.tx.status &&
 		prev.showAccountCell === next.showAccountCell
 	);
 });

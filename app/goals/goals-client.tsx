@@ -7,11 +7,20 @@ import GoalCard from "@/components/goals/goal-card";
 import GoalDialog, {
 	type LinkableCategory,
 } from "@/components/goals/goal-dialog";
+import { Money } from "@/components/money";
 import PageContainer from "@/components/page-container";
+import PageFigure from "@/components/page-figure";
+import PageHeader from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@/components/ui/empty";
 import type { GoalView } from "@/lib/goal";
-import { formatMoney } from "@/lib/money";
 
 export default function GoalsClient({
 	goals,
@@ -47,62 +56,50 @@ export default function GoalsClient({
 
 	return (
 		<PageContainer className="max-w-5xl">
-			<div className="flex flex-wrap items-center justify-between gap-2">
-				<p className="text-sm text-muted-foreground">
-					Each goal is a category on your{" "}
-					<Link href="/budget" className="underline underline-offset-4">
-						budget
-					</Link>
-					. Budget money into it every month to save toward the target.
-				</p>
+			<PageHeader
+				title="Goals"
+				description={
+					<>
+						Each goal is a category on your{" "}
+						<Link href="/budget" className="underline underline-offset-4">
+							budget
+						</Link>
+						. Budget money into it every month to save toward the target.
+					</>
+				}
+				figures={
+					active.length > 0 && (
+						<>
+							<PageFigure label="Saved">
+								<Money value={totalSaved} />
+							</PageFigure>
+							<PageFigure label="Targets">
+								<Money value={totalTarget} />
+							</PageFigure>
+							<PageFigure label="Needed per month">
+								<Money value={monthlyNeed} />
+							</PageFigure>
+						</>
+					)
+				}
+			>
 				{newGoalButton}
-			</div>
-
-			{active.length > 0 && (
-				<div className="grid gap-4 sm:grid-cols-3">
-					<Card>
-						<CardContent>
-							<p className="text-sm text-muted-foreground">Saved so far</p>
-							<p className="text-xl font-semibold" data-money>
-								{formatMoney(totalSaved)}
-							</p>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent>
-							<p className="text-sm text-muted-foreground">Total targets</p>
-							<p className="text-xl font-semibold" data-money>
-								{formatMoney(totalTarget)}
-							</p>
-						</CardContent>
-					</Card>
-					<Card>
-						<CardContent>
-							<p className="text-sm text-muted-foreground">Needed per month</p>
-							<p className="text-xl font-semibold" data-money>
-								{formatMoney(monthlyNeed)}
-							</p>
-						</CardContent>
-					</Card>
-				</div>
-			)}
+			</PageHeader>
 
 			{active.length === 0 ? (
-				<Card>
-					<CardContent className="flex flex-col items-center gap-3 py-10 text-center">
-						<div className="flex size-12 items-center justify-center rounded-full bg-primary/10">
-							<Target className="size-6 text-primary" />
-						</div>
-						<div>
-							<p className="font-medium">No active goals</p>
-							<p className="text-sm text-muted-foreground">
-								Saving for a laptop, a trip or an emergency fund? Create a goal,
-								or ask the AI coach to plan one with you.
-							</p>
-						</div>
-						{newGoalButton}
-					</CardContent>
-				</Card>
+				<Empty className="border">
+					<EmptyHeader>
+						<EmptyMedia variant="icon">
+							<Target />
+						</EmptyMedia>
+						<EmptyTitle>No active goals</EmptyTitle>
+						<EmptyDescription>
+							Saving for a laptop, a trip or an emergency fund? Create a goal,
+							or ask the AI coach to plan one with you.
+						</EmptyDescription>
+					</EmptyHeader>
+					<EmptyContent>{newGoalButton}</EmptyContent>
+				</Empty>
 			) : (
 				<div className="grid gap-4 md:grid-cols-2">
 					{active.map((goal) => (
@@ -116,6 +113,7 @@ export default function GoalsClient({
 					<Button
 						variant="ghost"
 						size="sm"
+						aria-expanded={showInactive}
 						onClick={() => setShowInactive((value) => !value)}
 					>
 						{showInactive ? "Hide" : "Show"} achieved and archived (

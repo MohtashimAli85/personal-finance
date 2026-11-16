@@ -224,7 +224,7 @@ function ApprovalStatus({
 					className={
 						failed
 							? "text-destructive"
-							: "flex items-center gap-1.5 text-emerald-500"
+							: "flex items-center gap-1.5 text-positive"
 					}
 				>
 					{!failed && <Check className="h-3.5 w-3.5" />}
@@ -255,7 +255,7 @@ export function ApprovalCard({
 	return (
 		<div className="not-typeset max-w-md rounded-lg border bg-card p-4 text-sm">
 			<p className="mb-3 flex items-center gap-2 font-medium">
-				<ShieldQuestion className="h-4 w-4 text-sky-500" />
+				<ShieldQuestion className="size-4 text-info" />
 				{PROPOSAL_TITLES[name] ?? name}
 			</p>
 			{requestReason && (

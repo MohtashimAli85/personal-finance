@@ -7,14 +7,21 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface BudgetGroupMenuProps {
+	name: string;
 	onAddCategory?: () => void;
 	onRename?: () => void;
 	onDelete?: () => void;
 }
 
 const BudgetGroupMenu = ({
+	name,
 	onAddCategory,
 	onRename,
 	onDelete,
@@ -22,19 +29,29 @@ const BudgetGroupMenu = ({
 	return (
 		<>
 			{onAddCategory && (
-				<Button
-					type="button"
-					variant="table"
-					size="icon-xs"
-					onClick={onAddCategory}
-					title="Add category"
-				>
-					<Plus />
-				</Button>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							type="button"
+							variant="table"
+							size="icon-xs"
+							onClick={onAddCategory}
+							aria-label={`Add category to ${name}`}
+						>
+							<Plus />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>Add category</TooltipContent>
+				</Tooltip>
 			)}
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
-					<Button type="button" variant="table" size="icon-xs">
+					<Button
+						type="button"
+						variant="table"
+						size="icon-xs"
+						aria-label={`Actions for ${name}`}
+					>
 						<ChevronDown />
 					</Button>
 				</DropdownMenuTrigger>
@@ -50,7 +67,7 @@ const BudgetGroupMenu = ({
 						</DropdownMenuItem>
 					)}
 					{onDelete && (
-						<DropdownMenuItem className="text-destructive" onSelect={onDelete}>
+						<DropdownMenuItem variant="destructive" onSelect={onDelete}>
 							Delete group
 						</DropdownMenuItem>
 					)}

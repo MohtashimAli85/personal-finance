@@ -9,7 +9,7 @@ export default function UserMessage({ message }: { message: CoachUIMessage }) {
 				{messageText(message)}
 			</div>
 			{createdAt && (
-				<time className="text-xs text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
+				<time className="text-xs text-muted-foreground opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
 					{new Date(createdAt).toLocaleTimeString([], {
 						hour: "numeric",
 						minute: "2-digit",

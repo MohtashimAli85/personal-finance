@@ -1,20 +1,42 @@
-import { TableHead, TableRow } from "../ui/table";
+import { TableHead } from "../ui/table";
+import { HEAD_CELL, HEAD_LABEL } from "./transaction-cells";
 import TransactionCheckbox from "./transaction-checkbox";
+import TransactionSortHead from "./transaction-sort-head";
 
-const TransactionHead = () => {
+export default function TransactionHead({
+	showAccountCell,
+}: {
+	showAccountCell: boolean;
+}) {
 	return (
-		<TableRow>
-			<TableHead className="w-4">
+		<tr>
+			<TableHead className="h-9 w-10 pt-1 after:bg-border">
 				<TransactionCheckbox shouldSelectAll />
 			</TableHead>
-			<TableHead>Date</TableHead>
-			<TableHead>Account</TableHead>
-			<TableHead>Notes</TableHead>
-			<TableHead>Category</TableHead>
-			<TableHead className="text-right">Payment</TableHead>
-			<TableHead className="text-right">Deposit</TableHead>
-		</TableRow>
+			<TransactionSortHead column="date" label="Date" className="w-30" />
+			{showAccountCell && (
+				<TableHead className={`${HEAD_CELL} w-40`}>
+					<span className={HEAD_LABEL}>Account</span>
+				</TableHead>
+			)}
+			<TableHead className={`${HEAD_CELL} min-w-50`}>
+				<span className={HEAD_LABEL}>Notes</span>
+			</TableHead>
+			<TableHead className={`${HEAD_CELL} w-40`}>
+				<span className={HEAD_LABEL}>Category</span>
+			</TableHead>
+			<TransactionSortHead
+				column="payment"
+				label="Payment"
+				alignEnd
+				className="w-30"
+			/>
+			<TransactionSortHead
+				column="deposit"
+				label="Deposit"
+				alignEnd
+				className="w-30"
+			/>
+		</tr>
 	);
-};
-
-export default TransactionHead;
+}

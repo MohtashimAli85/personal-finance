@@ -21,6 +21,14 @@ import SpendingByGroupChart from "@/components/dashboard/spending-by-group-chart
 import StatCard from "@/components/dashboard/stat-card";
 import { Money } from "@/components/money";
 import PageContainer from "@/components/page-container";
+import PageHeader from "@/components/page-header";
+import {
+	Empty,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@/components/ui/empty";
 import { getAccounts } from "@/lib/account";
 import { getBalanceVerifiedAt, getPendingTotal } from "@/lib/balance-check";
 import { getBudgetView } from "@/lib/budget";
@@ -39,7 +47,7 @@ import { getSummary } from "@/lib/summary";
 import { getTransactions } from "@/lib/transaction";
 
 export const metadata: Metadata = {
-	title: "Dashboard · Personal Finance",
+	title: "Dashboard",
 	description: "Personal finance overview",
 };
 
@@ -74,8 +82,37 @@ export default async function DashboardPage() {
 	const overspent = getOverspent(budget);
 	const verifiedAt = getBalanceVerifiedAt();
 
+	const header = (
+		<PageHeader
+			title="Dashboard"
+			description={`Your money in ${format(new Date(), "MMMM yyyy")}`}
+		/>
+	);
+
+	if (accounts.length === 0) {
+		return (
+			<PageContainer className="max-w-3xl">
+				{header}
+				<Empty className="border">
+					<EmptyHeader>
+						<EmptyMedia variant="icon">
+							<Landmark />
+						</EmptyMedia>
+						<EmptyTitle>Add your first account</EmptyTitle>
+						<EmptyDescription>
+							Use Add account at the bottom of the sidebar and enter today's
+							balance. Then this page shows your net worth, spending and budget
+							at a glance.
+						</EmptyDescription>
+					</EmptyHeader>
+				</Empty>
+			</PageContainer>
+		);
+	}
+
 	return (
 		<PageContainer className="gap-4">
+			{header}
 			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
 				<StatCard
 					label="Net worth"
@@ -106,7 +143,7 @@ export default async function DashboardPage() {
 					icon={Wallet}
 					href="/budget"
 					valueClassName={
-						budget.toBudget < 0 ? "text-destructive" : "text-emerald-500"
+						budget.toBudget < 0 ? "text-destructive" : "text-positive"
 					}
 					footer={
 						budget.toBudget < 0 ? (
@@ -173,7 +210,7 @@ export default async function DashboardPage() {
 					icon={TriangleAlert}
 					href="/budget"
 					valueClassName={
-						overspent.count > 0 ? "text-destructive" : "text-emerald-500"
+						overspent.count > 0 ? "text-destructive" : "text-positive"
 					}
 					footer={
 						overspent.worst ? (

@@ -58,7 +58,7 @@ export default function DifferenceSplits({
 				value={remaining}
 				className={cn(
 					"font-medium",
-					remaining === 0 ? "text-emerald-500" : "text-destructive",
+					remaining === 0 ? "text-positive" : "text-destructive",
 				)}
 			/>
 		</section>

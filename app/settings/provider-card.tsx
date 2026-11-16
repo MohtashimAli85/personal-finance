@@ -1,9 +1,10 @@
-import { Loader2 } from "lucide-react";
 import ConfirmDialog from "@/components/confirm-dialog";
 import FeedbackText from "@/components/feedback-text";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
+import { API_KEY_ENV_VARS } from "@/lib/ai/labels";
 import type { ApiKeySource } from "@/lib/settings";
 import { type ProviderInfo, SOURCE_BADGE } from "./providers";
 import { useProviderKey } from "./use-provider-key";
@@ -35,8 +36,12 @@ export default function ProviderCard({
 			<CardContent className="space-y-3">
 				{source === "env" && (
 					<p className="text-sm text-muted-foreground">
-						This key comes from an environment variable and can only be changed
-						there.
+						This key comes from{" "}
+						<code className="font-mono text-foreground">
+							{API_KEY_ENV_VARS[provider.id]}
+						</code>{" "}
+						in your environment. It takes priority over a key saved here, so
+						change it in your .env file and restart the app.
 					</p>
 				)}
 
@@ -47,7 +52,7 @@ export default function ProviderCard({
 						disabled={!hasUsableKey || isPending}
 						onClick={test}
 					>
-						{isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+						{isPending && <Spinner />}
 						Test connection
 					</Button>
 					{(source === "stored" || source === "unreadable") && (

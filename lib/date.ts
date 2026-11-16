@@ -1,4 +1,4 @@
-import { format, subMonths } from "date-fns";
+import { differenceInCalendarDays, format, subMonths } from "date-fns";
 
 const MONTH_KEY_RE = /^\d{4}-\d{2}$/;
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -135,4 +135,30 @@ export function formatShortDate(key: string | null): string {
 		date,
 		date.getFullYear() === new Date().getFullYear() ? "d MMM" : "d MMM yyyy",
 	);
+}
+
+/** "Today", "Yesterday", or the weekday and date, for a YYYY-MM-DD key. */
+export function dayLabel(key: string, today = new Date()): string {
+	const date = parseDateKey(key);
+	const days = differenceInCalendarDays(today, date);
+	if (days === 0) return "Today";
+	if (days === 1) return "Yesterday";
+	return format(
+		date,
+		date.getFullYear() === today.getFullYear() ? "EEE d MMM" : "EEE d MMM yyyy",
+	);
+}
+
+/** Splits rows already sorted by date into consecutive same-day groups. */
+export function groupByDate<T extends { date: string | null }>(
+	rows: T[],
+): { date: string; rows: T[] }[] {
+	const groups: { date: string; rows: T[] }[] = [];
+	for (const row of rows) {
+		const date = row.date ?? "";
+		const last = groups.at(-1);
+		if (last?.date === date) last.rows.push(row);
+		else groups.push({ date, rows: [row] });
+	}
+	return groups;
 }

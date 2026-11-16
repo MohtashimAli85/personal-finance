@@ -10,6 +10,7 @@ import {
 	ChartTooltipContent,
 } from "@/components/ui/chart";
 import { formatCompactMoney, fromCents } from "@/lib/money";
+import ChartEmpty from "./chart-empty";
 
 const config = {
 	income: { label: "Income", color: "var(--series-1)" },
@@ -26,6 +27,10 @@ export default function CashFlowChart({
 		income: fromCents(d.income),
 		spent: fromCents(d.spent),
 	}));
+
+	if (points.every((point) => !point.income && !point.spent)) {
+		return <ChartEmpty>No income or spending in the last 6 months.</ChartEmpty>;
+	}
 
 	return (
 		<ChartContainer config={config} className="aspect-auto h-56 w-full">

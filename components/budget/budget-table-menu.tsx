@@ -1,6 +1,6 @@
 "use client";
 
-import { MoreVertical } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -8,6 +8,11 @@ import {
 	DropdownMenuContent,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useBudgetContext } from "@/context/budget-context";
 
 export default function BudgetTableMenu() {
@@ -15,11 +20,16 @@ export default function BudgetTableMenu() {
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button variant="ghost" size="icon-xs" aria-label="Budget options">
-					<MoreVertical />
-				</Button>
-			</DropdownMenuTrigger>
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<DropdownMenuTrigger asChild>
+						<Button variant="outline" size="icon" aria-label="View options">
+							<SlidersHorizontal />
+						</Button>
+					</DropdownMenuTrigger>
+				</TooltipTrigger>
+				<TooltipContent>View options</TooltipContent>
+			</Tooltip>
 			<DropdownMenuContent align="end">
 				<DropdownMenuCheckboxItem
 					checked={showHidden}

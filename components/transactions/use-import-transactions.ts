@@ -1,10 +1,27 @@
 import { useState } from "react";
+import { toast } from "sonner";
 import { bulkImportTransactions } from "@/app/actions/transaction/mutations";
 import { useStore } from "@/context/store-context";
 import { useServerAction } from "@/hooks/use-server-action";
+import { plural } from "@/lib/helper";
 import { useCsvFile } from "./use-csv-file";
 import { useImportPreview } from "./use-import-preview";
 import { useImportRows } from "./use-import-rows";
+
+function importSummary(
+	imported: number,
+	duplicates: number,
+	unreadable: number,
+) {
+	const skipped = [
+		duplicates > 0 && plural(duplicates, "duplicate"),
+		unreadable > 0 && `${plural(unreadable, "row")} with an unreadable date`,
+	].filter(Boolean);
+	const summary = `Imported ${plural(imported, "transaction")}`;
+	return skipped.length
+		? `${summary}. Skipped ${skipped.join(" and ")}.`
+		: `${summary}.`;
+}
 
 export function useImportTransactions(defaultAccountId?: string) {
 	const accounts = useStore((s) => s.accounts);
@@ -13,12 +30,6 @@ export function useImportTransactions(defaultAccountId?: string) {
 	const [selectedAccountId, setSelectedAccountId] = useState(
 		defaultAccountId ?? "",
 	);
-	const [importResult, setImportResult] = useState<{
-		imported: number;
-		skippedInvalidDate: number;
-		duplicates: number;
-	} | null>(null);
-
 	const csv = useCsvFile();
 	const rows = useImportRows(csv.columns, csv.rawRows, csv.columnMap);
 	const preview = useImportPreview(selectedAccountId, rows.importRows);
@@ -30,8 +41,7 @@ export function useImportTransactions(defaultAccountId?: string) {
 
 	const handleOpenChange = (next: boolean) => {
 		setOpen(next);
-		if (next) setImportResult(null);
-		else resetState();
+		if (!next) resetState();
 	};
 
 	const handleImport = () => {
@@ -45,11 +55,13 @@ export function useImportTransactions(defaultAccountId?: string) {
 			(result) => {
 				setOpen(false);
 				resetState();
-				setImportResult({
-					imported: Number(result.payload?.inserted ?? 0),
-					skippedInvalidDate: rows.skippedInvalidDate,
-					duplicates: Number(result.payload?.duplicates ?? 0),
-				});
+				toast.success(
+					importSummary(
+						Number(result.payload?.inserted ?? 0),
+						Number(result.payload?.duplicates ?? 0),
+						rows.skippedInvalidDate,
+					),
+				);
 			},
 		);
 	};
@@ -60,7 +72,6 @@ export function useImportTransactions(defaultAccountId?: string) {
 		isPending,
 		selectedAccountId,
 		setSelectedAccountId,
-		importResult,
 		csv,
 		rows,
 		preview,

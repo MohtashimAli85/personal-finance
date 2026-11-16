@@ -1,4 +1,5 @@
 "use client";
+import { Plus } from "lucide-react";
 import { useTransactionContext } from "@/context/transaction-context";
 import AccountCombobox from "../accounts/account-combobox";
 import { Button } from "../ui/button";
@@ -10,8 +11,9 @@ import { TransactionDatePicker } from "./transaction-date-picker";
 export const AddTransactionButton = () => {
 	const { initializeTransaction } = useTransactionContext();
 	return (
-		<Button key="add-transaction-button" onClick={initializeTransaction}>
-			Add Transaction
+		<Button onClick={initializeTransaction}>
+			<Plus />
+			Add<span className="max-sm:sr-only"> transaction</span>
 		</Button>
 	);
 };
@@ -100,7 +102,7 @@ export const AddTransactionRow = ({
 						<Button onClick={cancelTransaction} variant={"outline"}>
 							Cancel
 						</Button>
-						<form action={addTransaction}>
+						<form action={() => addTransaction()}>
 							<Button type="submit">Add</Button>
 						</form>
 					</div>

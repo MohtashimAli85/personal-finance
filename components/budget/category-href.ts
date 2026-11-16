@@ -7,6 +7,5 @@ export function categoryTransactionsHref(categoryId: string, month: string) {
 		from: start,
 		to: end,
 		draftCategoryId: categoryId,
-		new: "1",
 	}).toString()}`;
 }

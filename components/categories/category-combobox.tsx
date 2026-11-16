@@ -49,7 +49,7 @@ const CategoryCombobox = ({
 			<ComboboxInput
 				variant={variant}
 				showTrigger={false}
-				placeholder="Select a Category"
+				placeholder="Select a category"
 				value={inputValue}
 				onChange={(e) => setInputValue(e.target.value)}
 				onBlur={() => {

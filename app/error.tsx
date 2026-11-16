@@ -1,5 +1,6 @@
 "use client";
 
+import PageMessage from "@/components/page-message";
 import { Button } from "@/components/ui/button";
 
 export default function ErrorPage({
@@ -9,12 +10,11 @@ export default function ErrorPage({
 	retry: () => void;
 }) {
 	return (
-		<div className="flex h-full min-h-[50vh] flex-col items-center justify-center gap-3 text-center">
-			<h1 className="text-xl font-semibold">Something went wrong</h1>
-			<p className="max-w-md text-muted-foreground">
-				The page hit an unexpected error. Your data is safe; try again.
-			</p>
+		<PageMessage
+			title="Something went wrong"
+			description="The page hit an unexpected error. Your data is safe; try again."
+		>
 			<Button onClick={() => retry()}>Try again</Button>
-		</div>
+		</PageMessage>
 	);
 }

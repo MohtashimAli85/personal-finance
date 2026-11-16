@@ -61,7 +61,7 @@ export default function VerifyBalanceDialog({
 									className={cn(
 										"font-semibold",
 										check.difference < 0 && "text-destructive",
-										check.difference > 0 && "text-emerald-500",
+										check.difference > 0 && "text-positive",
 									)}
 								/>
 								{pendingTotal !== 0 && check.difference !== 0 && (

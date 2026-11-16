@@ -15,6 +15,11 @@ interface BudgetProviderProps {
 	incomeGroup: BudgetView["incomeGroup"];
 }
 
+interface BudgetViewPrefs {
+	initialShowHidden: boolean;
+	initialCollapsed: Record<string, boolean>;
+}
+
 type BudgetContextType = Omit<BudgetProviderProps, "groups"> &
 	ReturnType<typeof useShowHidden> &
 	ReturnType<typeof useCollapsedGroups> &
@@ -27,10 +32,12 @@ export const useBudgetContext = () => use(BudgetContext);
 const BudgetProvider = ({
 	children,
 	groups,
+	initialShowHidden,
+	initialCollapsed,
 	...view
-}: BudgetProviderProps & { children: React.ReactNode }) => {
-	const hidden = useShowHidden();
-	const collapsed = useCollapsedGroups();
+}: BudgetProviderProps & BudgetViewPrefs & { children: React.ReactNode }) => {
+	const hidden = useShowHidden(initialShowHidden);
+	const collapsed = useCollapsedGroups(initialCollapsed);
 	const order = useGroupOrder(groups);
 	const drag = useGroupDrag(order);
 

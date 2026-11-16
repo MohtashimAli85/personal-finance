@@ -20,7 +20,7 @@ import { useTransferPopover } from "./use-transfer-popover";
 
 const toneFor = (balance: number) =>
 	balance > 0
-		? "text-emerald-500"
+		? "text-positive"
 		: balance < 0
 			? "bg-destructive/15 text-destructive"
 			: "text-muted-foreground";

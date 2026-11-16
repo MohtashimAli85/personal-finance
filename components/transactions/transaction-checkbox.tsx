@@ -6,9 +6,11 @@ import { cn } from "@/lib/tailwindcss/utils";
 const TransactionCheckbox = ({
 	id,
 	shouldSelectAll,
+	alwaysVisible,
 }: {
 	id?: string;
 	shouldSelectAll?: boolean;
+	alwaysVisible?: boolean;
 }) => {
 	const {
 		isSelected,
@@ -20,9 +22,11 @@ const TransactionCheckbox = ({
 
 	return (
 		<Checkbox
+			aria-label={id ? "Select transaction" : "Select all transactions"}
 			className={cn(
-				id && "opacity-0 group-hover:opacity-100 data-checked:opacity-100",
-				{},
+				id &&
+					!alwaysVisible &&
+					"opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 focus-visible:opacity-100 data-checked:opacity-100",
 			)}
 			checked={id ? isSelected(id) : shouldSelectAll ? allSelected : false}
 			onCheckedChange={() =>

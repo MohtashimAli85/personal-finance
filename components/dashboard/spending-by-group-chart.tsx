@@ -8,6 +8,7 @@ import {
 	ChartTooltipContent,
 } from "@/components/ui/chart";
 import { formatCompactMoney, fromCents } from "@/lib/money";
+import ChartEmpty from "./chart-empty";
 
 const config = {
 	spent: { label: "Spent", color: "var(--series-2)" },
@@ -23,11 +24,7 @@ export default function SpendingByGroupChart({
 		.map((d) => ({ name: d.name, spent: fromCents(d.spent) }));
 
 	if (points.length === 0) {
-		return (
-			<p className="flex h-56 items-center justify-center text-muted-foreground">
-				No spending yet this month.
-			</p>
-		);
+		return <ChartEmpty>No spending yet this month.</ChartEmpty>;
 	}
 
 	return (

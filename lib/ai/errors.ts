@@ -1,6 +1,6 @@
 import { APICallError, RetryError } from "ai";
-import type { AiProvider } from "@/lib/settings";
-import { PROVIDER_LABELS } from "./labels";
+import type { AiProvider, ApiKeySource } from "@/lib/settings";
+import { API_KEY_ENV_VARS, PROVIDER_LABELS } from "./labels";
 
 const unwrap = (error: unknown): unknown =>
 	RetryError.isInstance(error) ? error.lastError : error;
@@ -35,13 +35,34 @@ function isNetworkError(error: unknown): boolean {
 	return false;
 }
 
-export function describeAiError(error: unknown, provider: AiProvider): string {
+function describeRejectedKey(
+	provider: AiProvider,
+	source: ApiKeySource | undefined,
+	inSettings: boolean,
+): string {
+	const name = PROVIDER_LABELS[provider];
+	if (source === "env") {
+		const envVar = API_KEY_ENV_VARS[provider];
+		return inSettings
+			? `${name} rejected the key in ${envVar}. Update it in your .env file and restart the app. A key saved on this page isn't used while that variable is set. Until then the coach skips ${name} and uses the next provider.`
+			: `${name} rejected the key in ${envVar}. Update it in your .env file and restart the app.`;
+	}
+	return inSettings
+		? `${name} rejected your saved key. It may be mistyped or revoked. Paste a new key above or remove this one.`
+		: `${name} rejected your saved API key. Replace it in Settings.`;
+}
+
+export function describeAiError(
+	error: unknown,
+	provider: AiProvider,
+	context: { source?: ApiKeySource; inSettings?: boolean } = {},
+): string {
 	const name = PROVIDER_LABELS[provider];
 	const inner = unwrap(error);
 	const status = statusOf(inner);
 
 	if (status === 401 || status === 403) {
-		return `${name} rejected the API key. Check it in Settings.`;
+		return describeRejectedKey(provider, context.source, !!context.inSettings);
 	}
 	if (status === 429) {
 		return `${name} rate limit or quota reached. Wait a minute and try again.`;

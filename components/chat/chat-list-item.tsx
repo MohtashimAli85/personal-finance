@@ -78,7 +78,7 @@ export default function ChatListItem({
 					<Button
 						variant="ghost"
 						size="icon-xs"
-						className="mr-1 opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+						className="mr-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
 						aria-label="Chat actions"
 					>
 						<MoreHorizontal />

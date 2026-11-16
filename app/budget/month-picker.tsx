@@ -1,8 +1,7 @@
 "use client";
 
 import { addMonths, format } from "date-fns";
-import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -11,59 +10,36 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "@/components/ui/popover";
-
+import { useQueryState } from "@/hooks/use-query-state";
 import { getMonthKey, parseMonthKey } from "@/lib/date";
 
-type MonthPickerProps = {
-	month: string;
-};
-
-export default function MonthPicker({ month }: MonthPickerProps) {
-	const router = useRouter();
-	const pathname = usePathname();
-	const searchParams = useSearchParams();
+export default function MonthPicker({ month }: { month: string }) {
+	const [, setMonth] = useQueryState("month");
 	const selectedMonth = useMemo(() => parseMonthKey(month), [month]);
 	const [calendarMonth, setCalendarMonth] = useState<Date>(selectedMonth);
-
-	const updateMonth = (nextDate: Date) => {
-		const params = new URLSearchParams(searchParams.toString());
-		params.set("month", getMonthKey(nextDate));
-		router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-	};
+	const updateMonth = (next: Date) => setMonth(getMonthKey(next));
 
 	return (
-		<div className="flex items-center gap-2">
+		<div className="flex items-center">
 			<Button
-				type="button"
-				variant="table"
+				variant="ghost"
 				size="icon-sm"
+				aria-label="Previous month"
 				onClick={() => updateMonth(addMonths(selectedMonth, -1))}
 			>
 				<ChevronLeft />
 			</Button>
-			<div className="min-w-36 text-center">
-				<div className="text-muted-foreground text-xs">
-					{format(selectedMonth, "yyyy")}
-				</div>
-				<div className="text-sm font-semibold">
-					{format(selectedMonth, "MMMM")}
-				</div>
-			</div>
-			<Button
-				type="button"
-				variant="table"
-				size="icon-sm"
-				onClick={() => updateMonth(addMonths(selectedMonth, 1))}
-			>
-				<ChevronRight />
-			</Button>
 			<Popover>
 				<PopoverTrigger asChild>
-					<Button type="button" variant="table" size="icon-sm">
-						<CalendarIcon />
+					<Button
+						variant="ghost"
+						className="min-w-36 font-semibold"
+						aria-label="Choose month"
+					>
+						{format(selectedMonth, "MMMM yyyy")}
 					</Button>
 				</PopoverTrigger>
-				<PopoverContent className="w-auto p-0">
+				<PopoverContent align="center" className="w-auto p-0">
 					<Calendar
 						mode="single"
 						showOutsideDays={false}
@@ -78,6 +54,14 @@ export default function MonthPicker({ month }: MonthPickerProps) {
 					/>
 				</PopoverContent>
 			</Popover>
+			<Button
+				variant="ghost"
+				size="icon-sm"
+				aria-label="Next month"
+				onClick={() => updateMonth(addMonths(selectedMonth, 1))}
+			>
+				<ChevronRight />
+			</Button>
 		</div>
 	);
 }

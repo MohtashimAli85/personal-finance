@@ -3,6 +3,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus } from "lucide-react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
+import { toast } from "sonner";
 import { createAccount } from "@/app/actions/accounts/mutations";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -40,6 +41,7 @@ const AddAccount = () => {
 		mutate(values, {
 			onSuccess: () => {
 				setOpen(false);
+				toast.success(`Added ${values.name}`);
 			},
 		});
 	};
@@ -55,14 +57,15 @@ const AddAccount = () => {
 		>
 			<DialogTrigger asChild>
 				<SidebarMenuButton>
-					<Plus /> Add Account
+					<Plus /> Add account
 				</SidebarMenuButton>
 			</DialogTrigger>
 			<DialogContent>
 				<DialogHeader>
-					<DialogTitle>Add a new account</DialogTitle>
+					<DialogTitle>Add account</DialogTitle>
 					<DialogDescription>
-						Fill in the details below to create a new account.
+						Enter today's balance from your bank. Off-budget accounts, like
+						investments or loans, count toward net worth but not your budget.
 					</DialogDescription>
 				</DialogHeader>
 				<form onSubmit={form.handleSubmit(onSubmit)}>
@@ -83,8 +86,14 @@ const AddAccount = () => {
 							control={form.control}
 							render={({ field, fieldState }) => (
 								<Field data-invalid={fieldState.invalid}>
-									<FieldLabel>Balance</FieldLabel>
-									<Input {...field} aria-invalid={fieldState.invalid} />
+									<FieldLabel>Current balance</FieldLabel>
+									<Input
+										{...field}
+										inputMode="decimal"
+										data-money
+										className="text-right tabular-nums"
+										aria-invalid={fieldState.invalid}
+									/>
 									<FieldError>{fieldState.error?.message}</FieldError>
 								</Field>
 							)}
@@ -104,7 +113,7 @@ const AddAccount = () => {
 							)}
 						/>
 						<DialogFooter>
-							<Button type="submit">Create Account</Button>
+							<Button type="submit">Add account</Button>
 						</DialogFooter>
 					</FieldGroup>
 				</form>

@@ -3,6 +3,8 @@ import { cache } from "react";
 import { db } from "@/lib/db";
 import { accounts, categories, transactions } from "@/lib/db/schema";
 
+export const BANK_HISTORY_LIMIT = 200;
+
 export interface BankTransactionRow {
 	id: string;
 	payment: number | null;
@@ -37,7 +39,7 @@ export const getBankTransactions = cache((): BankTransactionRow[] => {
 		.leftJoin(categories, eq(transactions.category_id, categories.id))
 		.where(eq(transactions.source, "email"))
 		.orderBy(desc(transactions.date))
-		.limit(200)
+		.limit(BANK_HISTORY_LIMIT)
 		.all();
 
 	return rows.map((r) => ({

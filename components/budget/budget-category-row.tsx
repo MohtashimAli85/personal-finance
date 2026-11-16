@@ -2,6 +2,7 @@
 import { Repeat } from "lucide-react";
 import Link from "next/link";
 import { renameBudgetCategory } from "@/app/actions/budget/mutations";
+import ConfirmDialog from "@/components/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
 import {
@@ -15,7 +16,12 @@ import { formatCurrency } from "@/lib/helper";
 import { cn } from "@/lib/tailwindcss/utils";
 import BalanceCell from "./balance-cell";
 import BudgetCategoryMenu from "./budget-category-menu";
-import { amountTone, CATEGORY_INDENT, NUMBER_CELL } from "./budget-cells";
+import {
+	amountTone,
+	CATEGORY_INDENT,
+	NUMBER_CELL,
+	SPENT_CELL,
+} from "./budget-cells";
 import { categoryTransactionsHref } from "./category-href";
 import DeleteCategoryDialog from "./delete-category-dialog";
 import RecurringCategoryDialog from "./recurring-category-dialog";
@@ -50,6 +56,7 @@ const BudgetCategoryRow = ({
 							data-edit
 							key={category.name}
 							hidden
+							aria-label="Category name"
 							defaultValue={category.name}
 							className="outline-none"
 							onBlur={handleBlur}
@@ -73,6 +80,7 @@ const BudgetCategoryRow = ({
 						</Tooltip>
 					)}
 					<BudgetCategoryMenu
+						name={category.name}
 						onRename={startEditing}
 						onRecurring={() => recurring.setOpen(true)}
 						onDelete={remove.requestDelete}
@@ -87,6 +95,13 @@ const BudgetCategoryRow = ({
 					onConfirm={remove.confirmDelete}
 					isPending={remove.isPending}
 				/>
+				<ConfirmDialog
+					open={remove.confirming}
+					onOpenChange={remove.setConfirming}
+					title={`Delete ${category.name}?`}
+					description="Nothing has been budgeted to or spent from this category, so no money moves."
+					onConfirm={remove.confirmUnused}
+				/>
 				<RecurringCategoryDialog category={category} recurring={recurring} />
 			</TableCell>
 			<TableCell className="h-8 p-0">
@@ -94,12 +109,13 @@ const BudgetCategoryRow = ({
 					data-money
 					variant="table"
 					inputMode="decimal"
+					aria-label={`Budgeted for ${category.name}`}
 					className="h-8 rounded-sm px-[11px] text-right tabular-nums"
 					key={category.budgeted}
 					{...amount}
 				/>
 			</TableCell>
-			<TableCell className={NUMBER_CELL}>
+			<TableCell className={cn(NUMBER_CELL, SPENT_CELL)}>
 				<Link
 					href={href}
 					className={cn("hover:underline", amountTone(category.spent))}

@@ -3,7 +3,9 @@
 import { XIcon } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import type * as React from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { PortalContainerContext } from "@/context/portal-container-context";
 import { cn } from "@/lib/tailwindcss/utils";
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
@@ -54,6 +56,9 @@ function SheetContent({
 	side?: "top" | "right" | "bottom" | "left";
 	showCloseButton?: boolean;
 }) {
+	const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(
+		null,
+	);
 	return (
 		<SheetPortal>
 			<SheetOverlay />
@@ -66,7 +71,10 @@ function SheetContent({
 				)}
 				{...props}
 			>
-				{children}
+				<PortalContainerContext value={portalContainer}>
+					{children}
+				</PortalContainerContext>
+				<div ref={setPortalContainer} className="contents" />
 				{showCloseButton && (
 					<SheetPrimitive.Close data-slot="sheet-close" asChild>
 						<Button

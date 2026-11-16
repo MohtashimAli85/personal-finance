@@ -7,16 +7,7 @@ import {
 	deleteGoal,
 	markGoalAchieved,
 } from "@/app/actions/goals/mutations";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+import ConfirmDialog from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +18,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Progress } from "@/components/ui/progress";
 import { useServerAction } from "@/hooks/use-server-action";
 import type { GoalStatus, GoalView } from "@/lib/goal";
 import { formatMoney } from "@/lib/money";
@@ -40,28 +32,28 @@ const STATUS_META: Record<
 > = {
 	funded: {
 		label: "Funded",
-		className: "bg-emerald-500/15 text-emerald-500",
-		bar: "bg-emerald-500",
+		className: "bg-positive/15 text-positive",
+		bar: "*:data-[slot=progress-indicator]:bg-positive",
 	},
 	on_track: {
 		label: "On track",
-		className: "bg-sky-500/15 text-sky-500",
-		bar: "bg-sky-500",
+		className: "bg-info/15 text-info",
+		bar: "*:data-[slot=progress-indicator]:bg-info",
 	},
 	behind: {
 		label: "Behind",
-		className: "bg-amber-500/15 text-amber-500",
-		bar: "bg-amber-500",
+		className: "bg-warning/15 text-warning",
+		bar: "*:data-[slot=progress-indicator]:bg-warning",
 	},
 	overdue: {
 		label: "Past target date",
 		className: "bg-destructive/15 text-destructive",
-		bar: "bg-destructive",
+		bar: "*:data-[slot=progress-indicator]:bg-destructive",
 	},
 	no_deadline: {
 		label: "No deadline",
 		className: "bg-muted text-muted-foreground",
-		bar: "bg-primary",
+		bar: "",
 	},
 };
 
@@ -87,9 +79,7 @@ export default function GoalCard({ goal }: { goal: GoalView }) {
 					</div>
 					<div className="flex items-center gap-1">
 						{goal.achievedAt ? (
-							<Badge className="bg-emerald-500/15 text-emerald-500">
-								Achieved
-							</Badge>
+							<Badge className="bg-positive/15 text-positive">Achieved</Badge>
 						) : goal.archivedAt ? (
 							<Badge variant="outline">Archived</Badge>
 						) : (
@@ -156,18 +146,11 @@ export default function GoalCard({ goal }: { goal: GoalView }) {
 						of <span data-money>{formatMoney(goal.targetAmount)}</span>
 					</span>
 				</div>
-				<div
-					className="h-2 w-full overflow-hidden rounded-full bg-muted"
-					role="progressbar"
-					aria-valuenow={Math.round(goal.percent)}
-					aria-valuemin={0}
-					aria-valuemax={100}
-				>
-					<div
-						className={cn("h-full rounded-full transition-all", meta.bar)}
-						style={{ width: `${goal.percent}%` }}
-					/>
-				</div>
+				<Progress
+					value={goal.percent}
+					aria-label={`${goal.name} progress`}
+					className={cn("h-2", meta.bar)}
+				/>
 				<div className="grid grid-cols-2 gap-2 text-sm">
 					<div>
 						<p className="text-muted-foreground">Still needed</p>
@@ -187,7 +170,7 @@ export default function GoalCard({ goal }: { goal: GoalView }) {
 					</div>
 				</div>
 				{goal.status === "behind" && !inactive && (
-					<p className="text-sm text-amber-500">
+					<p className="text-sm text-warning">
 						Budgeted{" "}
 						<span data-money>{formatMoney(goal.budgetedThisMonth)}</span> this
 						month - budget{" "}
@@ -204,23 +187,13 @@ export default function GoalCard({ goal }: { goal: GoalView }) {
 				)}
 			</CardContent>
 
-			<AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete &quot;{goal.name}&quot;?</AlertDialogTitle>
-						<AlertDialogDescription>
-							The goal is removed but its budget category &quot;
-							{goal.categoryName}&quot; and any money in it stay in your budget.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction onClick={() => run(() => deleteGoal(goal.id))}>
-							Delete
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			<ConfirmDialog
+				open={confirmDelete}
+				onOpenChange={setConfirmDelete}
+				title={`Delete "${goal.name}"?`}
+				description={`The goal is removed but its budget category "${goal.categoryName}" and any money in it stay in your budget.`}
+				onConfirm={() => run(() => deleteGoal(goal.id))}
+			/>
 		</Card>
 	);
 }

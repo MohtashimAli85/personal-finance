@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import { useQueryState } from "@/hooks/use-query-state";
+import { useCallback, useRef } from "react";
 import { useVirtualizer } from "@/hooks/use-virtualizer";
 import TransactionRow from "./transaction-row";
+import { useInfiniteLimit } from "./use-infinite-limit";
 
-const PAGE_SIZE = 150;
 const ROW_HEIGHT = 35;
 const OVERSCAN = 20;
 
@@ -20,13 +19,6 @@ export default function TransactionList({
 }) {
 	const anchorRef = useRef<HTMLTableRowElement>(null);
 	const scrollElementRef = useRef<HTMLElement | null>(null);
-	const [limit, setLimit] = useQueryState("limit");
-	const hasMoreRef = useRef(hasMore);
-
-	useEffect(() => {
-		hasMoreRef.current = hasMore;
-	}, [hasMore]);
-
 	const colSpan = showAccountCell ? 7 : 6;
 
 	const getScrollElement = useCallback(() => {
@@ -55,15 +47,7 @@ export default function TransactionList({
 	const virtualItems = virtualizer.getVirtualItems();
 	const totalSize = virtualizer.getTotalSize();
 
-	// Infinite scroll: load more when nearing the end
-	useEffect(() => {
-		if (!hasMoreRef.current || virtualItems.length === 0) return;
-		const lastItem = virtualItems[virtualItems.length - 1];
-		if (lastItem && lastItem.index >= transactions.length - 20) {
-			const current = Number(limit) || PAGE_SIZE;
-			setLimit(String(current + PAGE_SIZE));
-		}
-	}, [virtualItems, transactions.length, limit, setLimit]);
+	useInfiniteLimit(virtualItems.at(-1)?.index, transactions.length, hasMore);
 
 	// Top and bottom spacer heights
 	const topSpacerHeight = virtualItems.length > 0 ? virtualItems[0].start : 0;

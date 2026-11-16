@@ -30,7 +30,7 @@ export default function ChatError({
 					</Button>
 					{needsKey && (
 						<Button asChild size="sm" variant="outline">
-							<Link href="/settings">Open Settings</Link>
+							<Link href="/settings">Open settings</Link>
 						</Button>
 					)}
 				</div>

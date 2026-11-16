@@ -2,6 +2,13 @@ import type { AiProvider } from "@/lib/settings";
 
 export const AUTO_MODEL = "auto";
 
+export const API_KEY_ENV_VARS: Record<AiProvider, string> = {
+	groq: "GROQ_API_KEY",
+	gemini: "GEMINI_API_KEY",
+	anthropic: "ANTHROPIC_API_KEY",
+	openai: "OPENAI_API_KEY",
+};
+
 export const PROVIDER_LABELS: Record<AiProvider, string> = {
 	groq: "Groq",
 	gemini: "Gemini",

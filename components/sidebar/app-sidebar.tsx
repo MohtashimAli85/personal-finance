@@ -45,17 +45,15 @@ export default function AppSidebar() {
 						))}
 					</SidebarMenu>
 				</SidebarGroup>
-				<SidebarGroup>
-					<SidebarMenu>
-						<AccountsList />
-					</SidebarMenu>
-				</SidebarGroup>
+				<AccountsList />
 			</SidebarContent>
 
 			<SidebarFooter>
-				<div className="flex flex-col gap-2">
-					<AddAccount />
-				</div>
+				<SidebarMenu>
+					<SidebarMenuItem>
+						<AddAccount />
+					</SidebarMenuItem>
+				</SidebarMenu>
 			</SidebarFooter>
 		</Sidebar>
 	);

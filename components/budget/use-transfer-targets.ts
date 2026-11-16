@@ -13,8 +13,8 @@ export function useTransferTargets(excludeId: string) {
 	return [
 		{
 			id: TO_BUDGET,
-			name: "To Budget",
-			items: [{ value: TO_BUDGET, label: "To Budget", balance: toBudget }],
+			name: "To budget",
+			items: [{ value: TO_BUDGET, label: "To budget", balance: toBudget }],
 		},
 		...orderedGroups
 			.filter((group) => !group.is_income)

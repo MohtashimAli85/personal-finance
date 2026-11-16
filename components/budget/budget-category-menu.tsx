@@ -9,23 +9,28 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface BudgetCategoryMenuProps {
+	name: string;
 	onRename: () => void;
 	onRecurring: () => void;
 	onDelete: () => void;
 }
 
 const BudgetCategoryMenu = ({
+	name,
 	onRename,
 	onRecurring,
 	onDelete,
 }: BudgetCategoryMenuProps) => {
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger
-				asChild
-				className="opacity-0 transition-opacity group-hover:opacity-100"
-			>
-				<Button type="button" variant="table" size="icon-xs">
+			<DropdownMenuTrigger asChild>
+				<Button
+					type="button"
+					variant="table"
+					size="icon-xs"
+					aria-label={`Actions for ${name}`}
+					className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+				>
 					<ChevronDown />
 				</Button>
 			</DropdownMenuTrigger>
@@ -34,7 +39,7 @@ const BudgetCategoryMenu = ({
 				<DropdownMenuItem onSelect={onRecurring}>
 					Recurring amount…
 				</DropdownMenuItem>
-				<DropdownMenuItem className="text-destructive" onSelect={onDelete}>
+				<DropdownMenuItem variant="destructive" onSelect={onDelete}>
 					Delete
 				</DropdownMenuItem>
 			</DropdownMenuContent>

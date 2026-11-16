@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -8,6 +7,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Spinner } from "@/components/ui/spinner";
 import type { ActualPreview } from "@/lib/actual-import";
 
 export default function ActualImportDialog({
@@ -80,8 +80,12 @@ export default function ActualImportDialog({
 					<Button variant="outline" disabled={isPending} onClick={onCancel}>
 						Cancel
 					</Button>
-					<Button disabled={isPending} onClick={onConfirm}>
-						{isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+					<Button
+						variant="destructive"
+						disabled={isPending}
+						onClick={onConfirm}
+					>
+						{isPending && <Spinner />}
 						Replace my data
 					</Button>
 				</DialogFooter>

@@ -28,34 +28,26 @@ export const TransactionSelectionProvider = ({
 		() => transactions.map((tx) => tx.id),
 		[transactions],
 	);
-	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+	const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
+	const selectedIds = new Set(
+		transactionIds.filter((id) => checkedIds.has(id)),
+	);
 
 	const toggleSelection = (id: string) => {
-		setSelectedIds((prev) => {
-			const newSet = new Set(prev);
-			if (newSet.has(id)) {
-				newSet.delete(id);
-			} else {
-				newSet.add(id);
-			}
-			return newSet;
+		setCheckedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(id)) next.delete(id);
+			else next.add(id);
+			return next;
 		});
 	};
 
-	const selectAll = () => {
-		setSelectedIds(new Set(transactionIds));
-	};
-
-	const clearSelection = () => {
-		setSelectedIds(new Set());
-	};
-
-	const isSelected = (id: string) => {
-		return selectedIds.has(id);
-	};
+	const selectAll = () => setCheckedIds(new Set(transactionIds));
+	const clearSelection = () => setCheckedIds(new Set());
+	const isSelected = (id: string) => checkedIds.has(id);
 	const allSelected =
-		transactionIds.length > 0 &&
-		transactionIds.every((id) => selectedIds.has(id));
+		transactionIds.length > 0 && selectedIds.size === transactionIds.length;
+
 	return (
 		<TransactionSelectionContext.Provider
 			value={{

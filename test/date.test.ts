@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	dayLabel,
 	formateDate,
 	getMonthKey,
 	getMonthRange,
+	groupByDate,
 	isDateKey,
 	isMonthKey,
 	monthsBetween,
@@ -99,5 +101,34 @@ describe("monthsBetween", () => {
 describe("getMonthKey", () => {
 	it("formats a Date as YYYY-MM", () => {
 		expect(getMonthKey(new Date(2026, 8, 21))).toBe("2026-09");
+	});
+});
+
+describe("dayLabel", () => {
+	const today = new Date(2026, 10, 16, 15, 30);
+
+	it("names today and yesterday", () => {
+		expect(dayLabel("2026-11-16", today)).toBe("Today");
+		expect(dayLabel("2026-11-15", today)).toBe("Yesterday");
+	});
+
+	it("shows the weekday and date, with the year only when it differs", () => {
+		expect(dayLabel("2026-11-09", today)).toBe("Mon 9 Nov");
+		expect(dayLabel("2025-12-31", today)).toBe("Wed 31 Dec 2025");
+	});
+});
+
+describe("groupByDate", () => {
+	it("groups consecutive rows that share a date, keeping order", () => {
+		const rows = [
+			{ id: "a", date: "2026-11-16" },
+			{ id: "b", date: "2026-11-16" },
+			{ id: "c", date: "2026-11-14" },
+		];
+		expect(groupByDate(rows)).toEqual([
+			{ date: "2026-11-16", rows: [rows[0], rows[1]] },
+			{ date: "2026-11-14", rows: [rows[2]] },
+		]);
+		expect(groupByDate([])).toEqual([]);
 	});
 });

@@ -1,45 +1,21 @@
 "use client";
 
 import { Download } from "lucide-react";
-import { useState } from "react";
-import { exportAllTransactions } from "@/app/actions/transaction/mutations";
 import { Button } from "@/components/ui/button";
-import { toDateKey } from "@/lib/date";
+import { Spinner } from "@/components/ui/spinner";
+import { useExportTransactions } from "./use-export-transactions";
 
 export default function ExportTransactions({
 	accountId,
 }: {
 	accountId?: string;
 }) {
-	const [isPending, setIsPending] = useState(false);
-
-	const handleExport = async () => {
-		setIsPending(true);
-		try {
-			const csv = await exportAllTransactions(accountId);
-			if (!csv) return;
-
-			const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-			const url = URL.createObjectURL(blob);
-			const a = document.createElement("a");
-			a.href = url;
-			a.download = `transactions-${toDateKey(new Date())}.csv`;
-			a.click();
-			URL.revokeObjectURL(url);
-		} finally {
-			setIsPending(false);
-		}
-	};
+	const { isPending, handleExport } = useExportTransactions(accountId);
 
 	return (
-		<Button
-			variant="outline"
-			size="sm"
-			onClick={handleExport}
-			disabled={isPending}
-		>
-			<Download className="size-3.5" />
-			{isPending ? "Exporting..." : "Export"}
+		<Button variant="outline" onClick={handleExport} disabled={isPending}>
+			{isPending ? <Spinner /> : <Download />}
+			<span className="max-sm:sr-only">Export</span>
 		</Button>
 	);
 }

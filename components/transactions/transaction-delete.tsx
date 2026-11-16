@@ -1,68 +1,43 @@
+"use client";
+
 import { Trash2 } from "lucide-react";
-import { useState } from "react";
-import { bulkDeleteTransactions } from "@/app/actions/transaction/mutations";
-import {
-	AlertDialog,
-	AlertDialogAction,
-	AlertDialogCancel,
-	AlertDialogContent,
-	AlertDialogDescription,
-	AlertDialogFooter,
-	AlertDialogHeader,
-	AlertDialogTitle,
-	AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import ConfirmDialog from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
+import { plural } from "@/lib/helper";
+import { useDeleteSelected } from "./use-delete-selected";
 
-import { useTransactionSelection } from "@/context/transaction-selection-context";
-import { useServerAction } from "@/hooks/use-server-action";
+export default function TransactionDelete() {
+	const { count, isPending, remove, clearSelection, needsConfirm } =
+		useDeleteSelected();
 
-const TransactionDelete = () => {
-	const { selectedIds, clearSelection } = useTransactionSelection();
-	const { isPending, run } = useServerAction();
-	const [dialogOpen, setDialogOpen] = useState(false);
+	const deleteButton = (
+		<Button
+			variant="destructive"
+			size="sm"
+			disabled={isPending}
+			onClick={needsConfirm ? undefined : remove}
+		>
+			<Trash2 />
+			Delete
+		</Button>
+	);
 
-	const handleBulkDelete = () => {
-		run(
-			() => bulkDeleteTransactions(Array.from(selectedIds)),
-			() => {
-				clearSelection();
-				setDialogOpen(false);
-			},
-		);
-	};
-	if (!selectedIds.size) return null;
 	return (
 		<div className="flex items-center gap-2">
-			<span className="text-sm text-muted-foreground">
-				{selectedIds.size} selected
-			</span>
-			<AlertDialog open={dialogOpen} onOpenChange={setDialogOpen}>
-				<AlertDialogTrigger asChild>
-					<Button variant="destructive" size="sm" disabled={isPending}>
-						<Trash2 className="h-4 w-4" />
-						Delete Selected
-					</Button>
-				</AlertDialogTrigger>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Delete Transactions?</AlertDialogTitle>
-						<AlertDialogDescription>
-							Are you sure you want to delete {selectedIds.size} transaction
-							{selectedIds.size > 1 ? "s" : ""}? This action cannot be undone
-							and will reverse all balance impacts.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					<AlertDialogFooter>
-						<AlertDialogCancel>Cancel</AlertDialogCancel>
-						<AlertDialogAction onClick={handleBulkDelete} disabled={isPending}>
-							{isPending ? "Deleting..." : "Delete"}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
+			<span className="text-sm font-medium">{count} selected</span>
+			<Button variant="ghost" size="sm" onClick={clearSelection}>
+				Clear
+			</Button>
+			{needsConfirm ? (
+				<ConfirmDialog
+					title={`Delete ${plural(count, "transaction")}?`}
+					description="Account balances will update to match. You can undo this for a few seconds afterwards."
+					onConfirm={remove}
+					trigger={deleteButton}
+				/>
+			) : (
+				deleteButton
+			)}
 		</div>
 	);
-};
-
-export default TransactionDelete;
+}

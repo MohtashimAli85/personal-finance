@@ -8,3 +8,6 @@ import { formatMoney } from "@/lib/money";
 export function formatCurrency(cents: number) {
 	return formatMoney(cents);
 }
+
+export const plural = (count: number, noun: string, many = `${noun}s`) =>
+	`${count.toLocaleString("en-US")} ${count === 1 ? noun : many}`;

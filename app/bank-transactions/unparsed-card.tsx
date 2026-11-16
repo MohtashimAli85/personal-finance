@@ -13,10 +13,10 @@ export default function UnparsedCard({ emails }: { emails: UnparsedEmail[] }) {
 	if (emails.length === 0) return null;
 
 	return (
-		<Card className="border-amber-500/40">
+		<Card className="border-warning/40">
 			<CardHeader>
-				<CardTitle className="flex items-center gap-2 text-base text-amber-600">
-					<AlertCircle className="h-4 w-4" />
+				<CardTitle className="flex items-center gap-2 text-base text-warning">
+					<AlertCircle className="size-4" />
 					{emails.length} bank email{emails.length === 1 ? "" : "s"}{" "}
 					couldn&apos;t be read
 				</CardTitle>

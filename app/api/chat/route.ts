@@ -23,6 +23,7 @@ import { buildSystemPrompt } from "@/lib/ai/system-prompt";
 import { generateChatTitle } from "@/lib/ai/title";
 import { financeTools } from "@/lib/ai/tools";
 import { CHAT_ID_RE, ensureChat, getChat, saveChatMessages } from "@/lib/chat";
+import { getApiKeySource } from "@/lib/settings";
 
 const MAX_HISTORY_MESSAGES = 20;
 
@@ -108,7 +109,7 @@ export async function POST(request: Request) {
 				}
 				return undefined;
 			},
-			onError: describeChatError,
+			onError: (error) => describeChatError(error, getApiKeySource),
 			onEnd: ({ messages: finalMessages }) => {
 				saveChatMessages(chatId, finalMessages, { onlyIfCurrent: true });
 			},

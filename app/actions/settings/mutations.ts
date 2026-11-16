@@ -21,6 +21,7 @@ import { hasSecretKey } from "@/lib/secrets";
 import { serverAction } from "@/lib/server-action";
 import {
 	AI_PROVIDERS,
+	getApiKeySource,
 	removeApiKey,
 	storeApiKey,
 	storeHouseExcludedCategories,
@@ -76,10 +77,16 @@ export async function testAiConnection(name: string): Promise<ActionState> {
 		});
 		return {
 			success: true,
-			message: `Connected - ${modelLabel(model.model)} replied.`,
+			message: `Connected. ${modelLabel(model.model)} replied.`,
 		};
 	} catch (error) {
-		return { success: false, message: describeAiError(error, parsed.data) };
+		return {
+			success: false,
+			message: describeAiError(error, parsed.data, {
+				source: getApiKeySource(parsed.data),
+				inSettings: true,
+			}),
+		};
 	}
 }
 

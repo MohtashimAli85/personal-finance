@@ -1,9 +1,10 @@
 "use client";
 
-import { Loader2, Upload } from "lucide-react";
+import { Upload } from "lucide-react";
 import { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import ActualImportDialog from "./actual-import-dialog";
 import { useActualImport } from "./use-actual-import";
 
@@ -16,7 +17,7 @@ export default function ActualImportCard() {
 		<Card>
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2 text-base">
-					<Upload className="h-4 w-4" />
+					<Upload className="size-4" />
 					Import from Actual Budget
 				</CardTitle>
 				<p className="text-sm text-muted-foreground">
@@ -41,7 +42,7 @@ export default function ActualImportCard() {
 					disabled={isPending}
 					onClick={() => input.current?.click()}
 				>
-					{isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+					{isPending && <Spinner />}
 					Choose file
 				</Button>
 				{error && !preview && (

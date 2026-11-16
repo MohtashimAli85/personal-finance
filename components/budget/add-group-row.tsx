@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { toastOnError } from "@/lib/action-result";
+import { SPENT_CELL } from "./budget-cells";
 
 const AddGroupRow = () => {
 	const [adding, setAdding] = useState(false);
@@ -45,7 +46,7 @@ const AddGroupRow = () => {
 				)}
 			</TableCell>
 			<TableCell />
-			<TableCell />
+			<TableCell className={SPENT_CELL} />
 			<TableCell />
 		</TableRow>
 	);

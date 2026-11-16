@@ -12,6 +12,7 @@ import {
 	type TransactionPatch,
 	updateTransactionRecord,
 } from "@/lib/transaction-mutations";
+import { restoreDeleted, stashDeleted } from "@/lib/transaction-undo";
 import {
 	cents,
 	dateKey,
@@ -70,9 +71,18 @@ export const createTransaction = serverAction(
 
 export const bulkDeleteTransactions = serverAction(
 	z.array(id).min(1),
-	(ids) => {
-		deleteTransactionRecords(ids);
-	},
+	(ids) => ({
+		success: true,
+		payload: { undoToken: stashDeleted(deleteTransactionRecords(ids)) },
+	}),
+);
+
+export const undoDeleteTransactions = serverAction(
+	z.string().min(1),
+	(token) => ({
+		success: true,
+		payload: { restored: restoreDeleted(token) },
+	}),
 );
 
 export const createTransfer = serverAction(
@@ -128,13 +138,20 @@ export const bulkImportTransactions = serverAction(
 	}),
 );
 
-export async function exportAllTransactions(
-	accountId?: string,
+export async function exportTransactions(
+	filters: SearchParams,
 ): Promise<string | null> {
-	const params: SearchParams = { limit: "0" };
-	if (accountId) params.accountId = accountId;
-
-	const { data: rows } = getTransactions(params);
+	const { accountId, categoryId, from, to, search, sort, dir } = filters;
+	const { data: rows } = getTransactions({
+		accountId,
+		categoryId,
+		from,
+		to,
+		search,
+		sort,
+		dir,
+		limit: "0",
+	});
 	if (rows.length === 0) return null;
 
 	const headers = [

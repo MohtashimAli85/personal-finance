@@ -8,6 +8,7 @@ import {
 	ChartTooltipContent,
 } from "@/components/ui/chart";
 import { formatCompactMoney, fromCents } from "@/lib/money";
+import ChartEmpty from "./chart-empty";
 
 const config = {
 	netWorth: { label: "Net worth", color: "var(--series-1)" },
@@ -22,6 +23,10 @@ export default function NetWorthChart({
 		label: d.label,
 		netWorth: fromCents(d.netWorth),
 	}));
+
+	if (points.every((point) => !point.netWorth)) {
+		return <ChartEmpty>No balance history yet.</ChartEmpty>;
+	}
 
 	return (
 		<ChartContainer config={config} className="aspect-auto h-56 w-full">

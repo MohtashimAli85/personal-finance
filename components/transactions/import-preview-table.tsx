@@ -21,7 +21,7 @@ const FIELD_OPTIONS: { value: MappableField; label: string }[] = [
 	{ value: "date", label: "Date" },
 	{ value: "notes", label: "Notes" },
 	{ value: "category", label: "Category" },
-	{ value: "category_group", label: "Category Group" },
+	{ value: "category_group", label: "Category group" },
 	{ value: "amount", label: "Amount" },
 	{ value: "payment", label: "Payment" },
 	{ value: "deposit", label: "Deposit" },

@@ -5,7 +5,12 @@ import { TableCell, TableRow } from "@/components/ui/table";
 import { useBudgetContext } from "@/context/budget-context";
 import { formatCurrency } from "@/lib/helper";
 import { cn } from "@/lib/tailwindcss/utils";
-import { amountTone, CATEGORY_INDENT, NUMBER_CELL } from "./budget-cells";
+import {
+	amountTone,
+	CATEGORY_INDENT,
+	NUMBER_CELL,
+	SPENT_CELL,
+} from "./budget-cells";
 import { categoryTransactionsHref } from "./category-href";
 
 export default function IncomeRows() {
@@ -27,7 +32,9 @@ export default function IncomeRows() {
 					{incomeGroup.name}
 				</TableCell>
 				<TableCell />
-				<TableCell className={cn(NUMBER_CELL, "text-muted-foreground")}>
+				<TableCell
+					className={cn(NUMBER_CELL, SPENT_CELL, "text-muted-foreground")}
+				>
 					Received
 				</TableCell>
 				<TableCell className={cn(NUMBER_CELL, "font-semibold")} data-money>
@@ -48,7 +55,7 @@ export default function IncomeRows() {
 						</Link>
 					</TableCell>
 					<TableCell />
-					<TableCell />
+					<TableCell className={SPENT_CELL} />
 					<TableCell
 						className={cn(NUMBER_CELL, amountTone(category.received))}
 						data-money

@@ -171,7 +171,7 @@ describe("POST /api/chat", () => {
 			resolved(failing, "openai/gpt-oss-20b"),
 		];
 		const { body } = await post("chat-error", [userMessage("hello")]);
-		expect(body).toContain("Groq rejected the API key");
+		expect(body).toContain("Groq rejected your saved API key");
 		expect(failing.doStreamCalls).toHaveLength(1);
 	});
 

@@ -20,9 +20,9 @@ const CloseAccount = ({ account }: { account: Account }) => {
 			<DialogHeader>
 				<DialogTitle>Close {account.name}</DialogTitle>
 				<DialogDescription>
-					Closing archives this account - its transactions and budget history
-					stay intact, and it can be reopened later. It disappears from account
-					pickers and totals.
+					Closing archives this account. Its transactions and budget history
+					stay intact, but it disappears from the sidebar, account pickers and
+					totals.
 					{hasBalance && (
 						<>
 							<br />
@@ -46,7 +46,7 @@ const CloseAccount = ({ account }: { account: Account }) => {
 				)}
 				<DialogFooter>
 					<Button type="submit" disabled={close.isPending}>
-						{close.isPending ? "Closing..." : "Close Account"}
+						{close.isPending ? "Closing…" : "Close account"}
 					</Button>
 				</DialogFooter>
 			</form>

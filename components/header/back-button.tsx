@@ -20,6 +20,7 @@ export default function BackButton() {
 				<Button
 					variant="ghost"
 					size="icon-sm"
+					className="max-md:hidden"
 					onClick={() => router.back()}
 					disabled={!canGoBack}
 					aria-label="Go back"

@@ -78,10 +78,11 @@ export function createTransactionRecord(
 	return id;
 }
 
-/** Deletes the transactions and the other leg of any transfer among them. */
+/** Deletes the transactions and the other leg of any transfer among them,
+ * returning every row removed. */
 export function deleteTransactionRecords(ids: string[]) {
-	if (ids.length === 0) return;
-	db.transaction(() => {
+	if (ids.length === 0) return [];
+	return db.transaction(() => {
 		const transferIds = db
 			.select({ transfer_id: transactions.transfer_id })
 			.from(transactions)
@@ -90,7 +91,8 @@ export function deleteTransactionRecords(ids: string[]) {
 			)
 			.all()
 			.flatMap((row) => (row.transfer_id ? [row.transfer_id] : []));
-		db.delete(transactions)
+		return db
+			.delete(transactions)
 			.where(
 				or(
 					inArray(transactions.id, ids),
@@ -99,7 +101,8 @@ export function deleteTransactionRecords(ids: string[]) {
 						: undefined,
 				),
 			)
-			.run();
+			.returning()
+			.all();
 	});
 }
 

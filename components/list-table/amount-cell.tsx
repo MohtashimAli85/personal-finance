@@ -1,5 +1,4 @@
-import { formatCurrency } from "@/lib/helper";
-import { cn } from "@/lib/tailwindcss/utils";
+import SignedAmount from "@/components/signed-amount";
 import ListCell from "./list-cell";
 
 export default function AmountCell({
@@ -9,18 +8,9 @@ export default function AmountCell({
 	payment: number | null;
 	deposit: number | null;
 }) {
-	const amount = (deposit ?? 0) - (payment ?? 0);
-
 	return (
-		<ListCell
-			data-money
-			className={cn(
-				"text-right font-medium tabular-nums",
-				amount > 0 && "text-emerald-500",
-			)}
-		>
-			{amount > 0 && "+"}
-			{formatCurrency(amount)}
+		<ListCell className="text-right">
+			<SignedAmount payment={payment} deposit={deposit} />
 		</ListCell>
 	);
 }

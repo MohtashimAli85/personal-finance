@@ -1,9 +1,10 @@
-import { Loader2, Mail } from "lucide-react";
+import { Mail } from "lucide-react";
 import FeedbackText from "@/components/feedback-text";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { useConnectMail } from "./use-connect-mail";
 
 const APP_PASSWORDS_URL = "https://myaccount.google.com/apppasswords";
@@ -23,7 +24,7 @@ export default function ConnectCard() {
 		<Card className="max-w-xl w-full mx-auto">
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2 text-lg">
-					<Mail className="h-5 w-5" />
+					<Mail className="size-5" />
 					Connect your Gmail
 				</CardTitle>
 				<p className="text-sm text-muted-foreground">
@@ -82,7 +83,7 @@ export default function ConnectCard() {
 							type="submit"
 							disabled={isPending || !email || !appPassword}
 						>
-							{isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+							{isPending && <Spinner />}
 							Connect
 						</Button>
 						<FeedbackText feedback={feedback} />

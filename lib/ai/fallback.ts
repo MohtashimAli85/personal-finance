@@ -3,7 +3,7 @@ import type {
 	LanguageModelV4CallOptions,
 } from "@ai-sdk/provider";
 import { InvalidToolApprovalSignatureError } from "ai";
-import type { AiProvider } from "@/lib/settings";
+import type { AiProvider, ApiKeySource } from "@/lib/settings";
 import { describeAiError, isKeyRejected } from "./errors";
 import type { ResolvedModel } from "./models";
 
@@ -78,11 +78,16 @@ export function createFallbackModel(
 	};
 }
 
-export function describeChatError(error: unknown): string {
+export function describeChatError(
+	error: unknown,
+	keySource?: (provider: AiProvider) => ApiKeySource,
+): string {
 	if (error instanceof AllModelsFailedError) {
 		const last = error.last;
 		if (!last) return "No AI provider key is set. Add one in Settings.";
-		const message = describeAiError(last.error, last.provider);
+		const message = describeAiError(last.error, last.provider, {
+			source: keySource?.(last.provider),
+		});
 		return error.attempts.length > 1
 			? `${message} (tried ${error.attempts.length} models)`
 			: message;

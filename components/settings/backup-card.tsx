@@ -1,6 +1,6 @@
 "use client";
 
-import { DatabaseBackup, Download, Loader2, Upload } from "lucide-react";
+import { DatabaseBackup, Download, Upload } from "lucide-react";
 import { useRef } from "react";
 import {
 	AlertDialog,
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
 import { useImportBackup } from "./use-import-backup";
 
 export default function BackupCard() {
@@ -22,7 +23,7 @@ export default function BackupCard() {
 		<Card>
 			<CardHeader>
 				<CardTitle className="flex items-center gap-2 text-base">
-					<DatabaseBackup className="h-4 w-4" />
+					<DatabaseBackup className="size-4" />
 					Export and import
 				</CardTitle>
 				<p className="text-sm text-muted-foreground">
@@ -46,7 +47,7 @@ export default function BackupCard() {
 				<div className="flex flex-wrap gap-2">
 					<Button variant="outline" asChild>
 						<a href="/api/export" download>
-							<Download className="h-4 w-4" />
+							<Download className="size-4" />
 							Export data
 						</a>
 					</Button>
@@ -55,7 +56,7 @@ export default function BackupCard() {
 						disabled={isPending}
 						onClick={() => input.current?.click()}
 					>
-						<Upload className="h-4 w-4" />
+						<Upload className="size-4" />
 						Import data
 					</Button>
 				</div>
@@ -78,8 +79,12 @@ export default function BackupCard() {
 						<Button variant="outline" disabled={isPending} onClick={cancel}>
 							Cancel
 						</Button>
-						<Button disabled={isPending} onClick={confirm}>
-							{isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+						<Button
+							variant="destructive"
+							disabled={isPending}
+							onClick={confirm}
+						>
+							{isPending && <Spinner />}
 							Replace my data
 						</Button>
 					</AlertDialogFooter>

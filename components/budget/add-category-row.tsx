@@ -3,6 +3,7 @@ import { createBudgetCategory } from "@/app/actions/budget/mutations";
 import { Input } from "@/components/ui/input";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { toastOnError } from "@/lib/action-result";
+import { SPENT_CELL } from "./budget-cells";
 
 const AddCategoryRow = ({
 	groupId,
@@ -39,7 +40,7 @@ const AddCategoryRow = ({
 				/>
 			</TableCell>
 			<TableCell />
-			<TableCell />
+			<TableCell className={SPENT_CELL} />
 			<TableCell />
 		</TableRow>
 	);

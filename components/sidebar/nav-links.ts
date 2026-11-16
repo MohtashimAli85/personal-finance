@@ -17,7 +17,7 @@ export const navLinks = [
 		icon: ReceiptText,
 		exact: true,
 	},
-	{ href: "/bank-transactions", label: "Bank Transactions", icon: Mail },
+	{ href: "/bank-transactions", label: "Bank transactions", icon: Mail },
 	{ href: "/goals", label: "Goals", icon: Target },
 	{ href: "/chat", label: "AI Coach", icon: Sparkles },
 	{ href: "/settings", label: "Settings", icon: Settings },

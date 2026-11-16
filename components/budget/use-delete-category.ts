@@ -4,6 +4,7 @@ import { useServerAction } from "@/hooks/use-server-action";
 
 export function useDeleteCategory(category: BudgetCategoryRow) {
 	const [open, setOpen] = useState(false);
+	const [confirming, setConfirming] = useState(false);
 	const [transferToId, setTransferToId] = useState("");
 	const { isPending, run } = useServerAction();
 
@@ -20,7 +21,11 @@ export function useDeleteCategory(category: BudgetCategoryRow) {
 		transferToId,
 		setTransferToId,
 		isPending,
-		requestDelete: () => (category.in_use ? setOpen(true) : remove(null)),
+		confirming,
+		setConfirming,
+		requestDelete: () =>
+			category.in_use ? setOpen(true) : setConfirming(true),
 		confirmDelete: () => remove(transferToId),
+		confirmUnused: () => remove(null),
 	};
 }

@@ -3,9 +3,9 @@ import { Fragment, useState } from "react";
 import AddCategoryRow from "@/components/budget/add-category-row";
 import AddGroupRow from "@/components/budget/add-group-row";
 import BudgetCategoryRow from "@/components/budget/budget-category-row";
-import { NUMBER_CELL } from "@/components/budget/budget-cells";
+import { NUMBER_CELL, SPENT_CELL } from "@/components/budget/budget-cells";
+import BudgetEmptyRow from "@/components/budget/budget-empty-row";
 import BudgetGroupRow from "@/components/budget/budget-group-row";
-import BudgetTableMenu from "@/components/budget/budget-table-menu";
 import IncomeRows from "@/components/budget/income-rows";
 import {
 	Table,
@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { useBudgetContext } from "@/context/budget-context";
 import { formatCurrency } from "@/lib/helper";
+import { cn } from "@/lib/tailwindcss/utils";
 
 const COLUMNS = [
 	{ label: "Budgeted", key: "budgeted" },
@@ -40,14 +41,18 @@ export default function BudgetTable() {
 		<Table scrollbarOutside className="table-fixed">
 			<TableHeader>
 				<TableRow>
-					<TableHead className="h-12 pl-3">
-						<div className="flex items-center justify-between">
-							Category
-							<BudgetTableMenu />
-						</div>
+					<TableHead className="h-12 pl-3 align-bottom pb-1.5 text-xs font-normal text-muted-foreground">
+						Category
 					</TableHead>
 					{COLUMNS.map((column) => (
-						<TableHead key={column.key} className={`${NUMBER_CELL} h-12`}>
+						<TableHead
+							key={column.key}
+							className={cn(
+								NUMBER_CELL,
+								"h-12",
+								column.key === "spent" && SPENT_CELL,
+							)}
+						>
 							<div className="text-xs font-normal text-muted-foreground">
 								{column.label}
 							</div>
@@ -85,6 +90,7 @@ export default function BudgetTable() {
 						</Fragment>
 					);
 				})}
+				{orderedGroups.length === 0 && <BudgetEmptyRow />}
 				<AddGroupRow />
 				<IncomeRows />
 			</TableBody>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, RefreshCw, Unplug } from "lucide-react";
+import { Inbox, RefreshCw } from "lucide-react";
 import type {
 	BankSenderConfig,
 	UnparsedEmail,
@@ -8,39 +8,58 @@ import type {
 import BankHistoryCard from "@/components/bank-transactions/bank-history-card";
 import { Money } from "@/components/money";
 import PageContainer from "@/components/page-container";
+import PageFigure from "@/components/page-figure";
+import PageHeader from "@/components/page-header";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Empty,
+	EmptyContent,
+	EmptyDescription,
+	EmptyHeader,
+	EmptyMedia,
+	EmptyTitle,
+} from "@/components/ui/empty";
+import { Spinner } from "@/components/ui/spinner";
 import type { BankTransactionRow } from "@/lib/bank-transaction";
 import ConnectCard from "./connect-card";
 import PendingReviewCard from "./pending-review-card";
-import SenderConfigCard from "./sender-config-card";
-import StatusBanner from "./status-banner";
+import SendersSheet from "./senders-sheet";
 import UnparsedCard from "./unparsed-card";
 import { useBankSync } from "./use-bank-sync";
-import { useDisconnectMail } from "./use-disconnect-mail";
-import { useTotalSpent } from "./use-total-spent";
+import { useMonthSpent } from "./use-month-spent";
+import { useSendersSheet } from "./use-senders-sheet";
+
+const TITLE = "Bank transactions";
 
 export default function BankTransactionsClient({
 	transactions,
+	historyLimited,
 	configured,
 	email,
 	senderConfigs,
 	unparsed,
 }: {
 	transactions: BankTransactionRow[];
+	historyLimited: boolean;
 	configured: boolean;
 	email: string | null;
 	senderConfigs: BankSenderConfig[];
 	unparsed: UnparsedEmail[];
 }) {
-	const { status, isPending, isRefining, startTransition, sync } =
-		useBankSync();
-	const totalSpent = useTotalSpent(transactions);
-	const { isDisconnecting, disconnect } = useDisconnectMail();
+	const { isPending, isRefining, startTransition, sync } = useBankSync();
+	const monthSpent = useMonthSpent(transactions);
+	const senders = useSendersSheet();
+	const activeSenders = senderConfigs.filter((c) => c.enabled).length;
+	const accepted = transactions.filter((t) => t.status !== "pending");
+	const pendingCount = transactions.length - accepted.length;
 
 	if (!configured) {
 		return (
 			<PageContainer className="max-w-4xl">
+				<PageHeader
+					title={TITLE}
+					description="Import transactions from the alert emails your bank sends."
+				/>
 				<ConnectCard />
 			</PageContainer>
 		);
@@ -48,81 +67,89 @@ export default function BankTransactionsClient({
 
 	return (
 		<PageContainer className="max-w-4xl">
-			<div className="flex justify-between items-center gap-2 flex-wrap">
-				<p className="text-sm text-muted-foreground">Connected as {email}</p>
-				<div className="flex items-center gap-2">
-					{isRefining && (
-						<p className="flex items-center gap-2 text-sm text-muted-foreground">
-							<Loader2 className="h-4 w-4 animate-spin" />
-							Improving names with AI…
-						</p>
-					)}
-					<Button onClick={sync} disabled={isPending} size="sm">
-						{isPending ? (
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-						) : (
-							<RefreshCw className="mr-2 h-4 w-4" />
+			<PageHeader
+				title={TITLE}
+				description={
+					activeSenders > 0
+						? `Reading alerts from ${activeSenders === 1 ? "1 sender" : `${activeSenders} senders`}`
+						: "No active senders"
+				}
+				figures={
+					<>
+						{pendingCount > 0 && (
+							<PageFigure label="To review" className="text-warning">
+								{pendingCount}
+							</PageFigure>
 						)}
-						Sync bank emails
-					</Button>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={disconnect}
-						disabled={isDisconnecting}
-					>
-						<Unplug className="mr-2 h-4 w-4" />
-						Disconnect
-					</Button>
-				</div>
-			</div>
+						<PageFigure label="Spent this month">
+							<Money value={monthSpent} />
+						</PageFigure>
+					</>
+				}
+			>
+				<SendersSheet
+					email={email}
+					configs={senderConfigs}
+					open={senders.open}
+					onOpenChange={senders.setOpen}
+				/>
+				<Button onClick={sync} disabled={isPending || activeSenders === 0}>
+					{isPending ? <Spinner /> : <RefreshCw />}
+					{isPending ? (
+						"Syncing…"
+					) : (
+						<span>
+							Sync<span className="max-sm:sr-only"> bank emails</span>
+						</span>
+					)}
+				</Button>
+			</PageHeader>
 
-			{status && <StatusBanner status={status} />}
+			{isRefining && (
+				<p className="-mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+					<Spinner />
+					Improving transaction names with AI…
+				</p>
+			)}
 
 			<UnparsedCard emails={unparsed} />
-
-			<SenderConfigCard configs={senderConfigs} />
-
-			<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-sm font-medium text-muted-foreground">
-							Total Spent (imported)
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<Money
-							value={totalSpent}
-							className="text-2xl font-bold text-destructive tabular-nums"
-						/>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-sm font-medium text-muted-foreground">
-							Total Transactions
-						</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className="text-2xl font-bold">{transactions.length}</div>
-					</CardContent>
-				</Card>
-			</div>
 
 			<PendingReviewCard
 				transactions={transactions}
 				startTransition={startTransition}
 			/>
 
-			<BankHistoryCard
-				transactions={transactions}
-				emptyMessage={
-					senderConfigs.some((c) => c.enabled)
-						? 'No transactions yet. Click "Sync bank emails" to import them.'
-						: "Add an active bank sender above, then sync to import transactions."
-				}
-			/>
+			{accepted.length > 0 && (
+				<BankHistoryCard transactions={accepted} limited={historyLimited} />
+			)}
+
+			{transactions.length === 0 && (
+				<Empty className="border">
+					<EmptyHeader>
+						<EmptyMedia variant="icon">
+							<Inbox />
+						</EmptyMedia>
+						<EmptyTitle>
+							{activeSenders > 0 ? "Nothing imported yet" : "Add a bank sender"}
+						</EmptyTitle>
+						<EmptyDescription>
+							{activeSenders > 0
+								? "Sync to read your bank's alert emails and import the transactions."
+								: "Tell the app which address your bank sends alerts from, then sync."}
+						</EmptyDescription>
+					</EmptyHeader>
+					<EmptyContent>
+						{activeSenders > 0 ? (
+							<Button onClick={sync} disabled={isPending}>
+								{isPending ? <Spinner /> : <RefreshCw />}
+								Sync bank emails
+							</Button>
+						) : (
+							<Button onClick={senders.show}>Add a sender</Button>
+						)}
+					</EmptyContent>
+				</Empty>
+			)}
 		</PageContainer>
 	);
 }

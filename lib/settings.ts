@@ -1,5 +1,6 @@
 import "server-only";
 import { eq, inArray, sql } from "drizzle-orm";
+import { API_KEY_ENV_VARS } from "@/lib/ai/labels";
 import { db } from "@/lib/db";
 import { app_settings } from "@/lib/db/schema";
 import type { Profile } from "@/lib/profile-schema";
@@ -9,13 +10,6 @@ export const AI_PROVIDERS = ["groq", "gemini", "anthropic", "openai"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 export type ApiKeySource = "env" | "stored" | "unreadable" | "none";
-
-const ENV_KEYS: Record<AiProvider, string> = {
-	groq: "GROQ_API_KEY",
-	gemini: "GEMINI_API_KEY",
-	anthropic: "ANTHROPIC_API_KEY",
-	openai: "OPENAI_API_KEY",
-};
 
 const settingKey = (provider: AiProvider) => `${provider}_api_key`;
 
@@ -45,7 +39,7 @@ function resolveApiKey(provider: AiProvider): {
 	source: ApiKeySource;
 	key: string | null;
 } {
-	const fromEnv = process.env[ENV_KEYS[provider]]?.trim();
+	const fromEnv = process.env[API_KEY_ENV_VARS[provider]]?.trim();
 	if (fromEnv) return { source: "env", key: fromEnv };
 
 	const stored = readStored(provider);
@@ -58,6 +52,9 @@ function resolveApiKey(provider: AiProvider): {
 }
 
 export const getApiKey = (provider: AiProvider) => resolveApiKey(provider).key;
+
+export const getApiKeySource = (provider: AiProvider) =>
+	resolveApiKey(provider).source;
 
 export const configuredProviders = (): AiProvider[] =>
 	AI_PROVIDERS.filter((provider) => getApiKey(provider));

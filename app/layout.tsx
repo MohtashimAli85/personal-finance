@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Figtree, Geist, Geist_Mono, Raleway } from "next/font/google";
 import { cookies } from "next/headers";
+import { ThemeProvider } from "next-themes";
 import AppHeader from "@/components/header/app-header";
 import AppSidebar from "@/components/sidebar/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -59,20 +60,27 @@ export default async function RootLayout({
 				/>
 			</head>
 			<body className={`${geistMono.variable} antialiased`}>
-				<StoreProvider initialData={{ accounts, groupedCategories }}>
-					<TooltipProvider>
-						<SidebarProvider defaultOpen={sidebarOpen}>
-							<AppSidebar />
-							<SidebarInset className="h-screen overflow-hidden">
-								<AppHeader />
-								<div className="flex min-h-0 flex-1 flex-col gap-2 p-4">
-									{children}
-								</div>
-							</SidebarInset>
-						</SidebarProvider>
-					</TooltipProvider>
-					<Toaster theme="dark" position="bottom-right" />
-				</StoreProvider>
+				<ThemeProvider
+					attribute="class"
+					defaultTheme="dark"
+					enableSystem
+					disableTransitionOnChange
+				>
+					<StoreProvider initialData={{ accounts, groupedCategories }}>
+						<TooltipProvider>
+							<SidebarProvider defaultOpen={sidebarOpen}>
+								<AppSidebar />
+								<SidebarInset className="h-screen overflow-hidden">
+									<AppHeader />
+									<div className="flex min-h-0 flex-1 flex-col gap-2 p-4">
+										{children}
+									</div>
+								</SidebarInset>
+							</SidebarProvider>
+						</TooltipProvider>
+						<Toaster position="bottom-right" />
+					</StoreProvider>
+				</ThemeProvider>
 			</body>
 		</html>
 	);

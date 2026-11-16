@@ -1,23 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 const STORAGE_KEY = "privacy-mode";
 
-export function usePrivacyMode() {
-	const [hidden, setHidden] = useState<boolean | null>(null);
+const subscribe = (onChange: () => void) => {
+	const observer = new MutationObserver(onChange);
+	observer.observe(document.documentElement, {
+		attributes: true,
+		attributeFilter: ["data-privacy"],
+	});
+	return () => observer.disconnect();
+};
 
-	useEffect(() => {
-		// eslint-disable-next-line react-hooks/set-state-in-effect
-		setHidden(document.documentElement.dataset.privacy === "on");
-	}, []);
+const isHidden = () => document.documentElement.dataset.privacy === "on";
+
+export function usePrivacyMode() {
+	const hidden = useSyncExternalStore(subscribe, isHidden, () => false);
 
 	const toggle = () => {
-		const next = !(hidden ?? false);
-		document.documentElement.dataset.privacy = next ? "on" : "off";
-		localStorage.setItem(STORAGE_KEY, next ? "on" : "off");
-		setHidden(next);
+		const next = isHidden() ? "off" : "on";
+		document.documentElement.dataset.privacy = next;
+		localStorage.setItem(STORAGE_KEY, next);
 	};
 
-	return { hidden: hidden ?? false, toggle };
+	return { hidden, toggle };
 }

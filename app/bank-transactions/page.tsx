@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { listUnparsedBankEmailsAction } from "@/app/actions/bank/sender-config";
-import { getBankTransactions } from "@/lib/bank-transaction";
+import {
+	BANK_HISTORY_LIMIT,
+	getBankTransactions,
+} from "@/lib/bank-transaction";
 import { getBankSenderConfigs } from "@/lib/mail/bank-sender-config";
 import { getMailStatus } from "@/lib/mail/credentials";
 import BankTransactionsClient from "./bank-transactions-client";
 
 export const metadata: Metadata = {
-	title: "Bank Transactions",
+	title: "Bank transactions",
 	description: "Import transactions from your bank email alerts",
 };
 
@@ -19,6 +22,7 @@ export default async function BankTransactionsPage() {
 	return (
 		<BankTransactionsClient
 			transactions={transactions}
+			historyLimited={transactions.length >= BANK_HISTORY_LIMIT}
 			configured={mailStatus.configured}
 			email={mailStatus.email}
 			senderConfigs={senderConfigs}

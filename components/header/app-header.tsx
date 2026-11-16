@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment } from "react";
+import CommandMenu from "@/components/command-menu/command-menu";
 import { PrivacyToggle } from "@/components/privacy-toggle";
 import {
 	Breadcrumb,
@@ -11,7 +11,6 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { Separator } from "@/components/ui/separator";
 import BackButton from "./back-button";
 import SidebarOpenButton from "./sidebar-open-button";
 import { useBreadcrumbs } from "./use-breadcrumbs";
@@ -22,30 +21,33 @@ export default function AppHeader() {
 	return (
 		<header
 			data-titlebar-drag
-			className="flex h-12 shrink-0 items-center gap-2 border-b px-3"
+			className="flex h-12 shrink-0 items-center gap-2 border-b px-3 md:grid md:grid-cols-[1fr_minmax(0,18rem)_1fr]"
 		>
-			<SidebarOpenButton />
-			<BackButton />
-			<Separator orientation="vertical" className="mr-2 my-auto h-4" />
-			<Breadcrumb>
-				<BreadcrumbList>
-					{crumbs.map((crumb, index) => (
-						<Fragment key={crumb.href ?? crumb.label}>
-							{index > 0 && <BreadcrumbSeparator />}
+			<div className="flex shrink-0 items-center gap-1 md:min-w-0">
+				<SidebarOpenButton />
+				<BackButton />
+				{crumbs.length > 1 && (
+					<Breadcrumb className="ml-2 hidden min-w-0 md:block">
+						<BreadcrumbList className="flex-nowrap">
 							<BreadcrumbItem>
-								{crumb.href ? (
-									<BreadcrumbLink asChild>
-										<Link href={crumb.href}>{crumb.label}</Link>
-									</BreadcrumbLink>
-								) : (
-									<BreadcrumbPage>{crumb.label}</BreadcrumbPage>
-								)}
+								<BreadcrumbLink asChild>
+									<Link href={crumbs[0].href ?? "/"}>{crumbs[0].label}</Link>
+								</BreadcrumbLink>
 							</BreadcrumbItem>
-						</Fragment>
-					))}
-				</BreadcrumbList>
-			</Breadcrumb>
-			<PrivacyToggle className="ml-auto" />
+							<BreadcrumbSeparator />
+							<BreadcrumbItem className="min-w-0">
+								<BreadcrumbPage className="truncate">
+									{crumbs[1].label}
+								</BreadcrumbPage>
+							</BreadcrumbItem>
+						</BreadcrumbList>
+					</Breadcrumb>
+				)}
+			</div>
+			<CommandMenu />
+			<div className="flex shrink-0 justify-end">
+				<PrivacyToggle />
+			</div>
 		</header>
 	);
 }

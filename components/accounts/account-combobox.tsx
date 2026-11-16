@@ -55,7 +55,7 @@ const AccountCombobox = ({
 			<ComboboxInput
 				showTrigger={false}
 				variant={variant}
-				placeholder="Select an Account"
+				placeholder="Select an account"
 				value={inputValue}
 				onChange={(e) => setInputValue(e.target.value)}
 				onBlur={() => {

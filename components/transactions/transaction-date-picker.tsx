@@ -9,14 +9,19 @@ import {
 	PopoverTrigger,
 } from "@/components/ui/popover";
 import { formateDate, parseDateKey, toDateKey } from "@/lib/date";
+import { cn } from "@/lib/tailwindcss/utils";
 
 interface TransactionDatePickerProps {
 	date: string;
 	onSelect: (date: string) => void;
+	variant?: "table" | "outline";
+	className?: string;
 }
 export function TransactionDatePicker({
 	date,
 	onSelect,
+	variant = "table",
+	className,
 }: TransactionDatePickerProps) {
 	const [open, setOpen] = useState(false);
 	const handleSelect = (date: Date) => onSelect(toDateKey(date));
@@ -33,7 +38,7 @@ export function TransactionDatePicker({
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>
-				<Button id="date" variant="table" className="pl-1">
+				<Button variant={variant} className={cn("font-normal", className)}>
 					{date ? formateDate(date) : <span>Pick a date</span>}
 				</Button>
 			</PopoverTrigger>

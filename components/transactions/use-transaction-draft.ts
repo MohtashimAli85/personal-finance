@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { createTransaction } from "@/app/actions/transaction/mutations";
 import { useServerAction } from "@/hooks/use-server-action";
 import { toDateKey } from "@/lib/date";
@@ -52,10 +53,17 @@ export function useTransactionDraft({
 	const updateTransaction = (fields: Partial<TransactionDraft>) => {
 		if (latest.current) save({ ...latest.current, ...fields });
 	};
-	const addTransaction = () => {
+	const addTransaction = (keepOpen = true) => {
 		const tx = latest.current;
-		if (!tx?.account_id) return;
-		run(() => createTransaction(tx), initializeTransaction);
+		if (!tx) return;
+		if (!tx.account_id) {
+			toast.error("Choose an account for this transaction.");
+			return;
+		}
+		run(
+			() => createTransaction(tx),
+			keepOpen ? initializeTransaction : cancelTransaction,
+		);
 	};
 
 	return {

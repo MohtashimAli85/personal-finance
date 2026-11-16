@@ -1,79 +1,64 @@
-import AmountCell from "@/components/list-table/amount-cell";
-import ListCell from "@/components/list-table/list-cell";
-import ListEmptyRow from "@/components/list-table/list-empty-row";
-import ListTable from "@/components/list-table/list-table";
-import { Badge } from "@/components/ui/badge";
+import SignedAmount from "@/components/signed-amount";
 import {
 	Card,
 	CardDescription,
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
-import {
-	TableBody,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
 import type { BankTransactionRow } from "@/lib/bank-transaction";
-import { formatShortDate } from "@/lib/date";
+import { dayLabel, groupByDate } from "@/lib/date";
 
 export default function BankHistoryCard({
 	transactions,
-	emptyMessage,
+	limited,
 }: {
 	transactions: BankTransactionRow[];
-	emptyMessage: string;
+	limited: boolean;
 }) {
+	const showAccount = new Set(transactions.map((t) => t.account_name)).size > 1;
+
 	return (
 		<Card className="gap-0 pb-0">
-			<CardHeader className="pb-4">
+			<CardHeader className="pb-3">
 				<CardTitle>History</CardTitle>
 				<CardDescription>
-					Everything imported from your bank emails
+					{limited
+						? `The latest transactions from your bank emails that are in your budget.`
+						: "Transactions from your bank emails that are in your budget."}
 				</CardDescription>
 			</CardHeader>
-			<ListTable>
-				<TableHeader>
-					<TableRow>
-						<TableHead>Date</TableHead>
-						<TableHead>Description</TableHead>
-						<TableHead>Category</TableHead>
-						<TableHead>Account</TableHead>
-						<TableHead>Status</TableHead>
-						<TableHead className="text-right">Amount</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{transactions.map((t) => (
-						<TableRow key={t.id}>
-							<ListCell className="text-muted-foreground">
-								{formatShortDate(t.date)}
-							</ListCell>
-							<ListCell className="max-w-56 truncate font-medium">
-								{t.notes ?? "-"}
-							</ListCell>
-							<ListCell className="text-muted-foreground">
-								{t.category_name ?? "Uncategorized"}
-							</ListCell>
-							<ListCell className="text-muted-foreground">
-								{t.account_name ?? "-"}
-							</ListCell>
-							<ListCell>
-								{t.status === "pending" ? (
-									<Badge variant="outline">Pending</Badge>
-								) : (
-									<span className="text-xs text-muted-foreground">Cleared</span>
-								)}
-							</ListCell>
-							<AmountCell payment={t.payment} deposit={t.deposit} />
-						</TableRow>
-					))}
-					{transactions.length === 0 && (
-						<ListEmptyRow colSpan={6}>{emptyMessage}</ListEmptyRow>
-					)}
-				</TableBody>
-			</ListTable>
+			{groupByDate(transactions).map((group) => (
+				<section key={group.date}>
+					<h3 className="border-y bg-muted/40 px-4 py-1.5 text-xs font-medium text-muted-foreground">
+						{group.date ? dayLabel(group.date) : "No date"}
+					</h3>
+					<ul>
+						{group.rows.map((t) => (
+							<li
+								key={t.id}
+								className="flex items-center gap-3 border-b px-4 py-2.5 last:border-b-0"
+							>
+								<div className="min-w-0 flex-1">
+									<p className="truncate font-medium">{t.notes ?? "—"}</p>
+									<p className="truncate text-xs text-muted-foreground">
+										{[
+											t.category_name ?? "Uncategorized",
+											showAccount && t.account_name,
+										]
+											.filter(Boolean)
+											.join(" · ")}
+									</p>
+								</div>
+								<SignedAmount
+									payment={t.payment}
+									deposit={t.deposit}
+									className="shrink-0"
+								/>
+							</li>
+						))}
+					</ul>
+				</section>
+			))}
 		</Card>
 	);
 }

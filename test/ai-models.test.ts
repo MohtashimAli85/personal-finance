@@ -31,6 +31,27 @@ describe("describeAiError", () => {
 		);
 	});
 
+	it("says where a rejected key comes from and how to fix it", () => {
+		expect(describeAiError(apiError(401), "groq", { source: "env" })).toBe(
+			"Groq rejected the key in GROQ_API_KEY. Update it in your .env file and restart the app.",
+		);
+		expect(
+			describeAiError(apiError(401), "groq", {
+				source: "env",
+				inSettings: true,
+			}),
+		).toMatch(/isn't used while that variable is set/);
+		expect(describeAiError(apiError(403), "gemini", { source: "stored" })).toBe(
+			"Gemini rejected your saved API key. Replace it in Settings.",
+		);
+		expect(
+			describeAiError(apiError(401), "gemini", {
+				source: "stored",
+				inSettings: true,
+			}),
+		).toMatch(/Paste a new key above/);
+	});
+
 	it("classifies rate limits and outages", () => {
 		expect(describeAiError(apiError(429), "groq")).toMatch(/rate limit/);
 		expect(describeAiError(apiError(503), "groq")).toMatch(/busy or down/);
