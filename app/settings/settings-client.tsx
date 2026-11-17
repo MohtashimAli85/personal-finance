@@ -6,6 +6,7 @@ import PageHeader from "@/components/page-header";
 import PageSection from "@/components/page-section";
 import ActualImportCard from "@/components/settings/actual-import-card";
 import BackupCard from "@/components/settings/backup-card";
+import EraseDataCard from "@/components/settings/erase-data-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { Profile } from "@/lib/profile-schema";
 import type { AiKeyStatus } from "@/lib/settings";
@@ -84,6 +85,13 @@ export default function SettingsClient({
 						source={status.providers[provider.id]}
 					/>
 				))}
+			</PageSection>
+
+			<PageSection
+				title="Danger zone"
+				description="Start over with an empty app."
+			>
+				<EraseDataCard />
 			</PageSection>
 		</PageContainer>
 	);

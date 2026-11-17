@@ -123,7 +123,7 @@ const rekeyEmailTransactions = () => {
 	}
 };
 
-const normalizeCategoryGroupState = () => {
+export const normalizeCategoryGroupState = () => {
 	db.update(category_group)
 		.set({
 			is_income: sql`CASE WHEN lower(${category_group.name}) = 'income' THEN 1 ELSE 0 END`,

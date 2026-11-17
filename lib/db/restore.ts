@@ -74,21 +74,33 @@ function prepareSource(file: string, target: Database.Database) {
 	}
 }
 
-function copyTables(target: Database.Database) {
-	const tables = target
-		.prepare(
-			`SELECT name FROM main.sqlite_master
-			WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != ?`,
-		)
-		.all(MIGRATIONS_TABLE) as { name: string }[];
+export function replaceAllRows(
+	target: Database.Database,
+	insert?: (tables: string[]) => void,
+) {
+	const tables = (
+		target
+			.prepare(
+				`SELECT name FROM main.sqlite_master
+				WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != ?`,
+			)
+			.all(MIGRATIONS_TABLE) as { name: string }[]
+	).map(({ name }) => name);
 
 	target.transaction(() => {
 		target.pragma("defer_foreign_keys = ON");
 		target.exec(DROP_INCOME_GROUP_TRIGGER);
-		for (const { name } of tables) {
+		for (const name of tables) {
 			target.exec(`DELETE FROM main.${quote(name)}`);
 		}
-		for (const { name } of tables) {
+		insert?.(tables);
+		target.exec(CREATE_INCOME_GROUP_TRIGGER);
+	})();
+}
+
+const copyTables = (target: Database.Database) =>
+	replaceAllRows(target, (tables) => {
+		for (const name of tables) {
 			const columns = (
 				target.pragma(`main.table_info(${quote(name)})`) as { name: string }[]
 			)
@@ -98,9 +110,7 @@ function copyTables(target: Database.Database) {
 				`INSERT INTO main.${quote(name)} (${columns}) SELECT ${columns} FROM source.${quote(name)}`,
 			);
 		}
-		target.exec(CREATE_INCOME_GROUP_TRIGGER);
-	})();
-}
+	});
 
 export function restoreDatabase(target: Database.Database, file: Buffer) {
 	if (file.toString("latin1", 0, SQLITE_MAGIC.length) !== SQLITE_MAGIC) {

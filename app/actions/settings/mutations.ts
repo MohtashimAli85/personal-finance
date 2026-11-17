@@ -15,6 +15,7 @@ import { modelLabel } from "@/lib/ai/labels";
 import { availableModels, MODEL_CHAIN } from "@/lib/ai/models";
 import { backupDatabase, backupDirFor } from "@/lib/db/backup";
 import { dbPath, sqlite } from "@/lib/db/client";
+import { eraseDatabase } from "@/lib/db/erase";
 import { restoreDatabase } from "@/lib/db/restore";
 import { profileSchema } from "@/lib/profile-schema";
 import { hasSecretKey } from "@/lib/secrets";
@@ -145,6 +146,18 @@ export const importBackup = serverAction(upload, (bytes) => {
 	revalidatePath("/", "layout");
 	redirect("/");
 });
+
+export const eraseAllData = serverAction(
+	z
+		.string()
+		.refine((typed) => typed.trim() === "erase", 'Type "erase" to confirm.'),
+	() => {
+		backupDatabase(sqlite, backupDirFor(dbPath), "erase");
+		eraseDatabase();
+		revalidatePath("/", "layout");
+		redirect("/");
+	},
+);
 
 export const saveHouseExcludedCategories = serverAction(
 	z.array(z.string()),
