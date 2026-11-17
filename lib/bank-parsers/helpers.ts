@@ -1,69 +1,27 @@
-const MONTHS: Record<string, string> = {
-	jan: "01",
-	feb: "02",
-	mar: "03",
-	apr: "04",
-	may: "05",
-	jun: "06",
-	jul: "07",
-	aug: "08",
-	sep: "09",
-	oct: "10",
-	nov: "11",
-	dec: "12",
-};
+import { Chrono, en } from "chrono-node";
+
+// Day-first, which is the convention in PK/UK/EU alerts ("04/09/2026" is 4 Sep).
+// Strict mode ignores casual words like "today" in marketing copy.
+const dates = new Chrono(en.configuration.createConfiguration(true, true));
 
 // Transactions are stored at midday UTC so a date-only alert can never drift
 // across a day boundary when rendered in a local timezone.
-const atMidday = (year: string, month: string, day: string) =>
-	`${year}-${month}-${day.padStart(2, "0")}T12:00:00.000Z`;
-
-const DATE_PATTERNS: {
-	pattern: RegExp;
-	build: (m: RegExpMatchArray) => string | null;
-}[] = [
-	// 04-Sep-2026 / 04 Sep 2026 / 04-September-2026
-	{
-		pattern: /\b(\d{1,2})[-\s]([A-Za-z]{3,})[-\s](\d{4})\b/,
-		build: (m) => {
-			const month = MONTHS[m[2].slice(0, 3).toLowerCase()];
-			return month ? atMidday(m[3], month, m[1]) : null;
-		},
-	},
-	// Sep 04, 2026 / September 4 2026
-	{
-		pattern: /\b([A-Za-z]{3,})\s+(\d{1,2}),?\s+(\d{4})\b/,
-		build: (m) => {
-			const month = MONTHS[m[1].slice(0, 3).toLowerCase()];
-			return month ? atMidday(m[3], month, m[2]) : null;
-		},
-	},
-	// 2026-09-04
-	{
-		pattern: /\b(\d{4})-(\d{2})-(\d{2})\b/,
-		build: (m) => atMidday(m[1], m[2], m[3]),
-	},
-	// 04/09/2026 - day-first, which is the convention in PK/UK/EU alerts.
-	{
-		pattern: /\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b/,
-		build: (m) => {
-			const day = Number(m[1]);
-			const month = Number(m[2]);
-			if (day > 31 || month > 12) return null;
-			return atMidday(m[3], String(month).padStart(2, "0"), m[1]);
-		},
-	},
-];
+const atMidday = (year: number, month: number, day: number) =>
+	`${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T12:00:00.000Z`;
 
 export function normalizeDate(raw: string | null | undefined): string | null {
 	if (!raw) return null;
-	for (const { pattern, build } of DATE_PATTERNS) {
-		const match = raw.match(pattern);
-		if (!match) continue;
-		const iso = build(match);
-		if (iso) return iso;
-	}
-	return null;
+	// A full date only: "24/7 helpline" must not read as 24 July.
+	const found = dates
+		.parse(raw)
+		.find(({ start }) => start.isCertain("day") && start.isCertain("year"));
+	if (!found) return null;
+	const { start } = found;
+	return atMidday(
+		start.get("year") ?? 0,
+		start.get("month") ?? 0,
+		start.get("day") ?? 0,
+	);
 }
 
 // Falls back to the email's own header date so an alert whose body omits a
@@ -77,9 +35,9 @@ export function resolveDate(
 	const parsed = new Date(receivedAt);
 	if (Number.isNaN(parsed.getTime())) return normalizeDate(receivedAt);
 	return atMidday(
-		String(parsed.getUTCFullYear()),
-		String(parsed.getUTCMonth() + 1).padStart(2, "0"),
-		String(parsed.getUTCDate()),
+		parsed.getUTCFullYear(),
+		parsed.getUTCMonth() + 1,
+		parsed.getUTCDate(),
 	);
 }
 
@@ -120,10 +78,13 @@ export function extractAmount(text: string): number | null {
 	return extractAmountMatch(text)?.amount ?? null;
 }
 
-const EXPENSE_WORDS =
-	/\b(debited|debit|deducted|withdrawn|withdrawal|spent|paid|payment|sent|transferred|purchase|purchased|charged|used)\b/i;
-const INCOME_WORDS =
-	/\b(credited|credit|received|deposited|deposit|added|refund|refunded|remittance)\b/i;
+// Verbs say which way the money moved. Nouns like "payment" or "credit" only
+// hint at it: "You have received a QR payment" is income despite "payment".
+const EXPENSE_VERBS =
+	/\b(debited|deducted|withdrawn|spent|paid|sent|transferred|purchased|charged|used)\b/i;
+const INCOME_VERBS = /\b(credited|received|deposited|added|refunded)\b/i;
+const EXPENSE_NOUNS = /\b(debit|withdrawal|payment|purchase)\b/i;
+const INCOME_NOUNS = /\b(credit|deposit|refund|remittance)\b/i;
 
 // "credit card" and "debit card" name a card, not a direction: "your credit
 // card was used for PKR 899" is a spend and "refunded to your debit card" is
@@ -132,10 +93,12 @@ const CARD_NAMES = /\b(?:credit|debit)\s+card\b/gi;
 
 export function detectDirection(text: string): "income" | "expense" | null {
 	const words = text.replace(CARD_NAMES, "card");
-	// Debit wording wins: "PKR 500 debited ... credited to beneficiary" is an
-	// outgoing transfer described from both ends.
-	if (EXPENSE_WORDS.test(words)) return "expense";
-	if (INCOME_WORDS.test(words)) return "income";
+	// Debit wording wins within a tier: "PKR 500 debited ... credited to
+	// beneficiary" is an outgoing transfer described from both ends.
+	if (EXPENSE_VERBS.test(words)) return "expense";
+	if (INCOME_VERBS.test(words)) return "income";
+	if (EXPENSE_NOUNS.test(words)) return "expense";
+	if (INCOME_NOUNS.test(words)) return "income";
 	return null;
 }
 

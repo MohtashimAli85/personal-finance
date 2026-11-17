@@ -290,4 +290,19 @@ export const FIXTURES: Fixture[] = [
 		),
 		expect: { transaction: false, failure: "not-a-transaction" },
 	},
+	{
+		name: "wallet: QR payment received is income (payment noun must not flip it)",
+		email: {
+			from: "Wallet Alerts <alerts@examplewallet.com>",
+			receivedAt: "Sun, 15 Nov 2026 20:11:30 +0500",
+			body: "Dear Customer, You have received a QR payment of Rs 2,500.00 on 15/11/2026 at 20:11:24. Your new balance is Rs 29,284.10. TID: 100000000001 For more information please visit our website or call our merchant helpline 8000. Thank you for using our Business app!",
+		},
+		expect: {
+			transaction: true,
+			amount: 2500,
+			date: "2026-11-15T12:00:00.000Z",
+			type: "income",
+			description: "QR Payment",
+		},
+	},
 ];

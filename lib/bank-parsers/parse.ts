@@ -74,13 +74,19 @@ function describe(text: string): string {
 	}
 
 	// Unlabeled phrasing: "... at SHELL PETROL on ...", "... to JOHN SMITH."
+	// The name must start with a letter so "at 20:11:24" is not read as one.
 	const inline = text.match(
-		/\b(?:at|to|from|by|towards)\s+([A-Z0-9&.'-]{2,}(?:\s+[A-Z0-9&.'-]+){0,4})/,
+		/\b(?:at|to|from|by|towards)\s+([A-Z][A-Z0-9&.'-]+(?:\s+[A-Z0-9&.'-]+){0,4})/,
 	);
 	if (inline?.[1]) {
 		const formatted = formatAccountTitle(inline[1]);
 		if (formatted && formatted !== "Bank Transaction") return formatted;
 	}
+
+	// No counterparty, but the channel is named: "received a QR payment".
+	const channel = text.match(/\b([A-Z]{2,})\s+(payment|transfer)\b/i);
+	if (channel)
+		return `${channel[1].toUpperCase()} ${channel[2][0].toUpperCase()}${channel[2].slice(1).toLowerCase()}`;
 
 	return "Bank Transaction";
 }
