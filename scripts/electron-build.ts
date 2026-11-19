@@ -83,6 +83,15 @@ copyDir(publicSrc, publicDest);
 copyDir(drizzleSrc, drizzleDest);
 
 const standaloneModules = path.join(standalonePath, "node_modules");
+const standalonePnpm = path.join(standaloneModules, ".pnpm");
+for (const name of fs.readdirSync(standalonePnpm)) {
+	if (/^(?:electron@|@node-llama-cpp\+.*-(?:cuda|vulkan))/.test(name)) {
+		fs.rmSync(path.join(standalonePnpm, name), {
+			recursive: true,
+			force: true,
+		});
+	}
+}
 if (fs.existsSync(standaloneModules)) {
 	removeDanglingSymlinks(standaloneModules);
 }
@@ -130,7 +139,7 @@ fs.cpSync(
 console.log(`✅ Synced ${nativeModuleName} native module into standalone`);
 
 const hasLlamaBinary = fs
-	.readdirSync(path.join(standaloneModules, ".pnpm"))
+	.readdirSync(standalonePnpm)
 	.some((name) => name.startsWith("@node-llama-cpp+"));
 if (!hasLlamaBinary) {
 	throw new Error("node-llama-cpp prebuilt binary missing from standalone");

@@ -17,14 +17,7 @@ const nextConfig: NextConfig = {
 			"./node_modules/.pnpm/@node-llama-cpp+*/**",
 		],
 	},
-	// GPU builds for CUDA and Vulkan add ~600 MB; Windows and Linux run on CPU.
-	outputFileTracingExcludes: {
-		"/**": [
-			"./models/**",
-			"./node_modules/.pnpm/@node-llama-cpp+*-cuda*/**",
-			"./node_modules/.pnpm/@node-llama-cpp+*-vulkan*/**",
-		],
-	},
+	outputFileTracingExcludes: { "/**": ["./models/**"] },
 	experimental: { serverActions: { bodySizeLimit: "200mb" } },
 	allowedDevOrigins: ["127.0.0.1"],
 	// cacheComponents: true,

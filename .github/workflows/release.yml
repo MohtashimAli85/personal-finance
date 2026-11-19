@@ -114,6 +114,7 @@ jobs:
               ;;
           esac
           find "$root" -path "*@node-llama-cpp*" -name "*.node" | grep -q . || { echo "node-llama-cpp binary missing"; exit 1; }
+          if find "$root" -path "*standalone/node_modules/.pnpm/electron@*" -o -path "*@node-llama-cpp+*-cuda*" -o -path "*@node-llama-cpp+*-vulkan*" | grep -q .; then echo "Electron or GPU llama binaries should not be in standalone"; exit 1; fi
           server=$(find "$root" -path "*standalone/server.js" -not -path "*/node_modules/*" | head -1)
           if [ -z "$server" ]; then echo "standalone/server.js not found in $root"; exit 1; fi
           cd "$(dirname "$server")"
