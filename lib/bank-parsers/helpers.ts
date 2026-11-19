@@ -143,6 +143,14 @@ export function detectDirectionBeside(
 	return detectDirection(`${before} ${after}`);
 }
 
+// Wording that marks a mail as a notice about money rather than a completed
+// movement of it: OTPs, declines, statements, promos and card activations.
+const NOTICE =
+	/\b(?:declined|OTP (?:is|for)|one[- ]time password (?:\(OTP\) )?(?:is|for)|amount due|statement (?:for|is ready)|offer valid|off your|cashback (?:on|up to|is waiting)|earn [^.]*\bpoints|successfully activated|is now active|successfully logged (?:in|on))\b/i;
+
+export const isNotice = (email: { subject: string | null; body: string }) =>
+	NOTICE.test(`${email.subject ?? ""} ${email.body}`);
+
 // A mail that names a positive amount with a direction word beside it is a
 // transaction alert, even when the individual fields cannot be read. Used to
 // tell a genuine parser gap apart from an ordinary non-transaction email.

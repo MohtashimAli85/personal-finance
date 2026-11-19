@@ -67,7 +67,8 @@ for (const name of fs.readdirSync(standalonePath)) {
 	if (
 		name.startsWith(".env") ||
 		name.startsWith("db.sqlite") ||
-		name === "backups"
+		name === "backups" ||
+		name === "models"
 	) {
 		fs.rmSync(path.join(standalonePath, name), {
 			recursive: true,
@@ -127,6 +128,13 @@ fs.cpSync(
 	},
 );
 console.log(`✅ Synced ${nativeModuleName} native module into standalone`);
+
+const hasLlamaBinary = fs
+	.readdirSync(path.join(standaloneModules, ".pnpm"))
+	.some((name) => name.startsWith("@node-llama-cpp+"));
+if (!hasLlamaBinary) {
+	throw new Error("node-llama-cpp prebuilt binary missing from standalone");
+}
 
 console.log("✅ Static assets copied");
 

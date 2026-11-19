@@ -24,6 +24,25 @@ vi.mock("@/lib/ai/models", async (importOriginal) => {
 	return { ...original, availableModels: () => mockModels };
 });
 
+let localReady = false;
+let localAnswer: import("@/lib/local-ai/merge").LocalAnswer;
+const localExtract = vi.fn();
+vi.mock("@/lib/local-ai/model-file", () => ({
+	installedLocalModel: () => (localReady ? { file: "test.gguf" } : null),
+	localModelPath: () => "test.gguf",
+}));
+vi.mock("@/lib/local-ai/extract", async () => {
+	const { mergeLocalResult } = await import("@/lib/local-ai/merge");
+	return {
+		extractWithLocalModel: async (
+			email: import("@/lib/bank-parsers/types").BankEmail,
+		) => {
+			localExtract();
+			return mergeLocalResult(email, localAnswer);
+		},
+	};
+});
+
 let ctx: Awaited<ReturnType<typeof createTestDb>>;
 let refine: typeof import("@/app/actions/bank/ai-refine");
 let sync: typeof import("@/app/actions/bank/sync");
@@ -92,6 +111,8 @@ beforeEach(() => {
 		})
 		.run();
 	mockModels = [];
+	localReady = false;
+	localExtract.mockClear();
 });
 
 // The regex pass runs as part of a sync, so these tests drive the real sync.
@@ -240,5 +261,54 @@ describe("rejecting an imported transaction", () => {
 		);
 		await refine.refineBankTransactionsWithAi();
 		expect(transactionCount()).toBe(0);
+	});
+});
+
+describe("on-device model", () => {
+	const answer = {
+		amount: 640,
+		type: "expense" as const,
+		counterparty: "K.SPORTS",
+		isTransaction: true,
+	};
+
+	it("is skipped when there is no key and no model", async () => {
+		await regexImport();
+		await expect(refine.refineBankTransactionsWithAi()).resolves.toEqual({
+			refined: 0,
+			skipped: true,
+		});
+	});
+
+	it("reads the mail when there is no key", async () => {
+		await regexImport();
+		localReady = true;
+		localAnswer = answer;
+
+		await expect(refine.refineBankTransactionsWithAi()).resolves.toEqual({
+			refined: 1,
+			skipped: false,
+		});
+		expect(localExtract).toHaveBeenCalledTimes(1);
+		expect(onlyTransaction().notes).toBe("K.SPORTS");
+	});
+
+	it("is not used when a key is added", async () => {
+		await regexImport();
+		localReady = true;
+		localAnswer = answer;
+		useModel(
+			aiReply({
+				isTransaction: true,
+				amount: 640,
+				date: "2026-09-13",
+				type: "expense",
+				counterparty: "City Sports",
+			}),
+		);
+
+		await refine.refineBankTransactionsWithAi();
+		expect(localExtract).not.toHaveBeenCalled();
+		expect(onlyTransaction().notes).toBe("City Sports");
 	});
 });

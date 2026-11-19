@@ -24,3 +24,4 @@ backups/
 
 # Next.js generated types
 next-env.d.ts
+models/

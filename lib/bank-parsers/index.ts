@@ -1,8 +1,11 @@
-import { looksLikeTransaction } from "./helpers";
+import { isNotice, looksLikeTransaction } from "./helpers";
 import { parseTransaction } from "./parse";
 import type { BankEmail, ParseOutcome } from "./types";
 
 export function parseBankEmail(email: BankEmail): ParseOutcome {
+	if (isNotice(email)) {
+		return { transaction: null, failure: "not-a-transaction" };
+	}
 	const transaction = parseTransaction(email);
 	if (transaction) return { transaction };
 

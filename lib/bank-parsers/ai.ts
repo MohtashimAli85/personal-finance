@@ -7,7 +7,7 @@ import type { BankEmail, ParsedBankTransaction } from "./types";
 
 // Every field is required and nullable so the schema also satisfies providers
 // that enforce strict JSON schemas (Groq).
-const extractionSchema = z.object({
+export const extractionSchema = z.object({
 	isTransaction: z.boolean(),
 	amount: z.number().nullable(),
 	date: z.string().nullable(),
@@ -15,7 +15,7 @@ const extractionSchema = z.object({
 	counterparty: z.string().nullable(),
 });
 
-const INSTRUCTIONS = `Extract a single completed bank transaction from a bank notification email.
+export const INSTRUCTIONS = `Extract a single completed bank transaction from a bank notification email.
 - amount: the transaction amount as a positive number in major units (PKR 1,250.50 -> 1250.5).
 - date: the transaction date as YYYY-MM-DD, or null if the email gives none.
 - type: "expense" for money leaving the account, "income" for money coming in.
@@ -36,6 +36,14 @@ export function cachedAiTransaction(
 	return (JSON.parse(raw) as AiParse).transaction;
 }
 
+export const emailPrompt = (email: BankEmail) =>
+	[
+		`From: ${email.from ?? ""}`,
+		`Subject: ${email.subject ?? ""}`,
+		"",
+		email.body.slice(0, MAX_BODY_CHARS),
+	].join("\n");
+
 export async function extractWithAi(
 	email: BankEmail,
 	model: LanguageModelV4,
@@ -43,12 +51,7 @@ export async function extractWithAi(
 	const { output } = await generateText({
 		model,
 		instructions: INSTRUCTIONS,
-		prompt: [
-			`From: ${email.from ?? ""}`,
-			`Subject: ${email.subject ?? ""}`,
-			"",
-			email.body.slice(0, MAX_BODY_CHARS),
-		].join("\n"),
+		prompt: emailPrompt(email),
 		output: Output.object({ schema: extractionSchema }),
 		reasoning: "low",
 		maxRetries: 0,
@@ -57,7 +60,7 @@ export async function extractWithAi(
 	return toTransaction(output, email);
 }
 
-function toTransaction(
+export function toTransaction(
 	extracted: z.infer<typeof extractionSchema>,
 	email: BankEmail,
 ): ParsedBankTransaction | null {

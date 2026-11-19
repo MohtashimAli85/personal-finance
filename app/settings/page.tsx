@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { localModelStatus } from "@/lib/local-ai/download";
 import { getAiKeyStatus, getProfile } from "@/lib/settings";
 import SettingsClient from "./settings-client";
 
@@ -11,5 +12,11 @@ export const metadata: Metadata = {
 export default async function SettingsPage() {
 	await connection();
 	const status = getAiKeyStatus();
-	return <SettingsClient status={status} profile={getProfile()} />;
+	return (
+		<SettingsClient
+			status={status}
+			profile={getProfile()}
+			localModel={localModelStatus()}
+		/>
+	);
 }

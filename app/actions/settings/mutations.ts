@@ -17,6 +17,12 @@ import { backupDatabase, backupDirFor } from "@/lib/db/backup";
 import { dbPath, sqlite } from "@/lib/db/client";
 import { eraseDatabase } from "@/lib/db/erase";
 import { restoreDatabase } from "@/lib/db/restore";
+import {
+	localModelStatus,
+	removeLocalModel,
+	startLocalModelDownload,
+} from "@/lib/local-ai/download";
+import { LOCAL_MODEL_IDS } from "@/lib/local-ai/models";
 import { profileSchema } from "@/lib/profile-schema";
 import { hasSecretKey } from "@/lib/secrets";
 import { serverAction } from "@/lib/server-action";
@@ -146,6 +152,21 @@ export const importBackup = serverAction(upload, (bytes) => {
 	revalidatePath("/", "layout");
 	redirect("/");
 });
+
+export const downloadLocalModel = serverAction(
+	z.enum(LOCAL_MODEL_IDS, { error: "Unknown model." }),
+	(id) => {
+		startLocalModelDownload(id);
+	},
+);
+
+export const deleteLocalModel = serverAction(z.undefined(), () => {
+	removeLocalModel();
+});
+
+export async function getLocalModelStatus() {
+	return localModelStatus();
+}
 
 export const eraseAllData = serverAction(
 	z

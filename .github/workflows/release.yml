@@ -113,6 +113,7 @@ jobs:
               find "$root" -name "app-*.7z" -exec 7z x -y -o"$root" {} \; > /dev/null
               ;;
           esac
+          find "$root" -path "*@node-llama-cpp*" -name "*.node" | grep -q . || { echo "node-llama-cpp binary missing"; exit 1; }
           server=$(find "$root" -path "*standalone/server.js" -not -path "*/node_modules/*" | head -1)
           if [ -z "$server" ]; then echo "standalone/server.js not found in $root"; exit 1; fi
           cd "$(dirname "$server")"

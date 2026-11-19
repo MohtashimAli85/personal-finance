@@ -1,8 +1,7 @@
-import type { LanguageModelV4 } from "@ai-sdk/provider";
 import { eq } from "drizzle-orm";
 import { createFallbackModel } from "@/lib/ai/fallback";
 import { availableModels } from "@/lib/ai/models";
-import type { ParsedBankTransaction } from "@/lib/bank-email-parse";
+import type { BankEmail, ParsedBankTransaction } from "@/lib/bank-email-parse";
 import {
 	hashEmailId,
 	resolveAccountId,
@@ -13,6 +12,8 @@ import { extractWithAi } from "@/lib/bank-parsers/ai";
 import { isRejectedImport } from "@/lib/bank-review";
 import { db } from "@/lib/db";
 import { type gmail_messages, transactions } from "@/lib/db/schema";
+import { extractWithLocalModel } from "@/lib/local-ai/extract";
+import { installedLocalModel, localModelPath } from "@/lib/local-ai/model-file";
 import {
 	type BankSenderConfig,
 	getEnabledBankSenderConfigs,
@@ -21,22 +22,43 @@ import {
 import { getEmailsMissingAiParse, saveAiParse } from "@/lib/mail/gmail-store";
 
 const BATCH_SIZE = 50;
-const CONCURRENCY = 4;
 
 type StoredEmail = typeof gmail_messages.$inferSelect;
 
+interface Extractor {
+	extract: (email: BankEmail) => Promise<ParsedBankTransaction | null>;
+	concurrency: number;
+}
+
+// A cloud key gives the best answers; without one, the on-device model reads
+// the mail on this computer, one email at a time.
+function chooseExtractor(): Extractor | null {
+	const models = availableModels();
+	if (models.length > 0) {
+		const model = createFallbackModel(models);
+		return { extract: (email) => extractWithAi(email, model), concurrency: 4 };
+	}
+	const local = installedLocalModel();
+	if (local) {
+		return {
+			extract: (email) => extractWithLocalModel(email, localModelPath(local)),
+			concurrency: 1,
+		};
+	}
+	return null;
+}
+
 /**
- * Asks the AI model to read bank emails the regex pass has not refined yet.
+ * Asks an AI model to read bank emails the regex pass has not refined yet.
  * Each successful answer is cached on the email, so it is never asked twice.
  */
 export async function refineBankTransactions(): Promise<{
 	refined: number;
 	skipped: boolean;
 }> {
-	const models = availableModels();
-	if (models.length === 0) return { refined: 0, skipped: true };
+	const extractor = chooseExtractor();
+	if (!extractor) return { refined: 0, skipped: true };
 
-	const model = createFallbackModel(models);
 	const configs = getEnabledBankSenderConfigs();
 	const queue = getEmailsMissingAiParse()
 		.flatMap((email) => {
@@ -46,11 +68,11 @@ export async function refineBankTransactions(): Promise<{
 		.slice(0, BATCH_SIZE);
 
 	let refined = 0;
-	for (let i = 0; i < queue.length; i += CONCURRENCY) {
+	for (let i = 0; i < queue.length; i += extractor.concurrency) {
 		const results = await Promise.all(
 			queue
-				.slice(i, i + CONCURRENCY)
-				.map(({ email, config }) => refineEmail(email, config, model)),
+				.slice(i, i + extractor.concurrency)
+				.map(({ email, config }) => refineEmail(email, config, extractor)),
 		);
 		refined += results.filter(Boolean).length;
 	}
@@ -60,11 +82,11 @@ export async function refineBankTransactions(): Promise<{
 async function refineEmail(
 	email: StoredEmail,
 	config: BankSenderConfig,
-	model: LanguageModelV4,
+	extractor: Extractor,
 ): Promise<boolean> {
 	let transaction: ParsedBankTransaction | null;
 	try {
-		transaction = await extractWithAi(toBankEmail(email), model);
+		transaction = await extractor.extract(toBankEmail(email));
 	} catch (error) {
 		// Left uncached so the next sync retries it.
 		console.error("[ai] bank email refinement failed:", error);

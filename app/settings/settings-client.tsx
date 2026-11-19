@@ -8,10 +8,12 @@ import ActualImportCard from "@/components/settings/actual-import-card";
 import BackupCard from "@/components/settings/backup-card";
 import EraseDataCard from "@/components/settings/erase-data-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import type { LocalModelStatus } from "@/lib/local-ai/download";
 import type { Profile } from "@/lib/profile-schema";
 import type { AiKeyStatus } from "@/lib/settings";
 import AddKeyCard from "./add-key-card";
 import AppearanceSetting from "./appearance-setting";
+import LocalModelCard from "./local-model-card";
 import ProfileCard from "./profile-card";
 import ProviderCard from "./provider-card";
 import { PROVIDERS } from "./providers";
@@ -19,9 +21,11 @@ import { PROVIDERS } from "./providers";
 export default function SettingsClient({
 	status,
 	profile,
+	localModel,
 }: {
 	status: AiKeyStatus;
 	profile: Profile;
+	localModel: LocalModelStatus;
 }) {
 	return (
 		<PageContainer className="max-w-2xl gap-10">
@@ -85,6 +89,7 @@ export default function SettingsClient({
 						source={status.providers[provider.id]}
 					/>
 				))}
+				<LocalModelCard initial={localModel} />
 			</PageSection>
 
 			<PageSection

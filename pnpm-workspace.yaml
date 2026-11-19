@@ -4,6 +4,7 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   msw: false
+  node-llama-cpp: true
   unrs-resolver: true
 
 overrides:
